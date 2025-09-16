@@ -1,0 +1,258 @@
+# =============================================================================
+# DOCKER COMPOSE - STACK COMPLÈTE Digit PRESSING
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # APPLICATION NEXT.JS
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+        - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    container_name: digit-pressing-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - TZ=Europe/Paris
+    depends_on:
+      - redis
+    networks:
+      - digit-pressing-network
+    volumes:
+      # Logs de l'application
+      - app-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # REDIS POUR LE CACHE ET LES SESSIONS
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: digit-pressing-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-defaultpassword}
+    environment:
+      - TZ=Europe/Paris
+    networks:
+      - digit-pressing-network
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # NGINX REVERSE PROXY
+  # =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: digit-pressing-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - digit-pressing-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # MONITORING AVEC PROMETHEUS
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: digit-pressing-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - digit-pressing-network
+    profiles:
+      - monitoring
+
+  # =============================================================================
+  # GRAFANA POUR LES DASHBOARDS
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: digit-pressing-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - digit-pressing-network
+    profiles:
+      - monitoring
+
+  # =============================================================================
+  # BACKUP AUTOMATIQUE
+  # =============================================================================
+  backup:
+    image: alpine:latest
+    container_name: digit-pressing-backup
+    restart: "no"
+    environment:
+      - TZ=Europe/Paris
+      - BACKUP_FREQUENCY=${BACKUP_FREQUENCY:-daily}
+    volumes:
+      - backup-data:/backup
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: |
+      sh -c "
+        apk add --no-cache postgresql-client curl
+        echo '0 2 * * * /backup.sh' | crontab -
+        crond -f
+      "
+    networks:
+      - zua-pressing-network
+    profiles:
+      - backup
+
+# =============================================================================
+# VOLUMES PERSISTANTS
+# =============================================================================
+volumes:
+  app-logs:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  backup-data:
+    driver: local
+
+# =============================================================================
+# RÉSEAU PERSONNALISÉ
+# =============================================================================
+networks:
+  zua-pressing-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =============================================================================
+# CONFIGURATION DEVELOPMENT (docker-compose.dev.yml)
+# =============================================================================
+
+---
+# Fichier docker-compose.dev.yml pour le développement
+version: '3.8'
+
+services:
+  # Application en mode développement
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: zua-pressing-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - zua-pressing-network
+    command: npm run dev
+
+  # Base de données PostgreSQL pour développement local
+  postgres-dev:
+    image: postgres:15
+    container_name: zua-pressing-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-zua_pressing_dev}
+      - TZ=Europe/Paris
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - zua-pressing-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Supabase local (optionnel)
+  supabase-dev:
+    image: supabase/supabase:latest
+    container_name: zua-pressing-supabase-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      - postgres-dev
+    networks:
+      - zua-pressing-network
+    profiles:
+      - supabase-local
+
+volumes:
+  postgres-dev-data:
+    driver: local
