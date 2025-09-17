@@ -17,9 +17,9 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAuth } from '@/store/auth';
-import { useTodayStats, useInvoiceActions } from '@/store/invoices';
+// Import de vos stores revenue
+import { useRevenue, useRevenueActions } from '@/store/revenue';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 
@@ -32,8 +32,10 @@ import { RevenueChart } from '@/components/dashboard/revenue-chart';
 const DashboardPage = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { todayStats, fetchTodayStats } = useTodayStats();
-  const { fetchInvoices } = useInvoiceActions();
+  
+  // Utiliser le store revenue
+  const { todayStats, monthStats, isLoading, error } = useRevenue();
+  const { fetchRevenueStats, updateTodayRevenue, clearError } = useRevenueActions();
 
   // Rediriger vers login si non connecté
   useEffect(() => {
@@ -46,10 +48,20 @@ const DashboardPage = () => {
   // Charger les données initiales
   useEffect(() => {
     if (user) {
-      fetchTodayStats();
-      fetchInvoices({ reset: true });
+      // Charger les stats du jour et du mois
+      fetchRevenueStats('today');
+      fetchRevenueStats('month');
+      // Mettre à jour le CA du jour
+      updateTodayRevenue();
     }
-  }, [user, fetchTodayStats, fetchInvoices]);
+  }, [user, fetchRevenueStats, updateTodayRevenue]);
+
+  // Gérer les erreurs
+  useEffect(() => {
+    if (error) {
+      setTimeout(clearError, 5000);
+    }
+  }, [error, clearError]);
 
   if (!user) {
     return (
@@ -62,38 +74,39 @@ const DashboardPage = () => {
     );
   }
 
+  // Préparer les statistiques pour les cards
   const stats = [
     {
       title: "Revenus du jour",
       value: formatCurrency(todayStats?.totalRevenue || 0),
-      description: `${todayStats?.paidInvoices || 0} facture(s) payée(s)`,
+      description: `${todayStats?.totalTransactions || 0} transaction(s)`,
       icon: Euro,
-      trend: todayStats?.totalRevenue > 0 ? 'up' : 'neutral',
+      trend: (todayStats?.totalRevenue || 0) > 0 ? 'up' : 'neutral',
       color: 'success',
     },
     {
-      title: "Factures créées",
-      value: todayStats?.totalInvoices || 0,
-      description: "Aujourd'hui",
-      icon: Package,
-      trend: todayStats?.totalInvoices > 0 ? 'up' : 'neutral',
+      title: "Revenus du mois",
+      value: formatCurrency(monthStats?.totalRevenue || 0),
+      description: `${monthStats?.totalTransactions || 0} transactions`,
+      icon: TrendingUp,
+      trend: (monthStats?.totalRevenue || 0) > 0 ? 'up' : 'neutral',
       color: 'primary',
     },
     {
-      title: "En attente",
-      value: todayStats?.pendingInvoices || 0,
-      description: "À récupérer",
-      icon: Clock,
-      trend: todayStats?.pendingInvoices > 0 ? 'down' : 'up',
-      color: 'warning',
-    },
-    {
-      title: "Ticket moyen",
-      value: formatCurrency(todayStats?.averageTicket || 0),
-      description: "Ce jour",
-      icon: TrendingUp,
+      title: "Ticket moyen (mois)",
+      value: formatCurrency(monthStats?.averageTicket || 0),
+      description: "Moyenne mensuelle",
+      icon: Package,
       trend: 'neutral',
       color: 'secondary',
+    },
+    {
+      title: "Ticket moyen (jour)",
+      value: formatCurrency(todayStats?.averageTicket || 0),
+      description: "Moyenne du jour",
+      icon: Clock,
+      trend: 'neutral',
+      color: 'warning',
     },
   ];
 
@@ -103,7 +116,7 @@ const DashboardPage = () => {
       description: "Créer une facture client",
       icon: Plus,
       href: "/invoices/new",
-      color: "primary",
+      color: "primary" as const,
       shortcut: "Ctrl+N",
     },
     {
@@ -111,7 +124,7 @@ const DashboardPage = () => {
       description: "Trouver une facture",
       icon: Search,
       href: "/invoices/search",
-      color: "secondary",
+      color: "secondary" as const,
       shortcut: "Ctrl+F",
     },
     {
@@ -119,20 +132,35 @@ const DashboardPage = () => {
       description: "Gérer les retraits",
       icon: CheckCircle,
       href: "/invoices/withdrawals",
-      color: "success",
+      color: "success" as const,
     },
     {
       title: "Revenus",
-      description: "Voir les revenus",
+      description: "Voir les revenus détaillés",
       icon: Euro,
       href: "/revenue",
-      color: "warning",
+      color: "warning" as const,
     },
   ];
 
   return (
     <DashboardLayout>
       <div className="space-y-8">
+        {/* Afficher les erreurs */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-destructive/10 border border-destructive/20 rounded-lg p-4"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-destructive font-medium">Erreur</p>
+            </div>
+            <p className="text-destructive/80 mt-1 text-sm">{error}</p>
+          </motion.div>
+        )}
+
         {/* En-tête */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -149,7 +177,10 @@ const DashboardPage = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button onClick={() => router.push('/invoices/new')}>
+            <Button 
+              onClick={() => router.push('/invoices/new')}
+              disabled={isLoading}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Nouvelle facture
             </Button>
@@ -208,31 +239,68 @@ const DashboardPage = () => {
           <RecentInvoices />
         </motion.div>
 
-        {/* Alertes et notifications */}
-        {todayStats && todayStats.pendingInvoices > 10 && (
+        {/* Alerte si pas de revenus aujourd'hui */}
+        {todayStats && todayStats.totalRevenue === 0 && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 }}
-            className="rounded-lg border border-warning bg-warning/5 p-4"
+            className="rounded-lg border border-yellow-200 bg-yellow-50 p-4"
           >
             <div className="flex items-start space-x-3">
-              <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-medium text-warning-foreground">
-                  Attention : Nombreuses factures en attente
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Aucun revenu enregistré aujourd'hui
                 </h3>
-                <p className="mt-1 text-sm text-warning-foreground/80">
-                  Vous avez {todayStats.pendingInvoices} factures en attente de retrait. 
-                  Pensez à contacter vos clients.
+                <p className="mt-1 text-sm text-yellow-700">
+                  Il n'y a pas encore de revenus pour la journée du {formatDate(new Date())}.
+                  Commencez par créer des factures !
                 </p>
                 <div className="mt-3">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => router.push('/invoices?filter=pending')}
+                    onClick={() => router.push('/invoices/new')}
+                    className="bg-white hover:bg-yellow-50 border-yellow-300 text-yellow-800"
                   >
-                    Voir les factures en attente
+                    <Plus className="mr-2 h-4 w-4" />
+                    Créer une facture
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Information sur les revenus du mois */}
+        {monthStats && monthStats.totalRevenue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="rounded-lg border border-green-200 bg-green-50 p-4"
+          >
+            <div className="flex items-start space-x-3">
+              <TrendingUp className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-medium text-green-800">
+                  Excellent travail ce mois !
+                </h3>
+                <p className="mt-1 text-sm text-green-700">
+                  Vous avez généré {formatCurrency(monthStats.totalRevenue)} de chiffre d'affaires 
+                  avec {monthStats.totalTransactions} transactions.
+                  Moyenne journalière : {formatCurrency(monthStats.dailyAverage || 0)}.
+                </p>
+                <div className="mt-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => router.push('/revenue')}
+                    className="bg-white hover:bg-green-50 border-green-300 text-green-800"
+                  >
+                    <Euro className="mr-2 h-4 w-4" />
+                    Voir les détails
                   </Button>
                 </div>
               </div>
