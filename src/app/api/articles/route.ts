@@ -41,18 +41,20 @@ const bulkActionSchema = z.object({
   data: z.record(z.any()).optional(),
 });
 
+// Remplacez la fonction verifyAuth dans votre fichier src/app/api/articles/route.ts
+
 // Helper pour vérifier l'authentification
 async function verifyAuth(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return { error: 'Token manquant', status: 401 };
+    return { error: 'Token manquant', status: 401, user: null };
   }
 
   const token = authHeader.substring(7);
   const { data: { user }, error } = await supabase.auth.getUser(token);
   
   if (error || !user) {
-    return { error: 'Token invalide', status: 401 };
+    return { error: 'Token invalide', status: 401, user: null };
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -62,12 +64,16 @@ async function verifyAuth(request: NextRequest) {
     .single();
 
   if (profileError || !profile || !profile.is_active) {
-    return { error: 'Utilisateur inactif', status: 403 };
+    return { error: 'Utilisateur inactif', status: 403, user: null };
   }
 
-  return { user: profile };
-}
+  // Vérification que l'utilisateur a un pressing_id
+  if (!profile.pressing_id) {
+    return { error: 'Pressing non configuré', status: 400, user: null };
+  }
 
+  return { user: profile, error: null, status: null };
+}
 // Helper pour vérifier les permissions
 function hasPermission(user: any, action: string): boolean {
   if (user.role === 'owner') return true;
