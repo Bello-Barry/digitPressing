@@ -1,3 +1,7 @@
+// =============================================================================
+// API ROUTE POUR LES ARTICLES - Digit PRESSING
+// =============================================================================
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
@@ -7,7 +11,7 @@ const createArticleSchema = z.object({
   name: z.string().min(1, 'Le nom de l\'article est requis').max(255),
   category: z.enum([
     'vetement', 'accessoire', 'special', 'cuir', 'retouche',
-    'chaussure', 'maison', 'traditionnel', 'delicat', 'ceremonie', 
+    'chaussure', 'maison', 'traditionnel', 'delicat', 'ceremonie',
     'enfant', 'uniforme'
   ]),
   defaultPrice: z.number().min(0, 'Le prix doit être positif'),
@@ -21,7 +25,7 @@ const updateArticleSchema = createArticleSchema.partial();
 const filtersSchema = z.object({
   category: z.enum([
     'vetement', 'accessoire', 'special', 'cuir', 'retouche',
-    'chaussure', 'maison', 'traditionnel', 'delicat', 'ceremonie', 
+    'chaussure', 'maison', 'traditionnel', 'delicat', 'ceremonie',
     'enfant', 'uniforme'
   ]).optional(),
   isActive: z.coerce.boolean().optional(),
@@ -42,17 +46,17 @@ const bulkActionSchema = z.object({
 });
 
 // Helper pour vérifier l'authentification
-async function verifyAuth(request: NextRequest): Promise<{ user: any; error: null; status: null } | { error: string; status: number; user: null }> {
+async function verifyAuth(request: NextRequest): Promise<NextResponse | { user: any }> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return { error: 'Token manquant', status: 401, user: null };
+    return NextResponse.json({ error: 'Token manquant' }, { status: 401 });
   }
 
   const token = authHeader.substring(7);
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  
+
   if (error || !user) {
-    return { error: 'Token invalide', status: 401, user: null };
+    return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -62,38 +66,36 @@ async function verifyAuth(request: NextRequest): Promise<{ user: any; error: nul
     .single();
 
   if (profileError || !profile || !profile.is_active) {
-    return { error: 'Utilisateur inactif', status: 403, user: null };
+    return NextResponse.json({ error: 'Utilisateur inactif' }, { status: 403 });
   }
 
   // Vérification que l'utilisateur a un pressing_id
   if (!profile.pressing_id) {
-    return { error: 'Pressing non configuré', status: 400, user: null };
+    return NextResponse.json({ error: 'Pressing non configuré' }, { status: 400 });
   }
 
-  return { user: profile, error: null, status: null };
+  return { user: profile };
 }
 
 // Helper pour vérifier les permissions
 function hasPermission(user: any, action: string): boolean {
   if (user?.role === 'owner') return true;
-  
+
   const permission = user?.permissions?.find((p: any) => p.action === action);
   return permission?.granted || false;
 }
 
 // GET - Récupérer les articles
 export async function GET(request: NextRequest) {
+  const authResult = await verifyAuth(request);
+
+  if ('error' in authResult) {
+    return authResult; // Retourne la réponse d'erreur de NextResponse
+  }
+
+  const user = authResult.user;
+
   try {
-    const authResult = await verifyAuth(request);
-    
-    // Vérification TypeScript stricte
-    if (authResult.error || !authResult.user) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
-
-    // À ce point, TypeScript sait que user n'est pas null
-    const user = authResult.user;
-
     const { searchParams } = new URL(request.url);
     const filters = filtersSchema.parse(Object.fromEntries(searchParams));
 
@@ -229,15 +231,15 @@ export async function GET(request: NextRequest) {
 
 // POST - Créer un nouvel article
 export async function POST(request: NextRequest) {
+  const authResult = await verifyAuth(request);
+  
+  if ('error' in authResult) {
+    return authResult;
+  }
+
+  const user = authResult.user;
+
   try {
-    const authResult = await verifyAuth(request);
-    
-    if (authResult.error || !authResult.user) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
-
-    const user = authResult.user;
-
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
       return NextResponse.json(
@@ -316,15 +318,15 @@ export async function POST(request: NextRequest) {
 
 // PUT - Mettre à jour un article
 export async function PUT(request: NextRequest) {
-  try {
-    const authResult = await verifyAuth(request);
+  const authResult = await verifyAuth(request);
     
-    if (authResult.error || !authResult.user) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
+  if ('error' in authResult) {
+    return authResult;
+  }
 
-    const user = authResult.user;
+  const user = authResult.user;
 
+  try {
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
       return NextResponse.json(
@@ -437,15 +439,15 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Supprimer un article (soft delete)
 export async function DELETE(request: NextRequest) {
-  try {
-    const authResult = await verifyAuth(request);
+  const authResult = await verifyAuth(request);
     
-    if (authResult.error || !authResult.user) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
+  if ('error' in authResult) {
+    return authResult;
+  }
 
-    const user = authResult.user;
+  const user = authResult.user;
 
+  try {
     // Seuls les propriétaires peuvent supprimer
     if (user.role !== 'owner') {
       return NextResponse.json(
@@ -537,15 +539,15 @@ export async function DELETE(request: NextRequest) {
 
 // PATCH - Actions en lot sur les articles
 export async function PATCH(request: NextRequest) {
-  try {
-    const authResult = await verifyAuth(request);
+  const authResult = await verifyAuth(request);
     
-    if (authResult.error || !authResult.user) {
-      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
-    }
+  if ('error' in authResult) {
+    return authResult;
+  }
 
-    const user = authResult.user;
+  const user = authResult.user;
 
+  try {
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
       return NextResponse.json(
@@ -560,7 +562,7 @@ export async function PATCH(request: NextRequest) {
     // Vérifier que tous les articles appartiennent au pressing
     const { data: articles, error: fetchError } = await supabase
       .from('articles')
-      .select('id, name, is_active')
+      .select('id, name, default_price, is_active')
       .eq('pressing_id', user.pressing_id)
       .eq('is_deleted', false)
       .in('id', articleIds);
@@ -614,17 +616,15 @@ export async function PATCH(request: NextRequest) {
         const priceUpdates = [];
         for (const articleId of articleIds) {
           let newPrice;
-          if (data.newPrice) {
-            newPrice = data.newPrice;
-          } else {
-            const article = articles.find(a => a.id === articleId);
-            if (article) {
-              const currentPrice = article.default_price;
-              if (data.priceMultiplier) {
+          const article = articles.find(a => a.id === articleId);
+          if (article) {
+            const currentPrice = article.default_price;
+            if (data.newPrice) {
+                newPrice = data.newPrice;
+            } else if (data.priceMultiplier) {
                 newPrice = Math.round(currentPrice * data.priceMultiplier);
-              } else if (data.priceIncrease) {
+            } else if (data.priceIncrease) {
                 newPrice = currentPrice + data.priceIncrease;
-              }
             }
           }
 
