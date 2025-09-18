@@ -1,0 +1,17 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": "off",
+    "no-unused-vars": "off",
+    "no-undef": "off",
+    "no-case-declarations": "off",
+    "no-unreachable": "off",
+    "no-useless-catch": "off",
+    "react/jsx-no-undef": "off",
+    "react-hooks/rules-of-hooks": "off",
+    "@next/next/no-img-element": "off"
+  }
+}

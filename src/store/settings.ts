@@ -149,6 +149,15 @@ export const useSettingsActions = () => {
   }));
 };
 
+// Hook pour récupérer les informations du pressing (compatibility)
+export const usePressing = () => {
+  return useSettingsStore(state => ({
+    pressing: state.settings,
+    isLoading: state.isLoading,
+    error: state.error,
+  }));
+};
+
 export const useSettingHelper = () => {
   return useSettingsStore(state => ({
     getSetting: state.getSetting,
@@ -181,6 +190,8 @@ if (typeof window !== 'undefined') {
           }
         }
       )
-      .subscribe();
+      .subscribe()
+      
+      
   }
 }
