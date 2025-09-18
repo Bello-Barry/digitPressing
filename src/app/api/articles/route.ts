@@ -41,10 +41,8 @@ const bulkActionSchema = z.object({
   data: z.record(z.any()).optional(),
 });
 
-// Remplacez la fonction verifyAuth dans votre fichier src/app/api/articles/route.ts
-
 // Helper pour vérifier l'authentification
-async function verifyAuth(request: NextRequest) {
+async function verifyAuth(request: NextRequest): Promise<{ user: any; error: null; status: null } | { error: string; status: number; user: null }> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return { error: 'Token manquant', status: 401, user: null };
@@ -74,21 +72,27 @@ async function verifyAuth(request: NextRequest) {
 
   return { user: profile, error: null, status: null };
 }
+
 // Helper pour vérifier les permissions
 function hasPermission(user: any, action: string): boolean {
-  if (user.role === 'owner') return true;
+  if (user?.role === 'owner') return true;
   
-  const permission = user.permissions?.find((p: any) => p.action === action);
+  const permission = user?.permissions?.find((p: any) => p.action === action);
   return permission?.granted || false;
 }
 
 // GET - Récupérer les articles
 export async function GET(request: NextRequest) {
   try {
-    const { user, error, status } = await verifyAuth(request);
-    if (error) {
-      return NextResponse.json({ error }, { status });
+    const authResult = await verifyAuth(request);
+    
+    // Vérification TypeScript stricte
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+
+    // À ce point, TypeScript sait que user n'est pas null
+    const user = authResult.user;
 
     const { searchParams } = new URL(request.url);
     const filters = filtersSchema.parse(Object.fromEntries(searchParams));
@@ -226,10 +230,13 @@ export async function GET(request: NextRequest) {
 // POST - Créer un nouvel article
 export async function POST(request: NextRequest) {
   try {
-    const { user, error, status } = await verifyAuth(request);
-    if (error) {
-      return NextResponse.json({ error }, { status });
+    const authResult = await verifyAuth(request);
+    
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+
+    const user = authResult.user;
 
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
@@ -310,10 +317,13 @@ export async function POST(request: NextRequest) {
 // PUT - Mettre à jour un article
 export async function PUT(request: NextRequest) {
   try {
-    const { user, error, status } = await verifyAuth(request);
-    if (error) {
-      return NextResponse.json({ error }, { status });
+    const authResult = await verifyAuth(request);
+    
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+
+    const user = authResult.user;
 
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
@@ -428,10 +438,13 @@ export async function PUT(request: NextRequest) {
 // DELETE - Supprimer un article (soft delete)
 export async function DELETE(request: NextRequest) {
   try {
-    const { user, error, status } = await verifyAuth(request);
-    if (error) {
-      return NextResponse.json({ error }, { status });
+    const authResult = await verifyAuth(request);
+    
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+
+    const user = authResult.user;
 
     // Seuls les propriétaires peuvent supprimer
     if (user.role !== 'owner') {
@@ -525,10 +538,13 @@ export async function DELETE(request: NextRequest) {
 // PATCH - Actions en lot sur les articles
 export async function PATCH(request: NextRequest) {
   try {
-    const { user, error, status } = await verifyAuth(request);
-    if (error) {
-      return NextResponse.json({ error }, { status });
+    const authResult = await verifyAuth(request);
+    
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
+
+    const user = authResult.user;
 
     // Vérifier les permissions
     if (!hasPermission(user, 'modify_prices')) {
