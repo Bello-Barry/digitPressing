@@ -5,6 +5,37 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { supabase } from '@/lib/supabase';
 
+// Types personnalisés pour NextAuth
+interface CustomUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  pressingId: string;
+  pressingName: string;
+  permissions: any[];
+  supabaseAccessToken: string;
+}
+
+// Extension des types NextAuth
+declare module 'next-auth' {
+  interface User extends CustomUser {}
+  interface Session {
+    user: User;
+    supabaseAccessToken: string;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    role: string;
+    pressingId: string;
+    pressingName: string;
+    permissions: any[];
+    supabaseAccessToken: string;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     // Authentification par email/mot de passe
@@ -14,7 +45,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Mot de passe', type: 'password' }
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<CustomUser | null> {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Email et mot de passe requis');
         }
@@ -67,8 +98,8 @@ export const authOptions: NextAuthOptions = {
             role: user.role,
             pressingId: user.pressing_id,
             pressingName: user.pressing?.name || 'Mon Pressing',
-            permissions: user.permissions,
-            supabaseAccessToken: authData.session?.access_token,
+            permissions: user.permissions || [],
+            supabaseAccessToken: authData.session?.access_token || '',
           };
         } catch (error: any) {
           console.error('Erreur d\'authentification:', error);
@@ -99,13 +130,13 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      if (token) {
+      if (token && session.user) {
         session.user.id = token.sub!;
-        session.user.role = token.role as string;
-        session.user.pressingId = token.pressingId as string;
-        session.user.pressingName = token.pressingName as string;
-        session.user.permissions = token.permissions as any[];
-        session.supabaseAccessToken = token.supabaseAccessToken as string;
+        session.user.role = token.role;
+        session.user.pressingId = token.pressingId;
+        session.user.pressingName = token.pressingName;
+        session.user.permissions = token.permissions;
+        session.supabaseAccessToken = token.supabaseAccessToken;
       }
 
       return session;
