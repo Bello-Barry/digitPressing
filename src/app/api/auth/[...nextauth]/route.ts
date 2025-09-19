@@ -155,7 +155,8 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 heures
   },
 
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET!,
 };
+
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
