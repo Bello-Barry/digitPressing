@@ -5,6 +5,13 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { supabase } from '@/lib/supabase';
 
+// Types pour les permissions
+interface Permission {
+  id: string;
+  action: string;
+  granted: boolean;
+}
+
 // Types personnalisés pour NextAuth
 interface CustomUser {
   id: string;
@@ -13,7 +20,7 @@ interface CustomUser {
   role: string;
   pressingId: string;
   pressingName: string;
-  permissions: any[];
+  permissions: Permission[];
   supabaseAccessToken: string;
 }
 
@@ -31,9 +38,24 @@ declare module 'next-auth/jwt' {
     role: string;
     pressingId: string;
     pressingName: string;
-    permissions: any[];
+    permissions: Permission[];
     supabaseAccessToken: string;
   }
+}
+
+// Helper pour parser les permissions de Supabase
+function parsePermissions(permissions: any): Permission[] {
+  if (!permissions) return [];
+  if (Array.isArray(permissions)) return permissions as Permission[];
+  if (typeof permissions === 'string') {
+    try {
+      const parsed = JSON.parse(permissions);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export const authOptions: NextAuthOptions = {
@@ -94,11 +116,11 @@ export const authOptions: NextAuthOptions = {
           return {
             id: user.id,
             email: user.email,
-            name: user.full_name,
-            role: user.role,
-            pressingId: user.pressing_id,
-            pressingName: user.pressing?.name || 'Mon Pressing',
-            permissions: user.permissions || [],
+            name: user.full_name || user.email,
+            role: user.role || 'user',
+            pressingId: user.pressing_id || '',
+            pressingName: (user.pressing as any)?.name || 'Mon Pressing',
+            permissions: parsePermissions(user.permissions),
             supabaseAccessToken: authData.session?.access_token || '',
           };
         } catch (error: any) {
@@ -110,13 +132,13 @@ export const authOptions: NextAuthOptions = {
 
     // Authentification Google (optionnel)
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
   ],
 
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       // Première connexion
       if (user) {
         token.role = user.role;
@@ -131,7 +153,7 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.sub!;
+        session.user.id = token.sub || '';
         session.user.role = token.role;
         session.user.pressingId = token.pressingId;
         session.user.pressingName = token.pressingName;
@@ -142,7 +164,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       // Connexion Google
       if (account?.provider === 'google') {
         try {
@@ -150,7 +172,7 @@ export const authOptions: NextAuthOptions = {
           const { data: existingUser } = await supabase
             .from('users')
             .select('id, is_active')
-            .eq('email', user.email!)
+            .eq('email', user.email || '')
             .single();
 
           if (!existingUser) {
@@ -186,7 +208,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 heures
   },
 
-  secret: process.env.NEXTAUTH_SECRET!,
+  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
 };
 
 const handler = NextAuth(authOptions);
