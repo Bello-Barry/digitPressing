@@ -89,7 +89,7 @@ function hasPermission(user: any, action: string): boolean {
 export async function GET(request: NextRequest) {
   const authResult = await verifyAuth(request);
 
-  if ('error' in authResult) {
+  if (authResult instanceof NextResponse) {
     return authResult; // Retourne la réponse d'erreur de NextResponse
   }
 
@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authResult = await verifyAuth(request);
   
-  if ('error' in authResult) {
+  if (authResult instanceof NextResponse) {
     return authResult;
   }
 
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const authResult = await verifyAuth(request);
     
-  if ('error' in authResult) {
+  if (authResult instanceof NextResponse) {
     return authResult;
   }
 
@@ -441,7 +441,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const authResult = await verifyAuth(request);
     
-  if ('error' in authResult) {
+  if (authResult instanceof NextResponse) {
     return authResult;
   }
 
@@ -541,7 +541,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const authResult = await verifyAuth(request);
     
-  if ('error' in authResult) {
+  if (authResult instanceof NextResponse) {
     return authResult;
   }
 
