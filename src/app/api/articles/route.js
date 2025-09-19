@@ -311,7 +311,7 @@ function POST(request) {
                             name: articleData.name,
                             category: articleData.category,
                             default_price: articleData.defaultPrice,
-                            description: articleData.description,
+                            description: articleData.description || null,
                             estimated_days: articleData.estimatedDays,
                             is_active: articleData.isActive,
                         })
@@ -413,7 +413,7 @@ function PUT(request) {
                     if (updateData.defaultPrice !== undefined)
                         dbUpdateData.default_price = updateData.defaultPrice;
                     if (updateData.description !== undefined)
-                        dbUpdateData.description = updateData.description;
+                        dbUpdateData.description = updateData.description || null;
                     if (updateData.estimatedDays)
                         dbUpdateData.estimated_days = updateData.estimatedDays;
                     if (updateData.isActive !== undefined)
