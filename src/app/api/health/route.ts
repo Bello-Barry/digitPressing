@@ -21,7 +21,6 @@ interface SystemHealth {
 
 // GET - Vérification de santé du système
 export async function GET() {
-  const startTime = Date.now();
   const checks: HealthCheck[] = [];
   
   // Informations système de base

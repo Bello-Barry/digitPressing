@@ -17,6 +17,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "fix-ts": "node scripts/fix-ts-errors.js",
+    "fix-ts-dry": "node scripts/fix-ts-errors.js --dry-run",
+  
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
