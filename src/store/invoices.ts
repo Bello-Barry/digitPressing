@@ -84,14 +84,14 @@ const initialSort: InvoiceSort = {
   direction: 'desc',
 };
 
-const initialPagination = {
+const _initialPagination = {
   page: 1,
   limit: 50,
   total: 0,
   totalPages: 0,
 };
 
-export const useInvoicesStore = create<InvoicesState>()(
+export const _useInvoicesStore = create<InvoicesState>()(
   subscribeWithSelector((set, get) => ({
     // État initial
     invoices: [],
@@ -109,7 +109,7 @@ export const useInvoicesStore = create<InvoicesState>()(
       try {
         const { reset = false } = options;
         const { filters, sort, pagination } = get();
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
 
         if (!user) {
           throw new Error('Utilisateur non connecté');
@@ -174,7 +174,7 @@ export const useInvoicesStore = create<InvoicesState>()(
         query = query.order(sort.field, { ascending: sort.direction === 'asc' });
 
         // Application de la pagination
-        const paginatedQuery = paginateQuery(query, pagination.page, pagination.limit);
+        const _paginatedQuery = paginateQuery(query, pagination.page, pagination.limit);
 
         const { data, error, count } = await paginatedQuery;
 
@@ -182,44 +182,44 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices: Invoice[] = data?.map(row => ({
+        const _invoices: Invoice[] = data?.map(row => ({
           id: row.id,
           number: row.number,
           pressingId: row.pressing_id,
           clientName: row.client_name,
-          clientPhone: row.client_phone || undefined,
-          clientEmail: row.client_email || undefined,
-          clientAddress: row.client_address || undefined,
+          clientPhone: row.client_phone  || null,
+          clientEmail: row.client_email  || null,
+          clientAddress: row.client_address  || null,
           items: row.items as InvoiceItem[],
           subtotal: row.subtotal,
-          discount: row.discount || undefined,
+          discount: row.discount  || null,
           discountType: row.discount_type as 'amount' | 'percentage' | undefined,
-          tax: row.tax || undefined,
+          tax: row.tax  || null,
           total: row.total,
           status: row.status as 'active' | 'cancelled',
           paid: row.paid,
           withdrawn: row.withdrawn,
-          paymentMethod: row.payment_method as any || undefined,
+          paymentMethod: row.payment_method as any  || null,
           depositDate: row.deposit_date,
-          paymentDate: row.payment_date || undefined,
-          withdrawalDate: row.withdrawal_date || undefined,
-          estimatedReadyDate: row.estimated_ready_date || undefined,
+          paymentDate: row.payment_date  || null,
+          withdrawalDate: row.withdrawal_date  || null,
+          estimatedReadyDate: row.estimated_ready_date  || null,
           createdBy: row.created_by,
           createdByName: row.created_by_name,
-          modifiedBy: row.modified_by || undefined,
-          modifiedByName: row.modified_by_name || undefined,
-          modifiedAt: row.modified_at || undefined,
-          cancellationReason: row.cancellation_reason || undefined,
-          cancelledBy: row.cancelled_by || undefined,
-          cancelledAt: row.cancelled_at || undefined,
-          notes: row.notes || undefined,
+          modifiedBy: row.modified_by  || null,
+          modifiedByName: row.modified_by_name  || null,
+          modifiedAt: row.modified_at  || null,
+          cancellationReason: row.cancellation_reason  || null,
+          cancelledBy: row.cancelled_by  || null,
+          cancelledAt: row.cancelled_at  || null,
+          notes: row.notes  || null,
           urgency: row.urgency as 'normal' | 'express' | 'urgent',
-          tags: row.tags || undefined,
+          tags: row.tags  || null,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         })) || [];
 
-        const totalPages = Math.ceil((count || 0) / pagination.limit);
+        const _totalPages = Math.ceil((count || 0) / pagination.limit);
 
         set({
           invoices,
@@ -243,7 +243,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     searchInvoices: async (searchTerm: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -260,7 +260,7 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices = data?.invoices || [];
+        const _invoices = data?.invoices || [];
         set({
           invoices,
           pagination: {
@@ -282,13 +282,13 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     createInvoice: async (invoiceData) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
 
         // Générer le numéro de facture si non fourni
-        const invoiceNumber = invoiceData.number || await get().generateInvoiceNumber();
+        const _invoiceNumber = invoiceData.number || await get().generateInvoiceNumber();
 
         const { data, error } = await supabase
           .from('invoices')
@@ -324,39 +324,39 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const newInvoice: Invoice = {
+        const _newInvoice: Invoice = {
           id: data.id,
           number: data.number,
           pressingId: data.pressing_id,
           clientName: data.client_name,
-          clientPhone: data.client_phone || undefined,
-          clientEmail: data.client_email || undefined,
-          clientAddress: data.client_address || undefined,
+          clientPhone: data.client_phone  || null,
+          clientEmail: data.client_email  || null,
+          clientAddress: data.client_address  || null,
           items: data.items as InvoiceItem[],
           subtotal: data.subtotal,
-          discount: data.discount || undefined,
-          discountType: data.discount_type as any || undefined,
-          tax: data.tax || undefined,
+          discount: data.discount  || null,
+          discountType: data.discount_type as any  || null,
+          tax: data.tax  || null,
           total: data.total,
           status: data.status as 'active' | 'cancelled',
           paid: data.paid,
           withdrawn: data.withdrawn,
-          paymentMethod: data.payment_method as any || undefined,
+          paymentMethod: data.payment_method as any  || null,
           depositDate: data.deposit_date,
-          paymentDate: data.payment_date || undefined,
-          withdrawalDate: data.withdrawal_date || undefined,
-          estimatedReadyDate: data.estimated_ready_date || undefined,
+          paymentDate: data.payment_date  || null,
+          withdrawalDate: data.withdrawal_date  || null,
+          estimatedReadyDate: data.estimated_ready_date  || null,
           createdBy: data.created_by,
           createdByName: data.created_by_name,
-          modifiedBy: data.modified_by || undefined,
-          modifiedByName: data.modified_by_name || undefined,
-          modifiedAt: data.modified_at || undefined,
-          cancellationReason: data.cancellation_reason || undefined,
-          cancelledBy: data.cancelled_by || undefined,
-          cancelledAt: data.cancelled_at || undefined,
-          notes: data.notes || undefined,
+          modifiedBy: data.modified_by  || null,
+          modifiedByName: data.modified_by_name  || null,
+          modifiedAt: data.modified_at  || null,
+          cancellationReason: data.cancellation_reason  || null,
+          cancelledBy: data.cancelled_by  || null,
+          cancelledAt: data.cancelled_at  || null,
+          notes: data.notes  || null,
           urgency: data.urgency as any,
-          tags: data.tags || undefined,
+          tags: data.tags  || null,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
         };
@@ -385,7 +385,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     updateInvoice: async (id: string, updates: Partial<Invoice>) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -440,7 +440,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     cancelInvoice: async (id: string, reason: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -492,7 +492,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     markAsPaid: async (id: string, paymentMethod: string, paymentDate?: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -542,7 +542,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     markAsWithdrawn: async (id: string, withdrawalDate?: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -591,14 +591,14 @@ export const useInvoicesStore = create<InvoicesState>()(
     duplicateInvoice: async (id: string) => {
       try {
         const { invoices } = get();
-        const originalInvoice = invoices.find(inv => inv.id === id);
+        const _originalInvoice = invoices.find(inv => inv.id === id);
         
         if (!originalInvoice) {
           throw new Error('Facture non trouvée');
         }
 
         // Créer une nouvelle facture basée sur l'originale
-        const duplicatedInvoiceData = {
+        const _duplicatedInvoiceData = {
           ...originalInvoice,
           number: '', // Sera généré automatiquement
           depositDate: new Date().toISOString().split('T')[0],
@@ -624,7 +624,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     generateInvoiceNumber: async () => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         const { data, error } = await supabase
@@ -641,11 +641,11 @@ export const useInvoicesStore = create<InvoicesState>()(
       } catch (error: any) {
         console.error('Erreur lors de la génération du numéro:', error);
         // Fallback: générer un numéro basé sur la date
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const time = String(Date.now()).slice(-4);
+        const _now = new Date();
+        const _year = now.getFullYear();
+        const _month = String(now.getMonth() + 1).padStart(2, '0');
+        const _day = String(now.getDate()).padStart(2, '0');
+        const _time = String(Date.now()).slice(-4);
         return `${year}${month}${day}-${time}`;
       }
     },
@@ -696,10 +696,10 @@ export const useInvoicesStore = create<InvoicesState>()(
 
     fetchTodayStats: async () => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
-        const today = new Date().toISOString().split('T')[0];
+        const _today = new Date().toISOString().split('T')[0];
 
         const { data, error } = await supabase
           .from('invoices')
@@ -712,12 +712,12 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices = data || [];
-        const totalInvoices = invoices.length;
-        const paidInvoices = invoices.filter(inv => inv.paid).length;
-        const pendingInvoices = totalInvoices - paidInvoices;
-        const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.paid ? inv.total : 0), 0);
-        const averageTicket = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
+        const _invoices = data || [];
+        const _totalInvoices = invoices.length;
+        const _paidInvoices = invoices.filter(inv => inv.paid).length;
+        const _pendingInvoices = totalInvoices - paidInvoices;
+        const _totalRevenue = invoices.reduce((sum, inv) => sum + (inv.paid ? inv.total : 0), 0);
+        const _averageTicket = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
 
         set({
           todayStats: {
@@ -771,7 +771,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 );
 
 // Sélecteurs optimisés
-export const useInvoices = () => {
+export const _useInvoices = () => {
   return useInvoicesStore(state => ({
     invoices: state.invoices,
     isLoading: state.isLoading,
@@ -781,7 +781,7 @@ export const useInvoices = () => {
   }));
 };
 
-export const useInvoiceActions = () => {
+export const _useInvoiceActions = () => {
   return useInvoicesStore(state => ({
     fetchInvoices: state.fetchInvoices,
     searchInvoices: state.searchInvoices,
@@ -796,7 +796,7 @@ export const useInvoiceActions = () => {
   }));
 };
 
-export const useInvoiceFilters = () => {
+export const _useInvoiceFilters = () => {
   return useInvoicesStore(state => ({
     filters: state.filters,
     sort: state.sort,
@@ -806,14 +806,14 @@ export const useInvoiceFilters = () => {
   }));
 };
 
-export const useCurrentInvoice = () => {
+export const _useCurrentInvoice = () => {
   return useInvoicesStore(state => ({
     currentInvoice: state.currentInvoice,
     setCurrentInvoice: state.setCurrentInvoice,
   }));
 };
 
-export const useTodayStats = () => {
+export const _useTodayStats = () => {
   return useInvoicesStore(state => ({
     todayStats: state.todayStats,
     fetchTodayStats: state.fetchTodayStats,
@@ -823,8 +823,8 @@ export const useTodayStats = () => {
 // Auto-refresh des stats toutes les 5 minutes
 if (typeof window !== 'undefined') {
   setInterval(() => {
-    const store = useInvoicesStore.getState();
-    const user = useAuthStore.getState().user;
+    const _store = useInvoicesStore.getState();
+    const _user = useAuthStore.getState().user;
     
     if (user && !store.isLoading) {
       store.fetchTodayStats();
@@ -834,7 +834,7 @@ if (typeof window !== 'undefined') {
 
 // Écouter les changements en temps réel
 if (typeof window !== 'undefined') {
-  const user = useAuthStore.getState().user;
+  const _user = useAuthStore.getState().user;
   
   if (user) {
     supabase
@@ -848,12 +848,12 @@ if (typeof window !== 'undefined') {
           filter: `pressing_id=eq.${user.pressingId}`,
         },
         (payload) => {
-          const store = useInvoicesStore.getState();
+          const _store = useInvoicesStore.getState();
           
           switch (payload.eventType) {
             case 'INSERT':
               // Ajouter la nouvelle facture si elle n'existe pas déjà
-              const newInvoice = payload.new as any;
+              const _newInvoice = payload.new as any;
               if (!store.invoices.find(inv => inv.id === newInvoice.id)) {
                 useInvoicesStore.setState(state => ({
                   invoices: [newInvoice, ...state.invoices],
@@ -867,7 +867,7 @@ if (typeof window !== 'undefined') {
               
             case 'UPDATE':
               // Mettre à jour la facture existante
-              const updatedInvoice = payload.new as any;
+              const _updatedInvoice = payload.new as any;
               useInvoicesStore.setState(state => ({
                 invoices: state.invoices.map(inv =>
                   inv.id === updatedInvoice.id ? updatedInvoice : inv
@@ -880,7 +880,7 @@ if (typeof window !== 'undefined') {
               
             case 'DELETE':
               // Retirer la facture supprimée
-              const deletedInvoice = payload.old as any;
+              const _deletedInvoice = payload.old as any;
               useInvoicesStore.setState(state => ({
                 invoices: state.invoices.filter(inv => inv.id !== deletedInvoice.id),
                 pagination: {

@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency, capitalizeWords } from '@/lib/utils';
 
-const CATEGORY_CONFIG = {
+const _CATEGORY_CONFIG = {
   vetement: { label: 'Vêtements', color: 'bg-blue-100 text-blue-800', icon: '👔', description: 'Chemises, pantalons, robes, costumes, manteaux...' },
   chaussure: { label: 'Chaussures', color: 'bg-brown-100 text-brown-800', icon: '👞', description: 'Baskets, bottes, chaussures de ville...' },
   accessoire: { label: 'Accessoires', color: 'bg-purple-100 text-purple-800', icon: '👜', description: 'Cravates, foulards, sacs, chapeaux...' },
@@ -55,7 +55,7 @@ interface ArticleFormData {
   isActive: boolean;
 }
 
-const COMMON_ARTICLES_BY_CATEGORY = {
+const _COMMON_ARTICLES_BY_CATEGORY = {
   vetement: [
     { name: 'Chemise homme', price: 5000 },
     { name: 'Chemise femme', price: 5000 },
@@ -147,9 +147,9 @@ const COMMON_ARTICLES_BY_CATEGORY = {
 
 
 export default function NewArticlePage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { user } = useAuth();
-  const permissions = useUserPermissions();
+  const _permissions = useUserPermissions();
   
   // Actions du store
   const { createArticle } = useArticleActions();
@@ -170,7 +170,7 @@ export default function NewArticlePage() {
   const [showSuggestions, setShowSuggestions] = useState(true);
 
   // Vérification des permissions
-  const canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
+  const _canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
 
   useEffect(() => {
     if (user && !canModifyPrices) {
@@ -179,15 +179,15 @@ export default function NewArticlePage() {
   }, [user, canModifyPrices, router]);
 
   // Suggestions d'articles pour la catégorie sélectionnée
-  const suggestions = COMMON_ARTICLES_BY_CATEGORY[formData.category] || [];
+  const _suggestions = COMMON_ARTICLES_BY_CATEGORY[formData.category] || [];
 
   // Mise à jour des champs du formulaire
-  const updateFormData = (updates: Partial<ArticleFormData>) => {
+  const _updateFormData = (updates: Partial<ArticleFormData>) => {
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
   // Utiliser une suggestion
-  const useSuggestion = (suggestion: { name: string; price: number }) => {
+  const _useSuggestion = (suggestion: { name: string; price: number }) => {
     updateFormData({
       name: suggestion.name,
       defaultPrice: suggestion.price
@@ -196,7 +196,7 @@ export default function NewArticlePage() {
   };
 
   // Soumission du formulaire
-  const handleSubmit = async (e: React.FormEvent) => {
+  const _handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user || !canModifyPrices) return;
@@ -225,7 +225,7 @@ export default function NewArticlePage() {
         name: capitalizeWords(formData.name.trim()),
         category: formData.category,
         defaultPrice: formData.defaultPrice,
-        description: formData.description.trim() || undefined,
+        description: formData.description.trim()  || null,
         estimatedDays: formData.estimatedDays,
         isActive: formData.isActive,
         pressingId: user.pressingId,
@@ -242,7 +242,7 @@ export default function NewArticlePage() {
   };
 
   // Réinitialiser le formulaire
-  const resetForm = () => {
+  const _resetForm = () => {
     setFormData({
       name: '',
       category: 'vetement',
@@ -273,7 +273,7 @@ export default function NewArticlePage() {
     );
   }
 
-  const selectedCategoryConfig = CATEGORY_CONFIG[formData.category];
+  const _selectedCategoryConfig = CATEGORY_CONFIG[formData.category];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

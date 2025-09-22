@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-const resetPasswordSchema = z.object({
+const _resetPasswordSchema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
   confirmPassword: z.string().min(6, 'Confirmez votre mot de passe'),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -28,8 +28,8 @@ const resetPasswordSchema = z.object({
 type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const _router = useRouter();
+  const _searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -47,8 +47,8 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     // Récupérer les tokens depuis l'URL
-    const access_token = searchParams.get('access_token');
-    const refresh_token = searchParams.get('refresh_token');
+    const _access_token = searchParams.get('access_token');
+    const _refresh_token = searchParams.get('refresh_token');
     
     if (access_token && refresh_token) {
       setAccessToken(access_token);
@@ -59,7 +59,7 @@ export default function ResetPasswordPage() {
     }
   }, [searchParams, router]);
 
-  const onSubmit = async (data: ResetPasswordData) => {
+  const _onSubmit = async (data: ResetPasswordData) => {
     try {
       setIsLoading(true);
 

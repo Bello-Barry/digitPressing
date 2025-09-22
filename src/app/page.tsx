@@ -16,9 +16,9 @@ import {
   CheckCircle
 } from 'lucide-react';
 
-const HomePage = () => {
+const _HomePage = () => {
   const { user, isLoading } = useAuth();
-  const router = useRouter();
+  const _router = useRouter();
 
   useEffect(() => {
     // Rediriger vers le dashboard si l'utilisateur est connecté
@@ -39,7 +39,7 @@ const HomePage = () => {
     );
   }
 
-  const features = [
+  const _features = [
     {
       icon: Shirt,
       title: "Gestion des factures",
@@ -72,7 +72,7 @@ const HomePage = () => {
     },
   ];
 
-  const benefits = [
+  const _benefits = [
     "Fini les cahiers de factures perdus ou abîmés",
     "Calcul automatique des revenus sans erreur",
     "Recherche instantanée de n'importe quelle facture",

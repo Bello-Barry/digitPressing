@@ -71,14 +71,14 @@ const initialSort: ArticleSort = {
   direction: 'asc',
 };
 
-const initialPagination = {
+const _initialPagination = {
   page: 1,
   limit: 50,
   total: 0,
   totalPages: 0,
 };
 
-export const useArticlesStore = create<ArticlesState>()(
+export const _useArticlesStore = create<ArticlesState>()(
   subscribeWithSelector((set, get) => ({
     // État initial
     articles: [],
@@ -96,7 +96,7 @@ export const useArticlesStore = create<ArticlesState>()(
       try {
         const { reset = false } = options;
         const { filters, sort, pagination } = get();
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
 
         if (!user) {
           throw new Error('Utilisateur non connecté');
@@ -138,8 +138,8 @@ export const useArticlesStore = create<ArticlesState>()(
         query = query.order(sort.field, { ascending: sort.direction === 'asc' });
 
         // Application de la pagination
-        const from = (pagination.page - 1) * pagination.limit;
-        const to = from + pagination.limit - 1;
+        const _from = (pagination.page - 1) * pagination.limit;
+        const _to = from + pagination.limit - 1;
         query = query.range(from, to);
 
         const { data, error, count } = await query;
@@ -155,16 +155,16 @@ export const useArticlesStore = create<ArticlesState>()(
           category: row.category,
           defaultPrice: row.default_price,
           isActive: row.is_active,
-          description: row.description || undefined,
+          description: row.description  || null,
           estimatedDays: row.estimated_days,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         })) || [];
 
-        const totalPages = Math.ceil((count || 0) / pagination.limit);
+        const _totalPages = Math.ceil((count || 0) / pagination.limit);
 
         // Grouper par catégorie
-        const articlesByCategory = articles.reduce((acc, article) => {
+        const _articlesByCategory = articles.reduce((acc, article) => {
           const category = article.category;
           if (!acc[category]) {
             acc[category] = [];
@@ -205,7 +205,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     createArticle: async (articleData) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -228,14 +228,14 @@ export const useArticlesStore = create<ArticlesState>()(
           throw error;
         }
 
-        const newArticle: Article = {
+        const _newArticle: Article = {
           id: data.id,
           pressingId: data.pressing_id,
           name: data.name,
           category: data.category,
           defaultPrice: data.default_price,
           isActive: data.is_active,
-          description: data.description || undefined,
+          description: data.description  || null,
           estimatedDays: data.estimated_days,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -272,7 +272,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     updateArticle: async (id: string, updates: Partial<Article>) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -301,14 +301,14 @@ export const useArticlesStore = create<ArticlesState>()(
 
         // Mettre à jour la liste des articles
         set(state => {
-          const updatedArticles = state.articles.map(article =>
+          const _updatedArticles = state.articles.map(article =>
             article.id === id
               ? { ...article, ...updates, updatedAt: new Date().toISOString() }
               : article
           );
 
           // Recalculer les articles par catégorie
-          const articlesByCategory = updatedArticles.reduce((acc, article) => {
+          const _articlesByCategory = updatedArticles.reduce((acc, article) => {
             const category = article.category;
             if (!acc[category]) {
               acc[category] = [];
@@ -339,7 +339,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     deleteArticle: async (id: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -360,10 +360,10 @@ export const useArticlesStore = create<ArticlesState>()(
 
         // Retirer de la liste des articles
         set(state => {
-          const filteredArticles = state.articles.filter(article => article.id !== id);
+          const _filteredArticles = state.articles.filter(article => article.id !== id);
           
           // Recalculer les articles par catégorie
-          const articlesByCategory = filteredArticles.reduce((acc, article) => {
+          const _articlesByCategory = filteredArticles.reduce((acc, article) => {
             const category = article.category;
             if (!acc[category]) {
               acc[category] = [];
@@ -398,7 +398,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     restoreArticle: async (id: string) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         const { error } = await supabase
@@ -426,14 +426,14 @@ export const useArticlesStore = create<ArticlesState>()(
     duplicateArticle: async (id: string, newName: string) => {
       try {
         const { articles } = get();
-        const originalArticle = articles.find(article => article.id === id);
+        const _originalArticle = articles.find(article => article.id === id);
         
         if (!originalArticle) {
           throw new Error('Article non trouvé');
         }
 
         // Créer un nouvel article basé sur l'original
-        const duplicatedArticleData = {
+        const _duplicatedArticleData = {
           ...originalArticle,
           name: newName,
         };
@@ -448,7 +448,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     bulkUpdatePrices: async (articleIds: string[], priceUpdate: { amount: number; type: 'amount' | 'percentage' }) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -463,7 +463,7 @@ export const useArticlesStore = create<ArticlesState>()(
         if (fetchError) throw fetchError;
 
         // Calculer les nouveaux prix
-        const updates = articles?.map(article => {
+        const _updates = articles?.map(article => {
           let newPrice: number;
           
           if (priceUpdate.type === 'percentage') {
@@ -504,7 +504,7 @@ export const useArticlesStore = create<ArticlesState>()(
 
     bulkToggleStatus: async (articleIds: string[], isActive: boolean) => {
       try {
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         set({ isLoading: true, error: null });
@@ -620,7 +620,7 @@ export const useArticlesStore = create<ArticlesState>()(
 );
 
 // Sélecteurs optimisés
-export const useArticles = () => {
+export const _useArticles = () => {
   return useArticlesStore(state => ({
     articles: state.articles,
     articlesByCategory: state.articlesByCategory,
@@ -631,7 +631,7 @@ export const useArticles = () => {
   }));
 };
 
-export const useArticleActions = () => {
+export const _useArticleActions = () => {
   return useArticlesStore(state => ({
     fetchArticles: state.fetchArticles,
     searchArticles: state.searchArticles,
@@ -646,7 +646,7 @@ export const useArticleActions = () => {
   }));
 };
 
-export const useArticleFilters = () => {
+export const _useArticleFilters = () => {
   return useArticlesStore(state => ({
     filters: state.filters,
     sort: state.sort,
@@ -656,14 +656,14 @@ export const useArticleFilters = () => {
   }));
 };
 
-export const useCurrentArticle = () => {
+export const _useCurrentArticle = () => {
   return useArticlesStore(state => ({
     currentArticle: state.currentArticle,
     setCurrentArticle: state.setCurrentArticle,
   }));
 };
 
-export const useArticleHelpers = () => {
+export const _useArticleHelpers = () => {
   return useArticlesStore(state => ({
     getArticlesByCategory: state.getArticlesByCategory,
     getActiveArticles: state.getActiveArticles,
@@ -673,7 +673,7 @@ export const useArticleHelpers = () => {
 
 // Écouter les changements en temps réel
 if (typeof window !== 'undefined') {
-  const user = useAuthStore.getState().user;
+  const _user = useAuthStore.getState().user;
 
   if (user) {
     supabase
@@ -687,11 +687,11 @@ if (typeof window !== 'undefined') {
           filter: `pressing_id=eq.${user.pressingId}`,
         },
         (payload) => {
-          const store = useArticlesStore.getState();
+          const _store = useArticlesStore.getState();
 
           switch (payload.eventType) {
             case 'INSERT':
-              const newArticle = payload.new as any;
+              const _newArticle = payload.new as any;
               if (!newArticle.is_deleted && !store.articles.find(a => a.id === newArticle.id)) {
                 useArticlesStore.setState(state => ({
                   articles: [newArticle, ...state.articles],
@@ -704,7 +704,7 @@ if (typeof window !== 'undefined') {
               break;
 
             case 'UPDATE':
-              const updatedArticle = payload.new as any;
+              const _updatedArticle = payload.new as any;
               useArticlesStore.setState(state => ({
                 articles: state.articles.map(a =>
                   a.id === updatedArticle.id ? updatedArticle : a
@@ -716,7 +716,7 @@ if (typeof window !== 'undefined') {
               break;
 
             case 'DELETE':
-              const deletedArticle = payload.old as any;
+              const _deletedArticle = payload.old as any;
               useArticlesStore.setState(state => ({
                 articles: state.articles.filter(a => a.id !== deletedArticle.id),
                 pagination: {

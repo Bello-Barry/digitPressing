@@ -36,18 +36,18 @@ interface RevenueChartProps {
 }
 
 // Données de démonstration
-const generateMockData = (days: number): RevenueData[] => {
+const _generateMockData = (days: number): RevenueData[] => {
   const data: RevenueData[] = [];
-  const today = new Date();
+  const _today = new Date();
   
   for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
+    const _date = new Date(today);
     date.setDate(today.getDate() - i);
     
     // Générer des données aléatoires mais réalistes
-    const baseRevenue = 2000 + Math.random() * 3000;
-    const weekend = date.getDay() === 0 || date.getDay() === 6;
-    const revenue = weekend ? baseRevenue * 0.7 : baseRevenue;
+    const _baseRevenue = 2000 + Math.random() * 3000;
+    const _weekend = date.getDay() === 0 || date.getDay() === 6;
+    const _revenue = weekend ? baseRevenue * 0.7 : baseRevenue;
     
     data.push({
       date: date.toLocaleDateString('fr-FR', { 
@@ -62,7 +62,7 @@ const generateMockData = (days: number): RevenueData[] => {
   return data;
 };
 
-const periodOptions = {
+const _periodOptions = {
   '7d': { label: '7 jours', days: 7 },
   '30d': { label: '30 jours', days: 30 },
   '90d': { label: '90 jours', days: 90 },
@@ -77,9 +77,9 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
   const [chartType, setChartType] = useState<'line' | 'bar'>('line');
   const [selectedPeriod, setSelectedPeriod] = useState(period);
   
-  const chartData = data || generateMockData(periodOptions[selectedPeriod].days);
+  const _chartData = data || generateMockData(periodOptions[selectedPeriod].days);
 
-  const handlePeriodChange = (newPeriod: '7d' | '30d' | '90d') => {
+  const _handlePeriodChange = (newPeriod: '7d' | '30d' | '90d') => {
     setSelectedPeriod(newPeriod);
     if (onPeriodChange) {
       onPeriodChange(newPeriod);
@@ -87,9 +87,9 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
   };
 
   // Calculer les statistiques
-  const totalRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
-  const totalTransactions = chartData.reduce((sum, item) => sum + item.transactions, 0);
-  const averageRevenue = totalRevenue / chartData.length;
+  const _totalRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
+  const _totalTransactions = chartData.reduce((sum, item) => sum + item.transactions, 0);
+  const _averageRevenue = totalRevenue / chartData.length;
 
   if (isLoading) {
     return (

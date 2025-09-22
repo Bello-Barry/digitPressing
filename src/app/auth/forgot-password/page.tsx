@@ -13,14 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 
-const forgotPasswordSchema = z.object({
+const _forgotPasswordSchema = z.object({
   email: z.string().min(1, 'L\'email est requis').email('Format d\'email invalide'),
 });
 
 type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
     resolver: zodResolver(forgotPasswordSchema),
   });
 
-  const onSubmit = async (data: ForgotPasswordData) => {
+  const _onSubmit = async (data: ForgotPasswordData) => {
     try {
       setIsLoading(true);
 

@@ -23,7 +23,7 @@ interface SettingsState extends LoadingState {
   reset: () => void;
 }
 
-export const useSettingsStore = create<SettingsState>()(
+export const _useSettingsStore = create<SettingsState>()(
   subscribeWithSelector((set, get) => ({
     // État initial
     settings: null,
@@ -35,7 +35,7 @@ export const useSettingsStore = create<SettingsState>()(
     fetchSettings: async () => {
       try {
         set({ isLoading: true, error: null });
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
 
         if (!user) {
           throw new Error('Utilisateur non connecté');
@@ -51,7 +51,7 @@ export const useSettingsStore = create<SettingsState>()(
           throw error;
         }
 
-        const settings = data?.settings as PressingSettings;
+        const _settings = data?.settings as PressingSettings;
 
         set({
           settings,
@@ -71,15 +71,15 @@ export const useSettingsStore = create<SettingsState>()(
     updateSettings: async (updates: Partial<PressingSettings>) => {
       try {
         set({ isLoading: true, error: null });
-        const user = useAuthStore.getState().user;
+        const _user = useAuthStore.getState().user;
 
         if (!user) {
           throw new Error('Utilisateur non connecté');
         }
 
         // On ne met à jour que les champs modifiés dans l'objet JSON
-        const currentSettings = get().settings;
-        const newSettings = {
+        const _currentSettings = get().settings;
+        const _newSettings = {
           ...currentSettings,
           ...updates,
         };
@@ -132,7 +132,7 @@ export const useSettingsStore = create<SettingsState>()(
 );
 
 // Sélecteurs optimisés
-export const useSettings = () => {
+export const _useSettings = () => {
   return useSettingsStore(state => ({
     settings: state.settings,
     isLoading: state.isLoading,
@@ -141,7 +141,7 @@ export const useSettings = () => {
   }));
 };
 
-export const useSettingsActions = () => {
+export const _useSettingsActions = () => {
   return useSettingsStore(state => ({
     fetchSettings: state.fetchSettings,
     updateSettings: state.updateSettings,
@@ -150,7 +150,7 @@ export const useSettingsActions = () => {
 };
 
 // Hook pour récupérer les informations du pressing (compatibility)
-export const usePressing = () => {
+export const _usePressing = () => {
   return useSettingsStore(state => ({
     pressing: state.settings,
     isLoading: state.isLoading,
@@ -158,7 +158,7 @@ export const usePressing = () => {
   }));
 };
 
-export const useSettingHelper = () => {
+export const _useSettingHelper = () => {
   return useSettingsStore(state => ({
     getSetting: state.getSetting,
   }));
@@ -166,7 +166,7 @@ export const useSettingHelper = () => {
 
 // Écouter les changements en temps réel
 if (typeof window !== 'undefined') {
-  const user = useAuthStore.getState().user;
+  const _user = useAuthStore.getState().user;
 
   if (user) {
     supabase
@@ -180,8 +180,8 @@ if (typeof window !== 'undefined') {
           filter: `id=eq.${user.pressingId}`,
         },
         (payload) => {
-          const store = useSettingsStore.getState();
-          const updatedPressing = payload.new as any;
+          const _store = useSettingsStore.getState();
+          const _updatedPressing = payload.new as any;
           if (updatedPressing.settings) {
             useSettingsStore.setState({
               settings: updatedPressing.settings,

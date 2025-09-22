@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth, useAuthActions } from '@/store/auth';
 
 // Types d'erreurs d'authentification
-const ERROR_TYPES = {
+const _ERROR_TYPES = {
   // Erreurs Supabase courantes
   'invalid_credentials': {
     title: 'Identifiants incorrects',
@@ -159,12 +159,12 @@ const ERROR_TYPES = {
 type ErrorType = keyof typeof ERROR_TYPES;
 
 export default function AuthErrorPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const _router = useRouter();
+  const _searchParams = useSearchParams();
   const { clearError } = useAuthActions();
   
-  const errorParam = searchParams.get('error') as ErrorType;
-  const errorDescription = searchParams.get('error_description');
+  const _errorParam = searchParams.get('error') as ErrorType;
+  const _errorDescription = searchParams.get('error_description');
   const [retryCount, setRetryCount] = useState(0);
 
   // Nettoyer les erreurs du store au montage
@@ -173,7 +173,7 @@ export default function AuthErrorPage() {
   }, [clearError]);
 
   // Déterminer le type d'erreur
-  const getErrorInfo = () => {
+  const _getErrorInfo = () => {
     // Erreur spécifique trouvée
     if (errorParam && ERROR_TYPES[errorParam]) {
       return ERROR_TYPES[errorParam];
@@ -181,7 +181,7 @@ export default function AuthErrorPage() {
 
     // Analyser la description d'erreur pour des patterns courants
     if (errorDescription) {
-      const desc = errorDescription.toLowerCase();
+      const _desc = errorDescription.toLowerCase();
       
       if (desc.includes('invalid') || desc.includes('wrong') || desc.includes('incorrect')) {
         return ERROR_TYPES.invalid_credentials;
@@ -218,12 +218,12 @@ export default function AuthErrorPage() {
     };
   };
 
-  const errorInfo = getErrorInfo();
-  const Icon = errorInfo.icon;
+  const _errorInfo = getErrorInfo();
+  const _Icon = errorInfo.icon;
 
-  const handleRetry = () => {
+  const _handleRetry = () => {
     setRetryCount(prev => prev + 1);
-    const primaryAction = errorInfo.actions.find(action => action.primary);
+    const _primaryAction = errorInfo.actions.find(action => action.primary);
     if (primaryAction) {
       router.push(primaryAction.href);
     }

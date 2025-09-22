@@ -59,7 +59,7 @@ import {
 } from 'recharts';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-const PERIOD_OPTIONS = [
+const _PERIOD_OPTIONS = [
   { value: 'today', label: 'Aujourd\'hui' },
   { value: 'week', label: 'Cette semaine' },
   { value: 'month', label: 'Ce mois' },
@@ -67,15 +67,15 @@ const PERIOD_OPTIONS = [
   { value: 'custom', label: 'Période personnalisée' },
 ];
 
-const CHART_COLORS = [
+const _CHART_COLORS = [
   '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1',
   '#d084d0', '#ffb347', '#87ceeb', '#dda0dd', '#98fb98'
 ];
 
 export default function RevenuePage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { user } = useAuth();
-  const permissions = useUserPermissions();
+  const _permissions = useUserPermissions();
   
   // États des stores
   const { 
@@ -117,7 +117,7 @@ export default function RevenuePage() {
   const [activeChart, setActiveChart] = useState<'daily' | 'categories' | 'methods'>('daily');
 
   // Vérifier les permissions
-  const canViewRevenue = permissions.isOwner || permissions.canViewRevenue;
+  const _canViewRevenue = permissions.isOwner || permissions.canViewRevenue;
 
   useEffect(() => {
     if (user && !canViewRevenue) {
@@ -133,7 +133,7 @@ export default function RevenuePage() {
   }, [user, canViewRevenue]);
 
   // Charger les données selon la période
-  const loadRevenueData = async () => {
+  const _loadRevenueData = async () => {
     try {
       // Mettre à jour le CA du jour
       await updateTodayRevenue();
@@ -146,7 +146,7 @@ export default function RevenuePage() {
         await fetchRevenueStats(selectedPeriod);
         
         // Définir les dates selon la période
-        const now = new Date();
+        const _now = new Date();
         let startDate: string;
         let endDate = now.toISOString().split('T')[0];
         
@@ -155,7 +155,7 @@ export default function RevenuePage() {
             startDate = endDate;
             break;
           case 'week':
-            const weekStart = new Date(now);
+            const _weekStart = new Date(now);
             weekStart.setDate(now.getDate() - 7);
             startDate = weekStart.toISOString().split('T')[0];
             break;
@@ -184,7 +184,7 @@ export default function RevenuePage() {
   };
 
   // Gérer le changement de période
-  const handlePeriodChange = (period: typeof selectedPeriod) => {
+  const _handlePeriodChange = (period: typeof selectedPeriod) => {
     setSelectedPeriod(period);
     if (period !== 'custom') {
       loadRevenueData();
@@ -192,7 +192,7 @@ export default function RevenuePage() {
   };
 
   // Appliquer la période personnalisée
-  const applyCustomPeriod = () => {
+  const _applyCustomPeriod = () => {
     if (customStartDate && customEndDate) {
       loadRevenueData();
     }
@@ -206,14 +206,14 @@ export default function RevenuePage() {
   }, [error, clearError]);
 
   // Calculs des statistiques de croissance
-  const todayRevenue = todayStats?.totalRevenue || 0;
-  const monthRevenue = monthStats?.totalRevenue || 0;
-  const previousMonthRevenue = monthRevenue * 0.85; // Simulation
-  const growthRate = calculateGrowthRate(monthRevenue, previousMonthRevenue);
+  const _todayRevenue = todayStats?.totalRevenue || 0;
+  const _monthRevenue = monthStats?.totalRevenue || 0;
+  const _previousMonthRevenue = monthRevenue * 0.85; // Simulation
+  const _growthRate = calculateGrowthRate(monthRevenue, previousMonthRevenue);
 
   // Top catégories et méthodes de paiement
-  const topCategories = getTopCategories(5);
-  const topPaymentMethods = getTopPaymentMethods();
+  const _topCategories = getTopCategories(5);
+  const _topPaymentMethods = getTopPaymentMethods();
 
   if (!user || !canViewRevenue) {
     return (

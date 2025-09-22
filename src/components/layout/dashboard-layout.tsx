@@ -46,12 +46,12 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const router = useRouter();
-  const pathname = usePathname();
+  const _router = useRouter();
+  const _pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
   const { signOut } = useAuthActions();
-  const permissions = useUserPermissions();
+  const _permissions = useUserPermissions();
   const { isOnline, pendingActions } = useOfflineSync();
   const { canInstall, showPrompt } = usePWAInstall();
 
@@ -103,7 +103,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   ];
 
   // Filtrer la navigation selon les permissions
-  const visibleNavigation = navigation.filter(item => {
+  const _visibleNavigation = navigation.filter(item => {
     if (!item.permission) return true;
     return permissions.isOwner || permissions[item.permission as keyof typeof permissions];
   });
@@ -116,7 +116,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   // Écouter les raccourcis clavier
   useEffect(() => {
-    const handleShortcuts = (event: Event) => {
+    const _handleShortcuts = (event: Event) => {
       const customEvent = event as CustomEvent;
       
       switch (customEvent.type) {
@@ -144,7 +144,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     };
   }, [router]);
 
-  const handleSignOut = async () => {
+  const _handleSignOut = async () => {
     try {
       await signOut();
       router.push('/');
@@ -153,7 +153,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const _handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/invoices?search=${encodeURIComponent(searchQuery.trim())}`);
@@ -216,7 +216,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4">
             {visibleNavigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              const _isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               
               return (
                 <Link

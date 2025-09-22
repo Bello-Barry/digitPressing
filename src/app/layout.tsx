@@ -5,7 +5,7 @@ import { Providers } from './providers';
 import { Toaster } from 'sonner';
 import './globals.css';
 
-const inter = Inter({ 
+const _inter = Inter({ 
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
@@ -253,7 +253,7 @@ export default function RootLayout({
               // Empêcher le zoom sur double-tap (iOS)
               let lastTouchEnd = 0;
               document.addEventListener('touchend', function (event) {
-                const now = (new Date()).getTime();
+                const _now = (new Date()).getTime();
                 if (now - lastTouchEnd <= 300) {
                   event.preventDefault();
                 }

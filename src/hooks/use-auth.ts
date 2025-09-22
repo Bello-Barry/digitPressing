@@ -9,11 +9,11 @@
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
-export const useAuth = () => {
+export const _useAuth = () => {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const _router = useRouter();
 
-  const login = async (email: string, password: string) => {
+  const _login = async (email: string, password: string) => {
     const result = await signIn('credentials', {
       email,
       password,
@@ -29,7 +29,7 @@ export const useAuth = () => {
     }
   };
 
-  const logout = async () => {
+  const _logout = async () => {
     await signOut({ redirect: false });
     router.push('/');
   };

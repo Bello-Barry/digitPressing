@@ -21,7 +21,7 @@ import { isValidEmail, isValidPhone, capitalizeWords } from '@/lib/utils';
 import type { UserPermission } from '@/types';
 
 // Schéma de validation
-const createUserSchema = z.object({
+const _createUserSchema = z.object({
   fullName: z.string()
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .max(255, 'Le nom ne peut pas dépasser 255 caractères')
@@ -42,7 +42,7 @@ const createUserSchema = z.object({
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
 // Permissions disponibles avec descriptions
-const AVAILABLE_PERMISSIONS = [
+const _AVAILABLE_PERMISSIONS = [
   {
     action: 'create_invoice',
     label: 'Créer des factures',
@@ -82,7 +82,7 @@ const AVAILABLE_PERMISSIONS = [
 ];
 
 // Permissions par défaut selon le rôle
-const getDefaultPermissions = (role: 'owner' | 'employee'): UserPermission[] => {
+const _getDefaultPermissions = (role: 'owner' | 'employee'): UserPermission[] => {
   if (role === 'owner') {
     return AVAILABLE_PERMISSIONS.map(perm => ({
       action: perm.action,
@@ -97,7 +97,7 @@ const getDefaultPermissions = (role: 'owner' | 'employee'): UserPermission[] => 
 };
 
 export default function NewUserPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { createUser } = useUserActions();
   const { user } = useAuth();
   const { canManageUsers, isOwner } = useUserPermissions();
@@ -106,7 +106,7 @@ export default function NewUserPage() {
     getDefaultPermissions('employee')
   );
 
-  const form = useForm<CreateUserForm>({
+  const _form = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       fullName: '',
@@ -124,12 +124,12 @@ export default function NewUserPage() {
     return null;
   }
 
-  const handleRoleChange = (role: 'owner' | 'employee') => {
+  const _handleRoleChange = (role: 'owner' | 'employee') => {
     form.setValue('role', role);
     setSelectedPermissions(getDefaultPermissions(role));
   };
 
-  const handlePermissionChange = (action: string, granted: boolean) => {
+  const _handlePermissionChange = (action: string, granted: boolean) => {
     setSelectedPermissions(prev =>
       prev.map(perm =>
         perm.action === action ? { ...perm, granted } : perm
@@ -137,15 +137,15 @@ export default function NewUserPage() {
     );
   };
 
-  const onSubmit = async (data: CreateUserForm) => {
+  const _onSubmit = async (data: CreateUserForm) => {
     try {
       setIsSubmitting(true);
 
-      const userData = {
+      const _userData = {
         ...data,
         fullName: capitalizeWords(data.fullName.trim()),
         email: data.email.trim().toLowerCase(),
-        phone: data.phone?.trim() || undefined,
+        phone: data.phone?.trim()  || null,
         permissions: selectedPermissions,
       };
 
@@ -167,7 +167,7 @@ export default function NewUserPage() {
     }
   };
 
-  const groupedPermissions = AVAILABLE_PERMISSIONS.reduce((acc, perm) => {
+  const _groupedPermissions = AVAILABLE_PERMISSIONS.reduce((acc, perm) => {
     if (!acc[perm.category]) {
       acc[perm.category] = [];
     }
@@ -313,9 +313,9 @@ export default function NewUserPage() {
                 </h4>
                 <div className="space-y-3">
                   {permissions.map((perm) => {
-                    const permission = selectedPermissions.find(p => p.action === perm.action);
-                    const isChecked = permission?.granted || false;
-                    const isDisabled = form.watch('role') === 'owner';
+                    const _permission = selectedPermissions.find(p => p.action === perm.action);
+                    const _isChecked = permission?.granted || false;
+                    const _isDisabled = form.watch('role') === 'owner';
 
                     return (
                       <div

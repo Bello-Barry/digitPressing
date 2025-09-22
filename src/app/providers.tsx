@@ -9,7 +9,7 @@ import { OfflineSyncProvider } from '@/components/offline/offline-sync-provider'
 import { useAuthStore } from '@/store/auth';
 
 // Configuration React Query
-const queryClient = new QueryClient({
+const _queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
@@ -38,8 +38,8 @@ const queryClient = new QueryClient({
 
 // Provider pour l'initialisation de l'authentification
 const AuthInitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const initialize = useAuthStore(state => state.initialize);
-  const isInitialized = useAuthStore(state => state.isInitialized);
+  const _initialize = useAuthStore(state => state.initialize);
+  const _isInitialized = useAuthStore(state => state.isInitialized);
 
   useEffect(() => {
     initialize();
@@ -64,7 +64,7 @@ const AuthInitProvider: React.FC<{ children: React.ReactNode }> = ({ children })
 const ErrorBoundaryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     // Gestion des erreurs JavaScript non gérées
-    const handleError = (event: ErrorEvent) => {
+    const _handleError = (event: ErrorEvent) => {
       console.error('Erreur non gérée:', event.error);
       
       // Envoyer à un service de monitoring en production
@@ -75,7 +75,7 @@ const ErrorBoundaryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     // Gestion des promesses rejetées non gérées
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    const _handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error('Promise rejetée non gérée:', event.reason);
       
       if (process.env.NODE_ENV === 'production') {
@@ -98,13 +98,13 @@ const ErrorBoundaryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 // Provider pour la détection de la connectivité
 const ConnectivityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
-    const handleOnline = () => {
+    const _handleOnline = () => {
       console.log('Application en ligne');
       // Déclencher la synchronisation des données en attente
       window.dispatchEvent(new CustomEvent('app-online'));
     };
 
-    const handleOffline = () => {
+    const _handleOffline = () => {
       console.log('Application hors ligne');
       window.dispatchEvent(new CustomEvent('app-offline'));
     };
@@ -131,7 +131,7 @@ const ConnectivityProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 // Provider pour les raccourcis clavier globaux
 const KeyboardShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const _handleKeyDown = (event: KeyboardEvent) => {
       // Ignorer si on tape dans un input, textarea ou contenteditable
       const target = event.target as HTMLElement;
       if (

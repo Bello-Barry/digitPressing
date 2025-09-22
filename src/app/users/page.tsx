@@ -53,7 +53,7 @@ interface CreateUserData {
   role: 'owner' | 'employee';
 }
 
-const createUserSchema = z.object({
+const _createUserSchema = z.object({
   fullName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
   email: z.string().email('Email invalide'),
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
@@ -61,7 +61,7 @@ const createUserSchema = z.object({
 });
 
 export default function UsersPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +74,7 @@ export default function UsersPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   // Vérifier les permissions
-  const canManageUsers = currentUser?.role === 'owner';
+  const _canManageUsers = currentUser?.role === 'owner';
 
   const {
     register,
@@ -93,7 +93,7 @@ export default function UsersPage() {
     loadUsers();
   }, [canManageUsers, router]);
 
-  const loadUsers = async () => {
+  const _loadUsers = async () => {
     try {
       setIsLoading(true);
 
@@ -113,7 +113,7 @@ export default function UsersPage() {
     }
   };
 
-  const createUser = async (data: CreateUserData) => {
+  const _createUser = async (data: CreateUserData) => {
     try {
       setIsCreating(true);
 
@@ -164,7 +164,7 @@ export default function UsersPage() {
     }
   };
 
-  const toggleUserStatus = async (userId: string, newStatus: boolean) => {
+  const _toggleUserStatus = async (userId: string, newStatus: boolean) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -185,7 +185,7 @@ export default function UsersPage() {
     }
   };
 
-  const deleteUser = async (userId: string) => {
+  const _deleteUser = async (userId: string) => {
     if (
       !confirm(
         'Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.'
@@ -206,7 +206,7 @@ export default function UsersPage() {
     }
   };
 
-  const updatePermissions = async (userId: string, permissions: any[]) => {
+  const _updatePermissions = async (userId: string, permissions: any[]) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -229,13 +229,13 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter((user) => {
+  const _filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesStatus = filterStatus === 'all' || 
+    const _matchesRole = filterRole === 'all' || user.role === filterRole;
+    const _matchesStatus = filterStatus === 'all' || 
       (filterStatus === 'active' ? user.isActive : !user.isActive);
 
     return matchesSearch && matchesRole && matchesStatus;
@@ -541,7 +541,7 @@ export default function UsersPage() {
             className="bg-white rounded-lg border p-6"
           >
             {(() => {
-              const user = users.find(u => u.id === showPermissions);
+              const _user = users.find(u => u.id === showPermissions);
               if (!user) return null;
               
               return (
@@ -560,7 +560,7 @@ export default function UsersPage() {
                             type="checkbox"
                             checked={perm.granted}
                             onChange={(e) => {
-                              const newPermissions = [...user.permissions];
+                              const _newPermissions = [...user.permissions];
                               newPermissions[index] = { ...perm, granted: e.target.checked };
                               updatePermissions(user.id, newPermissions);
                             }}

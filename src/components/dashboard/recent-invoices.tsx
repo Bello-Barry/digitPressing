@@ -68,7 +68,7 @@ const mockInvoices: Invoice[] = [
   },
 ];
 
-const statusConfig = {
+const _statusConfig = {
   pending: {
     label: 'En attente',
     color: 'bg-yellow-100 text-yellow-800',
@@ -103,8 +103,8 @@ export const RecentInvoices: React.FC<RecentInvoicesProps> = ({
   // }, [fetchInvoices]);
 
   // Pour l'instant, utilisez les données mock
-  const invoices = mockInvoices;
-  const isLoading = false;
+  const _invoices = mockInvoices;
+  const _isLoading = false;
   if (isLoading) {
     return (
       <Card>
@@ -152,8 +152,8 @@ export const RecentInvoices: React.FC<RecentInvoicesProps> = ({
         ) : (
           <div className="space-y-3">
             {invoices.slice(0, 5).map((invoice, index) => {
-              const statusInfo = statusConfig[invoice.status];
-              const StatusIcon = statusInfo.icon;
+              const _statusInfo = statusConfig[invoice.status];
+              const _StatusIcon = statusInfo.icon;
               
               return (
                 <motion.div

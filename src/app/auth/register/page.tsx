@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function RegisterPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -14,7 +14,7 @@ export default function RegisterPage() {
     confirmPassword: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const _handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Implémenter l'inscription
     console.log('Inscription:', formData);

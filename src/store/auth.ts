@@ -29,7 +29,7 @@ interface AuthState {
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
+export const _useAuthStore = create<AuthState>()(
   subscribeWithSelector(
     persist(
       (set, get) => ({
@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             // Récupérer le profil utilisateur complet
-            const profile = await getUserProfile(data.user.id);
+            const _profile = await getUserProfile(data.user.id);
             if (!profile) {
               throw new Error('Impossible de récupérer le profil utilisateur');
             }
@@ -257,7 +257,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             if (data.session && data.user) {
-              const profile = await getUserProfile(data.user.id);
+              const _profile = await getUserProfile(data.user.id);
               if (profile) {
                 const user: User = {
                   id: profile.id,
@@ -267,7 +267,7 @@ export const useAuthStore = create<AuthState>()(
                   fullName: profile.full_name,
                   permissions: profile.permissions as any[] || [],
                   createdAt: profile.created_at,
-                  lastLogin: profile.last_login || undefined,
+                  lastLogin: profile.last_login  || null,
                   isActive: profile.is_active,
                 };
 
@@ -300,7 +300,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             if (session?.user) {
-              const profile = await getUserProfile(session.user.id);
+              const _profile = await getUserProfile(session.user.id);
               if (profile) {
                 const user: User = {
                   id: profile.id,
@@ -310,7 +310,7 @@ export const useAuthStore = create<AuthState>()(
                   fullName: profile.full_name,
                   permissions: profile.permissions as any[] || [],
                   createdAt: profile.created_at,
-                  lastLogin: profile.last_login || undefined,
+                  lastLogin: profile.last_login  || null,
                   isActive: profile.is_active,
                 };
 
@@ -359,7 +359,7 @@ export const useAuthStore = create<AuthState>()(
               throw error;
             }
 
-            const updatedUser = { ...user, ...updates };
+            const _updatedUser = { ...user, ...updates };
             set({ 
               user: updatedUser, 
               session: get().session ? { ...get().session!, user: updatedUser } : null,
@@ -385,8 +385,8 @@ export const useAuthStore = create<AuthState>()(
 
             set({ isLoading: true, error: null });
 
-            const currentPreferences = get().preferences || getDefaultPreferences();
-            const updatedPreferences = { ...currentPreferences, ...preferences };
+            const _currentPreferences = get().preferences || getDefaultPreferences();
+            const _updatedPreferences = { ...currentPreferences, ...preferences };
 
             const { error } = await supabase
               .from('user_preferences')
@@ -470,7 +470,7 @@ export const useAuthStore = create<AuthState>()(
 );
 
 // Préférences par défaut
-const getDefaultPreferences = (): UserPreferences => ({
+const _getDefaultPreferences = (): UserPreferences => ({
   theme: 'system',
   language: 'fr',
   currency: '€',
@@ -490,7 +490,7 @@ const getDefaultPreferences = (): UserPreferences => ({
 // Écouter les changements d'authentification Supabase
 if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange(async (event, session) => {
-    const store = useAuthStore.getState();
+    const _store = useAuthStore.getState();
     
     switch (event) {
       case 'SIGNED_IN':
@@ -520,11 +520,11 @@ if (typeof window !== 'undefined') {
 
   // Auto-refresh de la session toutes les heures
   setInterval(async () => {
-    const store = useAuthStore.getState();
+    const _store = useAuthStore.getState();
     if (store.session && store.user) {
-      const expiresAt = new Date(store.session.expiresAt);
-      const now = new Date();
-      const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+      const _expiresAt = new Date(store.session.expiresAt);
+      const _now = new Date();
+      const _timeUntilExpiry = expiresAt.getTime() - now.getTime();
       
       // Refresh si expire dans moins d'une heure
       if (timeUntilExpiry < 60 * 60 * 1000) {
@@ -535,7 +535,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Sélecteurs pour optimiser les re-renders
-export const useAuth = () => {
+export const _useAuth = () => {
   return useAuthStore((state) => ({
     user: state.user,
     session: state.session,
@@ -545,7 +545,7 @@ export const useAuth = () => {
   }));
 };
 
-export const useAuthActions = () => {
+export const _useAuthActions = () => {
   return useAuthStore((state) => ({
     signIn: state.signIn,
     signUp: state.signUp,
@@ -559,7 +559,7 @@ export const useAuthActions = () => {
   }));
 };
 
-export const useUserPreferences = () => {
+export const _useUserPreferences = () => {
   return useAuthStore((state) => ({
     preferences: state.preferences,
     updatePreferences: state.updatePreferences,
@@ -567,7 +567,7 @@ export const useUserPreferences = () => {
 };
 
 // Helper pour vérifier les permissions
-export const useUserPermissions = () => {
+export const _useUserPermissions = () => {
   const user = useAuthStore((state) => state.user);
   
   return {

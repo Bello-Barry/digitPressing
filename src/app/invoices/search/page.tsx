@@ -62,34 +62,34 @@ import {
 import { formatCurrency, formatDate, formatRelativeDate } from '@/lib/utils';
 import type { Invoice, InvoiceFilters } from '@/types';
 
-const URGENCY_OPTIONS = [
+const _URGENCY_OPTIONS = [
   { value: 'normal', label: 'Normal' },
   { value: 'express', label: 'Express' },
   { value: 'urgent', label: 'Urgent' },
 ];
 
-const STATUS_OPTIONS = [
+const _STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
   { value: 'cancelled', label: 'Annulée' },
 ];
 
-const PAYMENT_STATUS_OPTIONS = [
+const _PAYMENT_STATUS_OPTIONS = [
   { value: 'paid', label: 'Payées' },
   { value: 'unpaid', label: 'Non payées' },
 ];
 
-const WITHDRAWAL_STATUS_OPTIONS = [
+const _WITHDRAWAL_STATUS_OPTIONS = [
   { value: 'withdrawn', label: 'Retirées' },
   { value: 'pending', label: 'En attente' },
 ];
 
-const URGENCY_CONFIG = {
+const _URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
 };
 
-const STATUS_CONFIG = {
+const _STATUS_CONFIG = {
   active: { label: 'Active', icon: CheckCircle, color: 'text-green-600' },
   cancelled: { label: 'Annulée', icon: XCircle, color: 'text-red-600' },
 };
@@ -112,9 +112,9 @@ interface SearchFormData {
 }
 
 export default function InvoiceSearchPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { user } = useAuth();
-  const permissions = useUserPermissions();
+  const _permissions = useUserPermissions();
   
   // États des stores
   const { invoices, isLoading, error, pagination } = useInvoices();
@@ -146,8 +146,8 @@ export default function InvoiceSearchPage() {
 
   // Initialiser les dates par défaut (dernier mois)
   useEffect(() => {
-    const today = new Date();
-    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const _today = new Date();
+    const _lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     
     setSearchForm(prev => ({
       ...prev,
@@ -157,19 +157,19 @@ export default function InvoiceSearchPage() {
   }, []);
 
   // Mise à jour du formulaire
-  const updateSearchForm = (updates: Partial<SearchFormData>) => {
+  const _updateSearchForm = (updates: Partial<SearchFormData>) => {
     setSearchForm(prev => ({ ...prev, ...updates }));
   };
 
   // Ajouter/retirer un élément d'un tableau
-  const toggleArrayValue = (array: string[], value: string): string[] => {
+  const _toggleArrayValue = (array: string[], value: string): string[] => {
     return array.includes(value) 
       ? array.filter(item => item !== value)
       : [...array, value];
   };
 
   // Exécuter la recherche
-  const handleSearch = async () => {
+  const _handleSearch = async () => {
     if (!user) return;
 
     setIsSearching(true);
@@ -224,7 +224,7 @@ export default function InvoiceSearchPage() {
 
       // Si recherche textuelle globale, utiliser searchInvoices
       if (searchForm.searchTerm.trim() || searchForm.invoiceNumber.trim() || searchForm.clientPhone.trim()) {
-        const globalSearchTerm = [
+        const _globalSearchTerm = [
           searchForm.searchTerm,
           searchForm.invoiceNumber,
           searchForm.clientPhone
@@ -244,9 +244,9 @@ export default function InvoiceSearchPage() {
   };
 
   // Réinitialiser la recherche
-  const handleReset = () => {
-    const today = new Date();
-    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+  const _handleReset = () => {
+    const _today = new Date();
+    const _lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     
     setSearchForm({
       searchTerm: '',
@@ -580,8 +580,8 @@ export default function InvoiceSearchPage() {
                   </TableHeader>
                   <TableBody>
                     {invoices.map((invoice) => {
-                      const StatusIcon = STATUS_CONFIG[invoice.status].icon;
-                      const canEdit = invoice.status === 'active' && (
+                      const _StatusIcon = STATUS_CONFIG[invoice.status].icon;
+                      const _canEdit = invoice.status === 'active' && (
                         permissions.isOwner || 
                         invoice.createdBy === user?.id
                       );

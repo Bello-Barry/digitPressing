@@ -29,7 +29,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions';
 import { RecentInvoices } from '@/components/dashboard/recent-invoices';
 import { RevenueChart } from '@/components/dashboard/revenue-chart';
 
-const DashboardPage = () => {
+const _DashboardPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   
@@ -75,7 +75,7 @@ const DashboardPage = () => {
   }
 
   // Préparer les statistiques pour les cards
-  const stats = [
+  const _stats = [
     {
       title: "Revenus du jour",
       value: formatCurrency(todayStats?.totalRevenue || 0),
@@ -110,7 +110,7 @@ const DashboardPage = () => {
     },
   ];
 
-  const quickActions = [
+  const _quickActions = [
     {
       title: "Nouvelle facture",
       description: "Créer une facture client",

@@ -12,9 +12,9 @@ interface PWAInstallContextType {
   hidePrompt: () => void;
 }
 
-const PWAInstallContext = createContext<PWAInstallContextType | undefined>(undefined);
+const _PWAInstallContext = createContext<PWAInstallContextType | undefined>(undefined);
 
-export const usePWAInstall = () => {
+export const _usePWAInstall = () => {
   const context = useContext(PWAInstallContext);
   if (!context) {
     throw new Error('usePWAInstall must be used within a PWAInstallProvider');
@@ -36,7 +36,7 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     // Vérifier si l'app est déjà installée
-    const checkInstallation = () => {
+    const _checkInstallation = () => {
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
                            (window.navigator as any).standalone === true ||
                            document.referrer.includes('android-app://');
@@ -54,16 +54,16 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     checkInstallation();
 
     // Écouter l'événement beforeinstallprompt
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const _handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      const installEvent = e as BeforeInstallPromptEvent;
+      const _installEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(installEvent);
       setCanInstall(true);
       
       // Montrer le banner après un délai (sauf si déjà refusé récemment)
-      const lastDismissed = localStorage.getItem('pwa-install-dismissed');
-      const dismissedTime = lastDismissed ? new Date(lastDismissed) : null;
-      const now = new Date();
+      const _lastDismissed = localStorage.getItem('pwa-install-dismissed');
+      const _dismissedTime = lastDismissed ? new Date(lastDismissed) : null;
+      const _now = new Date();
       
       // Montrer le banner si jamais refusé ou si refusé il y a plus d'une semaine
       if (!dismissedTime || (now.getTime() - dismissedTime.getTime()) > 7 * 24 * 60 * 60 * 1000) {
@@ -72,7 +72,7 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     // Écouter l'installation de l'app
-    const handleAppInstalled = () => {
+    const _handleAppInstalled = () => {
       setIsInstalled(true);
       setCanInstall(false);
       setShowBanner(false);
@@ -91,7 +91,7 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  const showPrompt = async () => {
+  const _showPrompt = async () => {
     if (!deferredPrompt || isPrompting) return;
 
     setIsPrompting(true);
@@ -117,12 +117,12 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const hidePrompt = () => {
+  const _hidePrompt = () => {
     setShowBanner(false);
     localStorage.setItem('pwa-install-dismissed', new Date().toISOString());
   };
 
-  const value = {
+  const _value = {
     canInstall,
     isInstalled,
     showPrompt,

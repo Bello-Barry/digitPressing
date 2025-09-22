@@ -26,7 +26,7 @@ export function formatDate(
   date: string | Date, 
   format: 'short' | 'long' | 'dd/MM' | 'dd/MM/yyyy' | 'MMM yyyy' = 'short'
 ): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const _dateObj = typeof date === 'string' ? new Date(date) : date;
   
   if (isNaN(dateObj.getTime())) {
     return 'Date invalide';
@@ -67,7 +67,7 @@ export function formatDate(
  * Formate une date et heure
  */
 export function formatDateTime(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const _dateObj = typeof date === 'string' ? new Date(date) : date;
   
   if (isNaN(dateObj.getTime())) {
     return 'Date invalide';
@@ -86,10 +86,10 @@ export function formatDateTime(date: string | Date): string {
  * Formate une date relative (il y a X jours)
  */
 export function formatRelativeDate(date: string | Date): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  const now = new Date();
-  const diffInMs = now.getTime() - dateObj.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const _dateObj = typeof date === 'string' ? new Date(date) : date;
+  const _now = new Date();
+  const _diffInMs = now.getTime() - dateObj.getTime();
+  const _diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
   if (diffInDays === 0) {
     return "Aujourd'hui";
@@ -98,13 +98,13 @@ export function formatRelativeDate(date: string | Date): string {
   } else if (diffInDays < 7) {
     return `Il y a ${diffInDays} jours`;
   } else if (diffInDays < 30) {
-    const weeks = Math.floor(diffInDays / 7);
+    const _weeks = Math.floor(diffInDays / 7);
     return weeks === 1 ? 'Il y a 1 semaine' : `Il y a ${weeks} semaines`;
   } else if (diffInDays < 365) {
-    const months = Math.floor(diffInDays / 30);
+    const _months = Math.floor(diffInDays / 30);
     return months === 1 ? 'Il y a 1 mois' : `Il y a ${months} mois`;
   } else {
-    const years = Math.floor(diffInDays / 365);
+    const _years = Math.floor(diffInDays / 365);
     return years === 1 ? 'Il y a 1 an' : `Il y a ${years} ans`;
   }
 }
@@ -117,7 +117,7 @@ export function formatRelativeDate(date: string | Date): string {
  * Valide une adresse email
  */
 export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const _emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
@@ -126,8 +126,8 @@ export function isValidEmail(email: string): boolean {
  */
 export function isValidPhone(phone: string): boolean {
   // Accepte les formats: 06 12 34 56 78, 06.12.34.56.78, 0612345678, +33612345678
-  const phoneRegex = /^(?:\+33|0)[1-9](?:[0-9]{8})$/;
-  const cleanPhone = phone.replace(/[\s.-]/g, '');
+  const _phoneRegex = /^(?:\+33|0)[1-9](?:[0-9]{8})$/;
+  const _cleanPhone = phone.replace(/[\s.-]/g, '');
   return phoneRegex.test(cleanPhone);
 }
 
@@ -187,18 +187,18 @@ export interface Invoice {
  * Calcule le total d'une facture
  */
 export function calculateInvoiceTotal(invoice: Invoice): number {
-  const subtotal = invoice.items.reduce((sum, item) => {
-    const itemTotal = item.quantity * item.unitPrice;
-    const itemDiscount = (item.discount || 0) / 100;
+  const _subtotal = invoice.items.reduce((sum, item) => {
+    const _itemTotal = item.quantity * item.unitPrice;
+    const _itemDiscount = (item.discount || 0) / 100;
     return sum + (itemTotal * (1 - itemDiscount));
   }, 0);
 
   // Appliquer la remise globale
-  const globalDiscount = (invoice.discount || 0) / 100;
-  const afterDiscount = subtotal * (1 - globalDiscount);
+  const _globalDiscount = (invoice.discount || 0) / 100;
+  const _afterDiscount = subtotal * (1 - globalDiscount);
 
   // Appliquer la taxe
-  const tax = (invoice.tax || 0) / 100;
+  const _tax = (invoice.tax || 0) / 100;
   return afterDiscount * (1 + tax);
 }
 
@@ -214,8 +214,8 @@ export function calculateSubTotal(items: InvoiceItem[]): number {
  */
 export function calculateItemsDiscount(items: InvoiceItem[]): number {
   return items.reduce((sum, item) => {
-    const itemTotal = item.quantity * item.unitPrice;
-    const discount = (item.discount || 0) / 100;
+    const _itemTotal = item.quantity * item.unitPrice;
+    const _discount = (item.discount || 0) / 100;
     return sum + (itemTotal * discount);
   }, 0);
 }
@@ -228,7 +228,7 @@ export function calculateItemsDiscount(items: InvoiceItem[]): number {
  * Génère un numéro de facture unique
  */
 export function generateInvoiceNumber(prefix = 'FAC', year = new Date().getFullYear()): string {
-  const timestamp = Date.now().toString().slice(-6);
+  const _timestamp = Date.now().toString().slice(-6);
   return `${prefix}-${year}-${timestamp}`;
 }
 
@@ -256,7 +256,7 @@ export function debounce<T extends (...args: any[]) => void>(
   let timeout: NodeJS.Timeout;
   
   return function executedFunction(...args: Parameters<T>) {
-    const later = () => {
+    const _later = () => {
       clearTimeout(timeout);
       func(...args);
     };
@@ -276,7 +276,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true;
     } else {
       // Fallback pour les navigateurs plus anciens
-      const textArea = document.createElement('textarea');
+      const _textArea = document.createElement('textarea');
       textArea.value = text;
       textArea.style.position = 'fixed';
       textArea.style.left = '-999999px';
@@ -285,7 +285,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       textArea.focus();
       textArea.select();
       
-      const result = document.execCommand('copy');
+      const _result = document.execCommand('copy');
       textArea.remove();
       return result;
     }
@@ -299,14 +299,14 @@ export async function copyToClipboard(text: string): Promise<boolean> {
  * Formate un numéro de téléphone français
  */
 export function formatPhoneNumber(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
+  const _cleaned = phone.replace(/\D/g, '');
   
   if (cleaned.length === 10) {
     return cleaned.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
   }
   
   if (cleaned.length === 11 && cleaned.startsWith('33')) {
-    const withoutPrefix = cleaned.slice(2);
+    const _withoutPrefix = cleaned.slice(2);
     return `+33 ${withoutPrefix.replace(/(\d{1})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5')}`;
   }
   
@@ -329,12 +329,12 @@ export function getInitials(fullName: string): string {
  * Détermine si une couleur est claire ou sombre
  */
 export function isLightColor(hex: string): boolean {
-  const rgb = parseInt(hex.slice(1), 16);
-  const r = (rgb >> 16) & 0xff;
-  const g = (rgb >>  8) & 0xff;
-  const b = (rgb >>  0) & 0xff;
+  const _rgb = parseInt(hex.slice(1), 16);
+  const _r = (rgb >> 16) & 0xff;
+  const _g = (rgb >>  8) & 0xff;
+  const _b = (rgb >>  0) & 0xff;
   
-  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const _luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luma > 128;
 }
 

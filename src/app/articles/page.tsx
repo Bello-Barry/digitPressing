@@ -74,7 +74,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { formatCurrency, capitalizeWords } from '@/lib/utils';
 import type { Article } from '@/types';
 
-const CATEGORY_CONFIG = {
+const _CATEGORY_CONFIG = {
   vetement: { label: 'Vêtements', color: 'bg-blue-100 text-blue-800', icon: '👔' },
   chaussure: { label: 'Chaussures', color: 'bg-brown-100 text-brown-800', icon: '👞' },
   accessoire: { label: 'Accessoires', color: 'bg-purple-100 text-purple-800', icon: '👜' },
@@ -99,9 +99,9 @@ interface ArticleFormData {
 }
 
 export default function ArticlesPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { user } = useAuth();
-  const permissions = useUserPermissions();
+  const _permissions = useUserPermissions();
   
   // États des stores
   const { articles, articlesByCategory, isLoading, error, pagination } = useArticles();
@@ -144,7 +144,7 @@ export default function ArticlesPage() {
   });
 
   // Permissions
-  const canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
+  const _canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
 
   // Charger les données au montage
   useEffect(() => {
@@ -155,7 +155,7 @@ export default function ArticlesPage() {
 
   // Gestion de la recherche avec debounce
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const _timer = setTimeout(() => {
       if (searchTerm.trim()) {
         searchArticles(searchTerm);
       } else {
@@ -181,7 +181,7 @@ export default function ArticlesPage() {
   }, [articlesByCategory, expandedCategories.length]);
 
   // Réinitialiser le formulaire
-  const resetForm = () => {
+  const _resetForm = () => {
     setFormData({
       name: '',
       category: 'vetement',
@@ -193,7 +193,7 @@ export default function ArticlesPage() {
   };
 
   // Actions sur les articles - seulement édition
-  const handleEditArticle = async () => {
+  const _handleEditArticle = async () => {
     if (!currentArticle || !canModifyPrices) return;
 
     try {
@@ -201,7 +201,7 @@ export default function ArticlesPage() {
         name: capitalizeWords(formData.name.trim()),
         category: formData.category,
         defaultPrice: formData.defaultPrice,
-        description: formData.description.trim() || undefined,
+        description: formData.description.trim()  || null,
         estimatedDays: formData.estimatedDays,
         isActive: formData.isActive,
       });
@@ -214,7 +214,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const handleDeleteArticle = async () => {
+  const _handleDeleteArticle = async () => {
     if (!currentArticle || !canModifyPrices) return;
 
     try {
@@ -226,7 +226,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const handleDuplicateArticle = async (article: Article) => {
+  const _handleDuplicateArticle = async (article: Article) => {
     if (!canModifyPrices) return;
 
     try {
@@ -236,7 +236,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const handleToggleStatus = async (article: Article) => {
+  const _handleToggleStatus = async (article: Article) => {
     if (!canModifyPrices) return;
 
     try {
@@ -247,7 +247,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion des actions en masse
-  const handleBulkAction = async () => {
+  const _handleBulkAction = async () => {
     if (selectedArticles.length === 0 || !canModifyPrices) return;
 
     try {
@@ -265,7 +265,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion de la sélection
-  const toggleArticleSelection = (articleId: string) => {
+  const _toggleArticleSelection = (articleId: string) => {
     setSelectedArticles(prev => 
       prev.includes(articleId)
         ? prev.filter(id => id !== articleId)
@@ -273,12 +273,12 @@ export default function ArticlesPage() {
     );
   };
 
-  const selectAllInCategory = (category: string) => {
+  const _selectAllInCategory = (category: string) => {
     const categoryArticles = articlesByCategory[category] || [];
-    const categoryIds = categoryArticles.map(a => a.id);
+    const _categoryIds = categoryArticles.map(a => a.id);
     
     setSelectedArticles(prev => {
-      const allSelected = categoryIds.every(id => prev.includes(id));
+      const _allSelected = categoryIds.every(id => prev.includes(id));
       if (allSelected) {
         return prev.filter(id => !categoryIds.includes(id));
       } else {
@@ -288,7 +288,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion de l'expansion des catégories
-  const toggleCategoryExpansion = (category: string) => {
+  const _toggleCategoryExpansion = (category: string) => {
     setExpandedCategories(prev =>
       prev.includes(category)
         ? prev.filter(c => c !== category)
@@ -297,7 +297,7 @@ export default function ArticlesPage() {
   };
 
   // Ouvrir les dialogs - seulement édition et suppression
-  const openEditDialog = (article: Article) => {
+  const _openEditDialog = (article: Article) => {
     setCurrentArticle(article);
     setFormData({
       name: article.name,
@@ -310,15 +310,15 @@ export default function ArticlesPage() {
     setShowEditDialog(true);
   };
 
-  const openDeleteDialog = (article: Article) => {
+  const _openDeleteDialog = (article: Article) => {
     setCurrentArticle(article);
     setShowDeleteDialog(true);
   };
 
   // Calcul des statistiques
-  const activeArticles = getActiveArticles();
-  const totalArticles = articles.length;
-  const averagePrice = articles.length > 0 
+  const _activeArticles = getActiveArticles();
+  const _totalArticles = articles.length;
+  const _averagePrice = articles.length > 0 
     ? articles.reduce((sum, a) => sum + a.defaultPrice, 0) / articles.length 
     : 0;
 
@@ -524,10 +524,10 @@ export default function ArticlesPage() {
           </div>
         ) : (
           Object.entries(articlesByCategory).map(([category, categoryArticles]) => {
-            const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
-            const isExpanded = expandedCategories.includes(category);
-            const categoryIds = categoryArticles.map(a => a.id);
-            const allSelected = categoryIds.length > 0 && categoryIds.every(id => selectedArticles.includes(id));
+            const _config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
+            const _isExpanded = expandedCategories.includes(category);
+            const _categoryIds = categoryArticles.map(a => a.id);
+            const _allSelected = categoryIds.length > 0 && categoryIds.every(id => selectedArticles.includes(id));
             
             return (
               <Card key={category}>

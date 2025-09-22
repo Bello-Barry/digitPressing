@@ -14,9 +14,9 @@ interface OfflineSyncContextType {
   syncData: () => Promise<void>;
 }
 
-const OfflineSyncContext = createContext<OfflineSyncContextType | undefined>(undefined);
+const _OfflineSyncContext = createContext<OfflineSyncContextType | undefined>(undefined);
 
-export const useOfflineSync = () => {
+export const _useOfflineSync = () => {
   const context = useContext(OfflineSyncContext);
   if (!context) {
     throw new Error('useOfflineSync must be used within an OfflineSyncProvider');
@@ -37,14 +37,14 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingActions, setPendingActions] = useState(0);
-  const user = useAuthStore(state => state.user);
+  const _user = useAuthStore(state => state.user);
 
   useEffect(() => {
     // Initialiser l'état de connexion
     setIsOnline(navigator.onLine);
 
     // Écouter les changements de connectivité
-    const handleOnline = () => {
+    const _handleOnline = () => {
       setIsOnline(true);
       toast.success('Connexion rétablie', {
         description: 'Synchronisation des données en cours...',
@@ -52,15 +52,15 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
       syncData();
     };
 
-    const handleOffline = () => {
+    const _handleOffline = () => {
       setIsOnline(false);
       toast.warning('Hors ligne', {
         description: 'Les modifications seront synchronisées à la reconnexion.',
       });
     };
 
-    const handleAppOnline = () => handleOnline();
-    const handleAppOffline = () => handleOffline();
+    const _handleAppOnline = () => handleOnline();
+    const _handleAppOffline = () => handleOffline();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -82,7 +82,7 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [user]);
 
-  const loadPendingActionsCount = async () => {
+  const _loadPendingActionsCount = async () => {
     if (!user) return;
 
     try {
@@ -98,7 +98,7 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const addToOfflineQueue = async (
+  const _addToOfflineQueue = async (
     type: 'create' | 'update' | 'delete',
     endpoint: string,
     data: any
@@ -138,7 +138,7 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const syncData = async () => {
+  const _syncData = async () => {
     if (!user || !isOnline || isSyncing) return;
 
     setIsSyncing(true);
@@ -215,7 +215,7 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const processQueueItem = async (item: any) => {
+  const _processQueueItem = async (item: any) => {
     const { type, endpoint, data } = item;
 
     switch (type) {
@@ -234,7 +234,7 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const value = {
+  const _value = {
     isOnline,
     isSyncing,
     pendingActions,

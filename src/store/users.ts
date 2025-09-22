@@ -79,7 +79,7 @@ const initialSort: UserSort = {
   direction: 'asc',
 };
 
-const initialPagination = {
+const _initialPagination = {
   page: 1,
   limit: 20,
   total: 0,
@@ -106,7 +106,7 @@ const OWNER_PERMISSIONS: UserPermission[] = [
   { action: 'export_data', granted: true },
 ];
 
-export const useUsersStore = create<UsersState>()(
+export const _useUsersStore = create<UsersState>()(
   subscribeWithSelector((set, get) => ({
     // État initial
     users: [],
@@ -124,7 +124,7 @@ export const useUsersStore = create<UsersState>()(
       try {
         const { reset = false } = options;
         const { filters, sort, pagination } = get();
-        const currentUser = useAuthStore.getState().user;
+        const _currentUser = useAuthStore.getState().user;
 
         if (!currentUser) {
           throw new Error('Utilisateur non connecté');
@@ -167,8 +167,8 @@ export const useUsersStore = create<UsersState>()(
         });
 
         // Application de la pagination
-        const from = (pagination.page - 1) * pagination.limit;
-        const to = from + pagination.limit - 1;
+        const _from = (pagination.page - 1) * pagination.limit;
+        const _to = from + pagination.limit - 1;
         query = query.range(from, to);
 
         const { data, error, count } = await query;
@@ -190,7 +190,7 @@ export const useUsersStore = create<UsersState>()(
           createdAt: row.created_at,
         })) || [];
 
-        const totalPages = Math.ceil((count || 0) / pagination.limit);
+        const _totalPages = Math.ceil((count || 0) / pagination.limit);
 
         set({
           users,
@@ -223,7 +223,7 @@ export const useUsersStore = create<UsersState>()(
 
     createUser: async (userData) => {
       try {
-        const currentUser = useAuthStore.getState().user;
+        const _currentUser = useAuthStore.getState().user;
         if (!currentUser || currentUser.role !== 'owner') {
           throw new Error('Accès refusé - Propriétaires seulement');
         }
@@ -250,7 +250,7 @@ export const useUsersStore = create<UsersState>()(
         }
 
         // Créer le profil utilisateur
-        const permissions = userData.role === 'owner' ? OWNER_PERMISSIONS : DEFAULT_EMPLOYEE_PERMISSIONS;
+        const _permissions = userData.role === 'owner' ? OWNER_PERMISSIONS : DEFAULT_EMPLOYEE_PERMISSIONS;
 
         const { data, error } = await supabase
           .from('users')
@@ -273,7 +273,7 @@ export const useUsersStore = create<UsersState>()(
           throw error;
         }
 
-        const newUser: User = {
+        const _newUser: User = {
           id: data.id,
           email: data.email,
           role: data.role,
@@ -310,7 +310,7 @@ export const useUsersStore = create<UsersState>()(
 
     updateUser: async (id: string, updates: Partial<User>) => {
       try {
-        const currentUser = useAuthStore.getState().user;
+        const _currentUser = useAuthStore.getState().user;
         if (!currentUser || currentUser.role !== 'owner') {
           throw new Error('Accès refusé - Propriétaires seulement');
         }
@@ -387,7 +387,7 @@ export const useUsersStore = create<UsersState>()(
 
     changeUserRole: async (id: string, newRole: 'owner' | 'employee') => {
       try {
-        const permissions = newRole === 'owner' ? OWNER_PERMISSIONS : DEFAULT_EMPLOYEE_PERMISSIONS;
+        const _permissions = newRole === 'owner' ? OWNER_PERMISSIONS : DEFAULT_EMPLOYEE_PERMISSIONS;
         await get().updateUser(id, { role: newRole, permissions });
       } catch (error) {
         throw error;
@@ -397,13 +397,13 @@ export const useUsersStore = create<UsersState>()(
     grantPermission: async (userId: string, action: string) => {
       try {
         const { users } = get();
-        const user = users.find(u => u.id === userId);
+        const _user = users.find(u => u.id === userId);
         
         if (!user) {
           throw new Error('Utilisateur non trouvé');
         }
 
-        const updatedPermissions = user.permissions.map(perm =>
+        const _updatedPermissions = user.permissions.map(perm =>
           perm.action === action
             ? { ...perm, granted: true }
             : perm
@@ -420,13 +420,13 @@ export const useUsersStore = create<UsersState>()(
     revokePermission: async (userId: string, action: string) => {
       try {
         const { users } = get();
-        const user = users.find(u => u.id === userId);
+        const _user = users.find(u => u.id === userId);
         
         if (!user) {
           throw new Error('Utilisateur non trouvé');
         }
 
-        const updatedPermissions = user.permissions.map(perm =>
+        const _updatedPermissions = user.permissions.map(perm =>
           perm.action === action
             ? { ...perm, granted: false }
             : perm
@@ -442,14 +442,14 @@ export const useUsersStore = create<UsersState>()(
 
     bulkUpdatePermissions: async (userIds: string[], permissions: UserPermission[]) => {
       try {
-        const currentUser = useAuthStore.getState().user;
+        const _currentUser = useAuthStore.getState().user;
         if (!currentUser || currentUser.role !== 'owner') {
           throw new Error('Accès refusé - Propriétaires seulement');
         }
 
         set({ isLoading: true, error: null });
 
-        const updates = userIds.map(id => ({
+        const _updates = userIds.map(id => ({
           id,
           permissions,
           updated_at: new Date().toISOString(),
@@ -523,7 +523,7 @@ export const useUsersStore = create<UsersState>()(
 
     fetchUserStats: async () => {
       try {
-        const currentUser = useAuthStore.getState().user;
+        const _currentUser = useAuthStore.getState().user;
         if (!currentUser || currentUser.role !== 'owner') return;
 
         const { data, error } = await supabase
@@ -533,10 +533,10 @@ export const useUsersStore = create<UsersState>()(
 
         if (error) throw error;
 
-        const totalUsers = data?.length || 0;
-        const activeUsers = data?.filter(u => u.is_active).length || 0;
-        const owners = data?.filter(u => u.role === 'owner').length || 0;
-        const employees = data?.filter(u => u.role === 'employee').length || 0;
+        const _totalUsers = data?.length || 0;
+        const _activeUsers = data?.filter(u => u.is_active).length || 0;
+        const _owners = data?.filter(u => u.role === 'owner').length || 0;
+        const _employees = data?.filter(u => u.role === 'employee').length || 0;
 
         set({
           userStats: {
@@ -574,12 +574,12 @@ export const useUsersStore = create<UsersState>()(
 
     hasPermission: (userId: string, action: string) => {
       const { users } = get();
-      const user = users.find(u => u.id === userId);
+      const _user = users.find(u => u.id === userId);
       
       if (!user) return false;
       if (user.role === 'owner') return true;
       
-      const permission = user.permissions.find(p => p.action === action);
+      const _permission = user.permissions.find(p => p.action === action);
       return permission?.granted || false;
     },
 
@@ -608,7 +608,7 @@ export const useUsersStore = create<UsersState>()(
 );
 
 // Sélecteurs optimisés
-export const useUsers = () => {
+export const _useUsers = () => {
   return useUsersStore(state => ({
     users: state.users,
     userStats: state.userStats,
@@ -619,7 +619,7 @@ export const useUsers = () => {
   }));
 };
 
-export const useUserActions = () => {
+export const _useUserActions = () => {
   return useUsersStore(state => ({
     fetchUsers: state.fetchUsers,
     searchUsers: state.searchUsers,
@@ -637,7 +637,7 @@ export const useUserActions = () => {
   }));
 };
 
-export const useUserFilters = () => {
+export const _useUserFilters = () => {
   return useUsersStore(state => ({
     filters: state.filters,
     sort: state.sort,
@@ -647,14 +647,14 @@ export const useUserFilters = () => {
   }));
 };
 
-export const useCurrentUser = () => {
+export const _useCurrentUser = () => {
   return useUsersStore(state => ({
     currentUser: state.currentUser,
     setCurrentUser: state.setCurrentUser,
   }));
 };
 
-export const useUserHelpers = () => {
+export const _useUserHelpers = () => {
   return useUsersStore(state => ({
     getActiveUsers: state.getActiveUsers,
     getOwners: state.getOwners,
@@ -666,7 +666,7 @@ export const useUserHelpers = () => {
 
 // Écouter les changements en temps réel
 if (typeof window !== 'undefined') {
-  const currentUser = useAuthStore.getState().user;
+  const _currentUser = useAuthStore.getState().user;
 
   if (currentUser && currentUser.role === 'owner') {
     supabase
@@ -680,11 +680,11 @@ if (typeof window !== 'undefined') {
           filter: `pressing_id=eq.${currentUser.pressingId}`,
         },
         (payload) => {
-          const store = useUsersStore.getState();
+          const _store = useUsersStore.getState();
 
           switch (payload.eventType) {
             case 'INSERT':
-              const newUser = payload.new as any;
+              const _newUser = payload.new as any;
               if (!store.users.find(u => u.id === newUser.id)) {
                 useUsersStore.setState(state => ({
                   users: [newUser, ...state.users],
@@ -697,7 +697,7 @@ if (typeof window !== 'undefined') {
               break;
 
             case 'UPDATE':
-              const updatedUser = payload.new as any;
+              const _updatedUser = payload.new as any;
               useUsersStore.setState(state => ({
                 users: state.users.map(u =>
                   u.id === updatedUser.id ? updatedUser : u
@@ -709,7 +709,7 @@ if (typeof window !== 'undefined') {
               break;
 
             case 'DELETE':
-              const deletedUser = payload.old as any;
+              const _deletedUser = payload.old as any;
               useUsersStore.setState(state => ({
                 users: state.users.filter(u => u.id !== deletedUser.id),
                 pagination: {
