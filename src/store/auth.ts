@@ -27,9 +27,28 @@ interface AuthState {
   updateUser: (updates: Partial<User>) => Promise<void>;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
   clearError: () => void;
+  loadUserPreferences: () => Promise<void>;
 }
 
-export const _useAuthStore = create<AuthState>()(
+// Préférences par défaut
+const getDefaultPreferences = (): UserPreferences => ({
+  theme: 'system',
+  language: 'fr',
+  currency: '€',
+  timezone: 'Europe/Paris',
+  notifications: {
+    email: true,
+    push: true,
+    sound: true,
+  },
+  dashboard: {
+    defaultView: 'today',
+    showQuickStats: true,
+    showRecentInvoices: true,
+  },
+});
+
+export const useAuthStore = create<AuthState>()(
   subscribeWithSelector(
     persist(
       (set, get) => ({
@@ -60,7 +79,7 @@ export const _useAuthStore = create<AuthState>()(
             }
 
             // Récupérer le profil utilisateur complet
-            const _profile = await getUserProfile(data.user.id);
+            const profile = await getUserProfile(data.user.id);
             if (!profile) {
               throw new Error('Impossible de récupérer le profil utilisateur');
             }
@@ -257,7 +276,7 @@ export const _useAuthStore = create<AuthState>()(
             }
 
             if (data.session && data.user) {
-              const _profile = await getUserProfile(data.user.id);
+              const profile = await getUserProfile(data.user.id);
               if (profile) {
                 const user: User = {
                   id: profile.id,
@@ -267,7 +286,7 @@ export const _useAuthStore = create<AuthState>()(
                   fullName: profile.full_name,
                   permissions: profile.permissions as any[] || [],
                   createdAt: profile.created_at,
-                  lastLogin: profile.last_login  || null,
+                  lastLogin: profile.last_login || null,
                   isActive: profile.is_active,
                 };
 
@@ -300,7 +319,7 @@ export const _useAuthStore = create<AuthState>()(
             }
 
             if (session?.user) {
-              const _profile = await getUserProfile(session.user.id);
+              const profile = await getUserProfile(session.user.id);
               if (profile) {
                 const user: User = {
                   id: profile.id,
@@ -310,7 +329,7 @@ export const _useAuthStore = create<AuthState>()(
                   fullName: profile.full_name,
                   permissions: profile.permissions as any[] || [],
                   createdAt: profile.created_at,
-                  lastLogin: profile.last_login  || null,
+                  lastLogin: profile.last_login || null,
                   isActive: profile.is_active,
                 };
 
@@ -359,7 +378,7 @@ export const _useAuthStore = create<AuthState>()(
               throw error;
             }
 
-            const _updatedUser = { ...user, ...updates };
+            const updatedUser = { ...user, ...updates };
             set({ 
               user: updatedUser, 
               session: get().session ? { ...get().session!, user: updatedUser } : null,
@@ -385,8 +404,8 @@ export const _useAuthStore = create<AuthState>()(
 
             set({ isLoading: true, error: null });
 
-            const _currentPreferences = get().preferences || getDefaultPreferences();
-            const _updatedPreferences = { ...currentPreferences, ...preferences };
+            const currentPreferences = get().preferences || getDefaultPreferences();
+            const updatedPreferences = { ...currentPreferences, ...preferences };
 
             const { error } = await supabase
               .from('user_preferences')
@@ -421,7 +440,7 @@ export const _useAuthStore = create<AuthState>()(
           set({ error: null });
         },
 
-        // Méthode privée pour charger les préférences
+        // Méthode pour charger les préférences
         loadUserPreferences: async () => {
           try {
             const { user } = get();
@@ -469,28 +488,10 @@ export const _useAuthStore = create<AuthState>()(
   )
 );
 
-// Préférences par défaut
-const _getDefaultPreferences = (): UserPreferences => ({
-  theme: 'system',
-  language: 'fr',
-  currency: '€',
-  timezone: 'Europe/Paris',
-  notifications: {
-    email: true,
-    push: true,
-    sound: true,
-  },
-  dashboard: {
-    defaultView: 'today',
-    showQuickStats: true,
-    showRecentInvoices: true,
-  },
-});
-
 // Écouter les changements d'authentification Supabase
 if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange(async (event, session) => {
-    const _store = useAuthStore.getState();
+    const store = useAuthStore.getState();
     
     switch (event) {
       case 'SIGNED_IN':
@@ -520,11 +521,11 @@ if (typeof window !== 'undefined') {
 
   // Auto-refresh de la session toutes les heures
   setInterval(async () => {
-    const _store = useAuthStore.getState();
+    const store = useAuthStore.getState();
     if (store.session && store.user) {
-      const _expiresAt = new Date(store.session.expiresAt);
-      const _now = new Date();
-      const _timeUntilExpiry = expiresAt.getTime() - now.getTime();
+      const expiresAt = new Date(store.session.expiresAt);
+      const now = new Date();
+      const timeUntilExpiry = expiresAt.getTime() - now.getTime();
       
       // Refresh si expire dans moins d'une heure
       if (timeUntilExpiry < 60 * 60 * 1000) {
@@ -535,7 +536,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Sélecteurs pour optimiser les re-renders
-export const _useAuth = () => {
+export const useAuth = () => {
   return useAuthStore((state) => ({
     user: state.user,
     session: state.session,
@@ -545,7 +546,7 @@ export const _useAuth = () => {
   }));
 };
 
-export const _useAuthActions = () => {
+export const useAuthActions = () => {
   return useAuthStore((state) => ({
     signIn: state.signIn,
     signUp: state.signUp,
@@ -559,7 +560,7 @@ export const _useAuthActions = () => {
   }));
 };
 
-export const _useUserPreferences = () => {
+export const useUserPreferences = () => {
   return useAuthStore((state) => ({
     preferences: state.preferences,
     updatePreferences: state.updatePreferences,
@@ -567,7 +568,7 @@ export const _useUserPreferences = () => {
 };
 
 // Helper pour vérifier les permissions
-export const _useUserPermissions = () => {
+export const useUserPermissions = () => {
   const user = useAuthStore((state) => state.user);
   
   return {
