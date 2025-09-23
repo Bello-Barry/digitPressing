@@ -6,9 +6,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 
 // Variables d'environnement
-const _supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const _supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const _supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
   throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
@@ -64,7 +64,7 @@ export type SupabaseClientType = typeof supabase;
 export type SupabaseAdminType = typeof supabaseAdmin;
 
 // Configuration des politiques RLS par défaut
-export const _RLS_POLICIES = {
+export const RLS_POLICIES = {
   USERS_ACCESS_OWN_PRESSING: 'users_access_own_pressing',
   INVOICES_ACCESS_OWN_PRESSING: 'invoices_access_own_pressing',
   ARTICLES_ACCESS_OWN_PRESSING: 'articles_access_own_pressing',
@@ -74,7 +74,7 @@ export const _RLS_POLICIES = {
 } as const;
 
 // Helper functions pour la gestion des erreurs
-export const _handleSupabaseError = (error: unknown): string => {
+export const handleSupabaseError = (error: unknown): string => {
   if (error && typeof error === 'object' && 'message' in error) {
     return (error as { message: string }).message;
   }
@@ -82,7 +82,7 @@ export const _handleSupabaseError = (error: unknown): string => {
 };
 
 // Helper pour vérifier la session utilisateur
-export const _getCurrentUser = async () => {
+export const getCurrentUser = async () => {
   try {
     const {
       data: { user },
@@ -101,13 +101,13 @@ export const _getCurrentUser = async () => {
 };
 
 // Helper pour vérifier si l'utilisateur est connecté
-export const _isAuthenticated = async (): Promise<boolean> => {
+export const isAuthenticated = async (): Promise<boolean> => {
   const user = await getCurrentUser();
   return user !== null;
 };
 
-// Helper pour récupérer le profil utilisateur complet
-export const _getUserProfile = async (userId?: string) => {
+// Helper pour récupérer le profil utilisateur complet - EXPORT CORRIGÉ
+export const getUserProfile = async (userId?: string) => {
   try {
     const user = userId ? { id: userId } : await getCurrentUser();
     if (!user) return null;
@@ -133,7 +133,7 @@ export const _getUserProfile = async (userId?: string) => {
 };
 
 // Helper pour la déconnexion
-export const _signOut = async () => {
+export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -146,14 +146,14 @@ export const _signOut = async () => {
 };
 
 // Helper pour écouter les changements d'authentification
-export const _onAuthStateChange = (
+export const onAuthStateChange = (
   callback: (event: string, session: any) => void
 ) => {
   return supabase.auth.onAuthStateChange(callback);
 };
 
 // Configuration des canaux en temps réel
-export const _REALTIME_CHANNELS = {
+export const REALTIME_CHANNELS = {
   INVOICES: 'invoices_changes',
   REVENUE: 'revenue_changes',
   ARTICLES: 'articles_changes',
@@ -161,7 +161,7 @@ export const _REALTIME_CHANNELS = {
 } as const;
 
 // Helper pour s'abonner aux changements en temps réel
-export const _subscribeToTable = (
+export const subscribeToTable = (
   table: keyof Database['public']['Tables'],
   pressingId: string,
   callback: (payload: any) => void
@@ -182,19 +182,19 @@ export const _subscribeToTable = (
 };
 
 // Helper pour se désabonner d'un canal
-export const _unsubscribeFromChannel = (channelName: string) => {
+export const unsubscribeFromChannel = (channelName: string) => {
   return supabase.removeChannel(supabase.getChannels().find(ch => ch.topic === channelName));
 };
 
 // Configuration des buckets de stockage
-export const _STORAGE_BUCKETS = {
+export const STORAGE_BUCKETS = {
   LOGOS: 'pressing-logos',
   EXPORTS: 'exports',
   TEMP: 'temp-files',
 } as const;
 
 // Helper pour uploader un fichier
-export const _uploadFile = async (
+export const uploadFile = async (
   bucket: keyof typeof STORAGE_BUCKETS,
   path: string,
   file: File,
@@ -221,13 +221,13 @@ export const _uploadFile = async (
 };
 
 // Helper pour obtenir l'URL publique d'un fichier
-export const _getPublicUrl = (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
+export const getPublicUrl = (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
   const { data } = supabase.storage.from(STORAGE_BUCKETS[bucket]).getPublicUrl(path);
   return data.publicUrl;
 };
 
 // Helper pour supprimer un fichier
-export const _deleteFile = async (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
+export const deleteFile = async (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
   try {
     const { error } = await supabase.storage.from(STORAGE_BUCKETS[bucket]).remove([path]);
 
@@ -241,7 +241,7 @@ export const _deleteFile = async (bucket: keyof typeof STORAGE_BUCKETS, path: st
 };
 
 // Configuration des fonctions Edge
-export const _EDGE_FUNCTIONS = {
+export const EDGE_FUNCTIONS = {
   SEND_EMAIL: 'send-email',
   GENERATE_PDF: 'generate-pdf',
   CALCULATE_STATS: 'calculate-stats',
@@ -249,7 +249,7 @@ export const _EDGE_FUNCTIONS = {
 } as const;
 
 // Helper pour appeler une fonction Edge
-export const _callEdgeFunction = async (
+export const callEdgeFunction = async (
   functionName: keyof typeof EDGE_FUNCTIONS,
   payload: any
 ) => {
@@ -272,20 +272,20 @@ export const _callEdgeFunction = async (
   }
 };
 
-// Helper pour la pagination
-export const _paginateQuery = <T>(
+// Helper pour la pagination - EXPORT CORRIGÉ
+export const paginateQuery = <T>(
   query: any,
   page: number = 1,
   limit: number = 50
 ) => {
   const from = (page - 1) * limit;
-  const _to = from + limit - 1;
+  const to = from + limit - 1;
   
   return query.range(from, to);
 };
 
 // Helper pour les requêtes de recherche
-export const _buildSearchQuery = (
+export const buildSearchQuery = (
   baseQuery: any,
   searchTerm: string,
   searchFields: string[]
@@ -295,7 +295,7 @@ export const _buildSearchQuery = (
   }
 
   // Construction de la requête de recherche full-text
-  const _searchConditions = searchFields
+  const searchConditions = searchFields
     .map(field => `${field}.ilike.%${searchTerm}%`)
     .join(',');
 
