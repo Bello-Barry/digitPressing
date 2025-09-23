@@ -1,3 +1,4 @@
+//app/auth/registre 
 'use client';
 
 import { useState } from 'react';

@@ -196,7 +196,7 @@ const nextConfig = {
   
   // Experimental features - CONSOLIDÉ
   experimental: {
-    appDir: true,
+    
     serverComponentsExternalPackages: ['@supabase/supabase-js'],
     optimizeCss: true,
     optimizePackageImports: [

@@ -79,12 +79,12 @@ const initialFilters: RevenueFilters = {
   employees: undefined,
 };
 
-const _initialDateRange = {
+const initialDateRange = {
   startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
   endDate: new Date().toISOString().split('T')[0],
 };
 
-export const _useRevenueStore = create<RevenueState>()(
+export const useRevenueStore = create<RevenueState>()(
   subscribeWithSelector((set, get) => ({
     // État initial
     dailyRevenues: [],
@@ -109,7 +109,7 @@ export const _useRevenueStore = create<RevenueState>()(
     // Actions
     fetchDailyRevenues: async (startDate, endDate) => {
       try {
-        const _user = useAuthStore.getState().user;
+        const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         // Vérifier les permissions
@@ -120,8 +120,8 @@ export const _useRevenueStore = create<RevenueState>()(
         set({ isLoading: true, error: null });
 
         const { dateRange, filters } = get();
-        const _start = startDate || filters.startDate || dateRange.startDate;
-        const _end = endDate || filters.endDate || dateRange.endDate;
+        const start = startDate || filters.startDate || dateRange.startDate;
+        const end = endDate || filters.endDate || dateRange.endDate;
 
         let query = supabase
           .from('revenue_daily')
@@ -169,7 +169,7 @@ export const _useRevenueStore = create<RevenueState>()(
 
     fetchRevenueStats: async (period, startDate, endDate) => {
       try {
-        const _user = useAuthStore.getState().user;
+        const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         if (user.role !== 'owner' && !user.permissions?.find(p => p.action === 'view_revenue')?.granted) {
@@ -179,7 +179,7 @@ export const _useRevenueStore = create<RevenueState>()(
         let start: string;
         let end: string;
 
-        const _now = new Date();
+        const now = new Date();
         
         switch (period) {
           case 'today':
@@ -208,7 +208,7 @@ export const _useRevenueStore = create<RevenueState>()(
 
         if (error) throw error;
 
-        const _revenues = data || [];
+        const revenues = data || [];
         
         const stats: RevenueStats = {
           totalRevenue: revenues.reduce((sum, r) => sum + r.daily_total, 0),
@@ -226,7 +226,7 @@ export const _useRevenueStore = create<RevenueState>()(
         };
 
         // Mettre à jour selon la période
-        const _updateKey = `${period}Stats` as 'todayStats' | 'monthStats' | 'yearStats' | 'stats';
+        const updateKey = `${period}Stats` as 'todayStats' | 'monthStats' | 'yearStats' | 'stats';
         set({ [updateKey]: stats });
 
       } catch (error: any) {
@@ -237,12 +237,12 @@ export const _useRevenueStore = create<RevenueState>()(
 
     fetchChartData: async (type, period) => {
       try {
-        const _user = useAuthStore.getState().user;
+        const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         const { dateRange } = get();
-        const _start = period || dateRange.startDate;
-        const _end = dateRange.endDate;
+        const start = period || dateRange.startDate;
+        const end = dateRange.endDate;
 
         const { data, error } = await supabase
           .from('revenue_daily')
@@ -254,11 +254,11 @@ export const _useRevenueStore = create<RevenueState>()(
 
         if (error) throw error;
 
-        const _revenues = data || [];
+        const revenues = data || [];
 
         switch (type) {
           case 'daily':
-            const _dailyData = revenues.map(r => ({
+            const dailyData = revenues.map(r => ({
               date: r.date,
               value: r.daily_total,
               label: formatDate(r.date, 'dd/MM'),
@@ -272,13 +272,13 @@ export const _useRevenueStore = create<RevenueState>()(
             // Regrouper par semaine
             const weeklyData: Record<string, number> = {};
             revenues.forEach(r => {
-              const _date = new Date(r.date);
-              const _weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
-              const _weekKey = weekStart.toISOString().split('T')[0];
+              const date = new Date(r.date);
+              const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
+              const weekKey = weekStart.toISOString().split('T')[0];
               weeklyData[weekKey] = (weeklyData[weekKey] || 0) + r.daily_total;
             });
 
-            const _weeklyChartData = Object.entries(weeklyData).map(([date, value]) => ({
+            const weeklyChartData = Object.entries(weeklyData).map(([date, value]) => ({
               date,
               value,
               label: `Sem ${formatDate(date, 'dd/MM')}`,
@@ -293,12 +293,12 @@ export const _useRevenueStore = create<RevenueState>()(
             // Regrouper par mois
             const monthlyData: Record<string, number> = {};
             revenues.forEach(r => {
-              const _date = new Date(r.date);
-              const _monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+              const date = new Date(r.date);
+              const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
               monthlyData[monthKey] = (monthlyData[monthKey] || 0) + r.daily_total;
             });
 
-            const _monthlyChartData = Object.entries(monthlyData).map(([key, value]) => ({
+            const monthlyChartData = Object.entries(monthlyData).map(([key, value]) => ({
               date: key,
               value,
               label: formatDate(`${key}-01`, 'MMM yyyy'),
@@ -317,7 +317,7 @@ export const _useRevenueStore = create<RevenueState>()(
               });
             });
 
-            const _categoriesChartData = Object.entries(categoriesData)
+            const categoriesChartData = Object.entries(categoriesData)
               .sort(([,a], [,b]) => b - a)
               .slice(0, 10)
               .map(([name, value], index) => ({
@@ -339,7 +339,7 @@ export const _useRevenueStore = create<RevenueState>()(
               });
             });
 
-            const _paymentMethodsChartData = Object.entries(paymentData)
+            const paymentMethodsChartData = Object.entries(paymentData)
               .sort(([,a], [,b]) => b - a)
               .map(([name, value], index) => ({
                 name: name === 'cash' ? 'Espèces' : 
@@ -364,7 +364,7 @@ export const _useRevenueStore = create<RevenueState>()(
 
     calculateDailyRevenue: async (date: string) => {
       try {
-        const _user = useAuthStore.getState().user;
+        const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
         // Récupérer toutes les factures du jour
@@ -377,23 +377,23 @@ export const _useRevenueStore = create<RevenueState>()(
 
         if (invoicesError) throw invoicesError;
 
-        const _dailyInvoices = invoices || [];
+        const dailyInvoices = invoices || [];
 
         // Calculer les totaux
-        const _depositTotal = dailyInvoices.reduce((sum, inv) => sum + inv.total, 0);
-        const _withdrawalTotal = dailyInvoices
+        const depositTotal = dailyInvoices.reduce((sum, inv) => sum + inv.total, 0);
+        const withdrawalTotal = dailyInvoices
           .filter(inv => inv.withdrawn && inv.withdrawal_date === date)
           .reduce((sum, inv) => sum + inv.total, 0);
         
-        const _totalTransactions = dailyInvoices.length;
-        const _averageTicket = totalTransactions > 0 ? depositTotal / totalTransactions : 0;
+        const totalTransactions = dailyInvoices.length;
+        const averageTicket = totalTransactions > 0 ? depositTotal / totalTransactions : 0;
 
         // Regrouper par méthodes de paiement
         const paymentMethods: Record<string, number> = {};
         dailyInvoices
           .filter(inv => inv.paid)
           .forEach(inv => {
-            const _method = inv.payment_method || 'cash';
+            const method = inv.payment_method || 'cash';
             paymentMethods[method] = (paymentMethods[method] || 0) + inv.total;
           });
 
@@ -401,8 +401,8 @@ export const _useRevenueStore = create<RevenueState>()(
         const categories: Record<string, number> = {};
         dailyInvoices.forEach(inv => {
           (inv.items as any[]).forEach(item => {
-            const _category = item.category || 'autres';
-            const _itemTotal = item.quantity * item.unitPrice;
+            const category = item.category || 'autres';
+            const itemTotal = item.quantity * item.unitPrice;
             categories[category] = (categories[category] || 0) + itemTotal;
           });
         });
@@ -410,7 +410,7 @@ export const _useRevenueStore = create<RevenueState>()(
         // Regrouper par employés
         const employees: Record<string, number> = {};
         dailyInvoices.forEach(inv => {
-          const _employeeName = inv.created_by_name || 'Inconnu';
+          const employeeName = inv.created_by_name || 'Inconnu';
           employees[employeeName] = (employees[employeeName] || 0) + inv.total;
         });
 
@@ -434,7 +434,7 @@ export const _useRevenueStore = create<RevenueState>()(
         if (upsertError) throw upsertError;
 
         // Mettre à jour le state local si c'est aujourd'hui
-        const _today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
         if (date === today) {
           await get().updateTodayRevenue();
         }
@@ -446,7 +446,7 @@ export const _useRevenueStore = create<RevenueState>()(
     },
 
     updateTodayRevenue: async () => {
-      const _today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
       await get().calculateDailyRevenue(today);
       await get().fetchRevenueStats('today');
     },
@@ -492,7 +492,7 @@ export const _useRevenueStore = create<RevenueState>()(
     },
 
     calculatePeriodTotal: (startDate: string, endDate: string) => {
-      const _revenues = get().getRevenueByPeriod(startDate, endDate);
+      const revenues = get().getRevenueByPeriod(startDate, endDate);
       return revenues.reduce((sum, r) => sum + r.dailyTotal, 0);
     },
 
@@ -566,8 +566,8 @@ export const _useRevenueStore = create<RevenueState>()(
   }))
 );
 
-// Sélecteurs optimisés
-export const _useRevenue = () => {
+// Sélecteurs optimisés - EXPORTS CORRECTS
+export const useRevenue = () => {
   return useRevenueStore(state => ({
     dailyRevenues: state.dailyRevenues,
     stats: state.stats,
@@ -581,7 +581,7 @@ export const _useRevenue = () => {
   }));
 };
 
-export const _useRevenueActions = () => {
+export const useRevenueActions = () => {
   return useRevenueStore(state => ({
     fetchDailyRevenues: state.fetchDailyRevenues,
     fetchRevenueStats: state.fetchRevenueStats,
@@ -593,7 +593,7 @@ export const _useRevenueActions = () => {
   }));
 };
 
-export const _useRevenueFilters = () => {
+export const useRevenueFilters = () => {
   return useRevenueStore(state => ({
     filters: state.filters,
     dateRange: state.dateRange,
@@ -603,7 +603,7 @@ export const _useRevenueFilters = () => {
   }));
 };
 
-export const _useRevenueHelpers = () => {
+export const useRevenueHelpers = () => {
   return useRevenueStore(state => ({
     getRevenueByDate: state.getRevenueByDate,
     getRevenueByPeriod: state.getRevenueByPeriod,
@@ -617,11 +617,11 @@ export const _useRevenueHelpers = () => {
 // Auto-calcul du CA quotidien toutes les heures
 if (typeof window !== 'undefined') {
   setInterval(() => {
-    const _store = useRevenueStore.getState();
-    const _user = useAuthStore.getState().user;
+    const store = useRevenueStore.getState();
+    const user = useAuthStore.getState().user;
 
     if (user && !store.isLoading) {
-      const _today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
       store.calculateDailyRevenue(today);
     }
   }, 60 * 60 * 1000); // Toutes les heures
@@ -629,7 +629,7 @@ if (typeof window !== 'undefined') {
 
 // Écouter les changements de factures pour recalculer le CA
 if (typeof window !== 'undefined') {
-  const _user = useAuthStore.getState().user;
+  const user = useAuthStore.getState().user;
 
   if (user && (user.role === 'owner' || user.permissions?.find(p => p.action === 'view_revenue')?.granted)) {
     supabase
@@ -643,12 +643,12 @@ if (typeof window !== 'undefined') {
           filter: `pressing_id=eq.${user.pressingId}`,
         },
         (payload) => {
-          const _store = useRevenueStore.getState();
+          const store = useRevenueStore.getState();
           
           // Recalculer le CA pour la date concernée
           if (payload.new) {
-            const _invoice = payload.new as any;
-            const _date = invoice.deposit_date || invoice.withdrawal_date;
+            const invoice = payload.new as any;
+            const date = invoice.deposit_date || invoice.withdrawal_date;
             if (date) {
               store.calculateDailyRevenue(date);
             }
