@@ -74,7 +74,20 @@ export interface NotificationSettings {
 }
 
 // Types articles
-export type ArticleCategory = 'vetement' | 'accessoire' | 'special' | 'cuir' | 'retouche';
+// Types articles - MISE À JOUR DU TYPE ArticleCategory
+export type ArticleCategory = 
+  | 'vetement' 
+  | 'chaussure' 
+  | 'accessoire' 
+  | 'maison' 
+  | 'traditionnel' 
+  | 'delicat' 
+  | 'ceremonie' 
+  | 'enfant' 
+  | 'uniforme' 
+  | 'cuir' 
+  | 'retouche' 
+  | 'special';
 
 export interface Article {
   id: string;
