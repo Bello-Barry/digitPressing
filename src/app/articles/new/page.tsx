@@ -228,6 +228,7 @@ export default function NewArticlePage() {
         description: formData.description.trim() || undefined,
         estimatedDays: formData.estimatedDays,
         isActive: formData.isActive,
+        customizable: false,
         pressingId: user.pressingId,
       });
 
