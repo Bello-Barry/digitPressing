@@ -225,7 +225,7 @@ export default function NewArticlePage() {
         name: capitalizeWords(formData.name.trim()),
         category: formData.category,
         defaultPrice: formData.defaultPrice,
-        description: formData.description.trim() || null,
+        description: formData.description.trim() || undefined,
         estimatedDays: formData.estimatedDays,
         isActive: formData.isActive,
         pressingId: user.pressingId,
