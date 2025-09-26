@@ -5,7 +5,6 @@
 // =============================================================================
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Plus,
@@ -101,7 +100,6 @@ interface ArticleFormData {
 }
 
 export default function ArticlesPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const permissions = useUserPermissions();
   
