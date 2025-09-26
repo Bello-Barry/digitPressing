@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Plus,
   Search,
@@ -21,8 +22,8 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Download,
-  Upload
+  Download
+  // SUPPRIMÉ: Upload - non utilisé
 } from 'lucide-react';
 import {
   useArticles,
@@ -74,7 +75,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { formatCurrency, capitalizeWords } from '@/lib/utils';
 import type { Article } from '@/types';
 
-const _CATEGORY_CONFIG = {
+// SUPPRIMÉ LE PRÉFIXE _ POUR CORRIGER L'ERREUR
+const CATEGORY_CONFIG = {
   vetement: { label: 'Vêtements', color: 'bg-blue-100 text-blue-800', icon: '👔' },
   chaussure: { label: 'Chaussures', color: 'bg-brown-100 text-brown-800', icon: '👞' },
   accessoire: { label: 'Accessoires', color: 'bg-purple-100 text-purple-800', icon: '👜' },
@@ -99,9 +101,9 @@ interface ArticleFormData {
 }
 
 export default function ArticlesPage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   
   // États des stores
   const { articles, articlesByCategory, isLoading, error, pagination } = useArticles();
@@ -144,7 +146,7 @@ export default function ArticlesPage() {
   });
 
   // Permissions
-  const _canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
+  const canModifyPrices = permissions.isOwner || permissions.canModifyPrices;
 
   // Charger les données au montage
   useEffect(() => {
@@ -155,7 +157,7 @@ export default function ArticlesPage() {
 
   // Gestion de la recherche avec debounce
   useEffect(() => {
-    const _timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (searchTerm.trim()) {
         searchArticles(searchTerm);
       } else {
@@ -181,7 +183,7 @@ export default function ArticlesPage() {
   }, [articlesByCategory, expandedCategories.length]);
 
   // Réinitialiser le formulaire
-  const _resetForm = () => {
+  const resetForm = () => {
     setFormData({
       name: '',
       category: 'vetement',
@@ -193,7 +195,7 @@ export default function ArticlesPage() {
   };
 
   // Actions sur les articles - seulement édition
-  const _handleEditArticle = async () => {
+  const handleEditArticle = async () => {
     if (!currentArticle || !canModifyPrices) return;
 
     try {
@@ -201,7 +203,7 @@ export default function ArticlesPage() {
         name: capitalizeWords(formData.name.trim()),
         category: formData.category,
         defaultPrice: formData.defaultPrice,
-        description: formData.description.trim()  || null,
+        description: formData.description.trim() || undefined,
         estimatedDays: formData.estimatedDays,
         isActive: formData.isActive,
       });
@@ -214,7 +216,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const _handleDeleteArticle = async () => {
+  const handleDeleteArticle = async () => {
     if (!currentArticle || !canModifyPrices) return;
 
     try {
@@ -226,7 +228,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const _handleDuplicateArticle = async (article: Article) => {
+  const handleDuplicateArticle = async (article: Article) => {
     if (!canModifyPrices) return;
 
     try {
@@ -236,7 +238,7 @@ export default function ArticlesPage() {
     }
   };
 
-  const _handleToggleStatus = async (article: Article) => {
+  const handleToggleStatus = async (article: Article) => {
     if (!canModifyPrices) return;
 
     try {
@@ -247,7 +249,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion des actions en masse
-  const _handleBulkAction = async () => {
+  const handleBulkAction = async () => {
     if (selectedArticles.length === 0 || !canModifyPrices) return;
 
     try {
@@ -265,7 +267,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion de la sélection
-  const _toggleArticleSelection = (articleId: string) => {
+  const toggleArticleSelection = (articleId: string) => {
     setSelectedArticles(prev => 
       prev.includes(articleId)
         ? prev.filter(id => id !== articleId)
@@ -273,12 +275,12 @@ export default function ArticlesPage() {
     );
   };
 
-  const _selectAllInCategory = (category: string) => {
+  const selectAllInCategory = (category: string) => {
     const categoryArticles = articlesByCategory[category] || [];
-    const _categoryIds = categoryArticles.map(a => a.id);
+    const categoryIds = categoryArticles.map(a => a.id);
     
     setSelectedArticles(prev => {
-      const _allSelected = categoryIds.every(id => prev.includes(id));
+      const allSelected = categoryIds.every(id => prev.includes(id));
       if (allSelected) {
         return prev.filter(id => !categoryIds.includes(id));
       } else {
@@ -288,7 +290,7 @@ export default function ArticlesPage() {
   };
 
   // Gestion de l'expansion des catégories
-  const _toggleCategoryExpansion = (category: string) => {
+  const toggleCategoryExpansion = (category: string) => {
     setExpandedCategories(prev =>
       prev.includes(category)
         ? prev.filter(c => c !== category)
@@ -297,28 +299,28 @@ export default function ArticlesPage() {
   };
 
   // Ouvrir les dialogs - seulement édition et suppression
-  const _openEditDialog = (article: Article) => {
+  const openEditDialog = (article: Article) => {
     setCurrentArticle(article);
     setFormData({
       name: article.name,
       category: article.category as keyof typeof CATEGORY_CONFIG,
       defaultPrice: article.defaultPrice,
       description: article.description || '',
-      estimatedDays: article.estimatedDays,
+      estimatedDays: article.estimatedDays || 3,
       isActive: article.isActive,
     });
     setShowEditDialog(true);
   };
 
-  const _openDeleteDialog = (article: Article) => {
+  const openDeleteDialog = (article: Article) => {
     setCurrentArticle(article);
     setShowDeleteDialog(true);
   };
 
   // Calcul des statistiques
-  const _activeArticles = getActiveArticles();
-  const _totalArticles = articles.length;
-  const _averagePrice = articles.length > 0 
+  const activeArticles = getActiveArticles();
+  const totalArticles = articles.length;
+  const averagePrice = articles.length > 0 
     ? articles.reduce((sum, a) => sum + a.defaultPrice, 0) / articles.length 
     : 0;
 
@@ -524,10 +526,10 @@ export default function ArticlesPage() {
           </div>
         ) : (
           Object.entries(articlesByCategory).map(([category, categoryArticles]) => {
-            const _config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
-            const _isExpanded = expandedCategories.includes(category);
-            const _categoryIds = categoryArticles.map(a => a.id);
-            const _allSelected = categoryIds.length > 0 && categoryIds.every(id => selectedArticles.includes(id));
+            const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
+            const isExpanded = expandedCategories.includes(category);
+            const categoryIds = categoryArticles.map(a => a.id);
+            const allSelected = categoryIds.length > 0 && categoryIds.every(id => selectedArticles.includes(id));
             
             return (
               <Card key={category}>
@@ -600,7 +602,7 @@ export default function ArticlesPage() {
                                 </p>
                               )}
                               <p className="text-sm text-muted-foreground">
-                                Délai estimé: {article.estimatedDays} jour{article.estimatedDays > 1 ? 's' : ''}
+                                Délai estimé: {article.estimatedDays || 3} jour{(article.estimatedDays || 3) > 1 ? 's' : ''}
                               </p>
                             </div>
 
