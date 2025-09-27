@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,14 +12,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 
-const forgotPasswordSchema = z.object({ // Suppression du underscore
+const forgotPasswordSchema = z.object({
   email: z.string().min(1, 'L\'email est requis').email('Format d\'email invalide'),
 });
 
 type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const router = useRouter(); // Suppression du underscore
+  // Suppression de useRouter car non utilisé
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
@@ -33,7 +32,7 @@ export default function ForgotPasswordPage() {
     resolver: zodResolver(forgotPasswordSchema),
   });
 
-  const onSubmit = async (data: ForgotPasswordData) => { // Suppression du underscore
+  const onSubmit = async (data: ForgotPasswordData) => {
     try {
       setIsLoading(true);
 
