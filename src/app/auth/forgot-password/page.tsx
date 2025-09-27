@@ -13,14 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 
-const _forgotPasswordSchema = z.object({
+const forgotPasswordSchema = z.object({ // Suppression du underscore
   email: z.string().min(1, 'L\'email est requis').email('Format d\'email invalide'),
 });
 
 type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const _router = useRouter();
+  const router = useRouter(); // Suppression du underscore
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
     resolver: zodResolver(forgotPasswordSchema),
   });
 
-  const _onSubmit = async (data: ForgotPasswordData) => {
+  const onSubmit = async (data: ForgotPasswordData) => { // Suppression du underscore
     try {
       setIsLoading(true);
 
