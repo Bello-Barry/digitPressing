@@ -22,7 +22,6 @@ import {
   ChevronDown,
   ChevronRight,
   Download
-  // SUPPRIMÉ: Upload - non utilisé
 } from 'lucide-react';
 import {
   useArticles,
@@ -74,7 +73,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { formatCurrency, capitalizeWords } from '@/lib/utils';
 import type { Article } from '@/types';
 
-// SUPPRIMÉ LE PRÉFIXE _ POUR CORRIGER L'ERREUR
 const CATEGORY_CONFIG = {
   vetement: { label: 'Vêtements', color: 'bg-blue-100 text-blue-800', icon: '👔' },
   chaussure: { label: 'Chaussures', color: 'bg-brown-100 text-brown-800', icon: '👞' },
@@ -104,16 +102,14 @@ export default function ArticlesPage() {
   const permissions = useUserPermissions();
   
   // États des stores
-  const { articles, articlesByCategory, isLoading, error, pagination } = useArticles();
+  const { articles, articlesByCategory, isLoading, error } = useArticles();
   const { currentArticle, setCurrentArticle } = useCurrentArticle();
   const { filters, setFilters, resetFilters } = useArticleFilters();
   const { 
     fetchArticles, 
     searchArticles, 
-    createArticle, 
     updateArticle, 
     deleteArticle,
-    restoreArticle,
     duplicateArticle,
     bulkUpdatePrices,
     bulkToggleStatus,
