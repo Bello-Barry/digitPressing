@@ -9,7 +9,6 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 
 const forgotPasswordSchema = z.object({
@@ -19,7 +18,6 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  // Suppression de useRouter car non utilisé
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
@@ -63,8 +61,8 @@ export default function ForgotPasswordPage() {
           className="mx-auto max-w-md w-full bg-white rounded-lg shadow-soft p-8"
         >
           <div className="text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-6 w-6 text-success" />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
             <h2 className="mt-4 text-xl font-bold text-foreground">Email envoyé !</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -110,25 +108,35 @@ export default function ForgotPasswordPage() {
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            <Input
-              {...register('email')}
-              type="email"
-              label="Adresse email"
-              placeholder="nom@exemple.com"
-              autoComplete="email"
-              leftIcon={<Mail className="h-4 w-4" />}
-              error={errors.email?.message}
-            />
+            <div className="space-y-2">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground">
+                Adresse email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <input
+                  {...register('email')}
+                  type="email"
+                  id="email"
+                  className="block w-full pl-10 pr-3 py-2 border border-input rounded-md shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="nom@exemple.com"
+                  autoComplete="email"
+                />
+              </div>
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
+            </div>
 
             <Button
               type="submit"
               className="w-full"
               size="lg"
               disabled={isLoading}
-              loading={isLoading}
-              loadingText="Envoi en cours..."
             >
-              Envoyer le lien de réinitialisation
+              {isLoading ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
             </Button>
           </form>
         </motion.div>
