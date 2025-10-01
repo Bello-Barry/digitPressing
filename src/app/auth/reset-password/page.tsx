@@ -1,7 +1,3 @@
-// =============================================================================
-// 2. RESET MOT DE PASSE - src/app/auth/reset-password/page.tsx
-// =============================================================================
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,14 +6,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
+import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { supabase } from '@/lib/supabase';
+import { useAuthActions } from '@/store/auth';
 import Link from 'next/link';
 
-const _resetPasswordSchema = z.object({
+const resetPasswordSchema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
   confirmPassword: z.string().min(6, 'Confirmez votre mot de passe'),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -28,14 +23,14 @@ const _resetPasswordSchema = z.object({
 type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
-  const _router = useRouter();
-  const _searchParams = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { updatePassword } = useAuthActions();
+  
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isValidToken, setIsValidToken] = useState(false);
 
   const {
     register,
@@ -45,57 +40,42 @@ export default function ResetPasswordPage() {
     resolver: zodResolver(resetPasswordSchema),
   });
 
+  // Vérifier si nous avons un token valide
   useEffect(() => {
-    // Récupérer les tokens depuis l'URL
-    const _access_token = searchParams.get('access_token');
-    const _refresh_token = searchParams.get('refresh_token');
+    const token = searchParams.get('token');
+    const type = searchParams.get('type');
     
-    if (access_token && refresh_token) {
-      setAccessToken(access_token);
-      setRefreshToken(refresh_token);
+    if (type === 'recovery' && token) {
+      setIsValidToken(true);
     } else {
-      // Rediriger vers la page de demande si pas de tokens
-      router.push('/auth/forgot-password');
+      setError('Lien de réinitialisation invalide ou expiré');
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
-  const _onSubmit = async (data: ResetPasswordData) => {
+  const onSubmit = async (data: ResetPasswordData) => {
     try {
       setIsLoading(true);
+      setError(null);
 
-      if (!accessToken || !refreshToken) {
-        throw new Error('Tokens de réinitialisation manquants');
-      }
+      await updatePassword(data.password);
+      
+      setSuccess(true);
+      
+      // Redirection après 3 secondes
+      setTimeout(() => {
+        router.push('/auth/login');
+      }, 3000);
 
-      // Définir la session avec les tokens
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      // Mettre à jour le mot de passe
-      const { error } = await supabase.auth.updateUser({
-        password: data.password
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      setIsSuccess(true);
     } catch (error: any) {
       console.error('Erreur reset password:', error);
-      alert('Erreur lors de la réinitialisation. Le lien a peut-être expiré.');
+      setError(error.message || 'Erreur lors de la réinitialisation du mot de passe');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isSuccess) {
+  // Affichage en cas de succès
+  if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
         <motion.div
@@ -104,18 +84,49 @@ export default function ResetPasswordPage() {
           className="mx-auto max-w-md w-full bg-white rounded-lg shadow-soft p-8"
         >
           <div className="text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-              <CheckCircle className="h-6 w-6 text-success" />
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
             <h2 className="mt-4 text-xl font-bold text-foreground">
-              Mot de passe mis à jour !
+              Mot de passe modifié !
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Votre mot de passe a été mis à jour avec succès. Vous pouvez maintenant vous connecter.
+              Votre mot de passe a été réinitialisé avec succès. Vous allez être redirigé vers la page de connexion.
             </p>
-            <div className="mt-6">
+            <Button className="w-full mt-6" asChild>
+              <Link href="/auth/login">Se connecter maintenant</Link>
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Affichage en cas de token invalide
+  if (!isValidToken) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mx-auto max-w-md w-full bg-white rounded-lg shadow-soft p-8"
+        >
+          <div className="text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-foreground">
+              Lien invalide ou expiré
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ce lien de réinitialisation n'est plus valide. Veuillez demander un nouveau lien.
+            </p>
+            <div className="mt-6 space-y-3">
               <Button className="w-full" asChild>
-                <Link href="/auth/login">Se connecter</Link>
+                <Link href="/auth/forgot-password">Demander un nouveau lien</Link>
+              </Button>
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/auth/login">Retour à la connexion</Link>
               </Button>
             </div>
           </div>
@@ -124,6 +135,7 @@ export default function ResetPasswordPage() {
     );
   }
 
+  // Formulaire de réinitialisation
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="flex min-h-screen flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
@@ -137,57 +149,89 @@ export default function ResetPasswordPage() {
               Nouveau mot de passe
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Choisissez un mot de passe sécurisé pour votre compte.
+              Choisissez un nouveau mot de passe sécurisé pour votre compte
             </p>
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            <Input
-              {...register('password')}
-              type={showPassword ? 'text' : 'password'}
-              label="Nouveau mot de passe"
-              placeholder="Votre nouveau mot de passe"
-              leftIcon={<Lock className="h-4 w-4" />}
-              rightIcon={
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
-              error={errors.password?.message}
-            />
+            {/* Erreur */}
+            {error && (
+              <div className="rounded-md bg-destructive/10 p-4">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  <div className="ml-3">
+                    <p className="text-sm text-destructive">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <Input
-              {...register('confirmPassword')}
-              type={showConfirmPassword ? 'text' : 'password'}
-              label="Confirmer le mot de passe"
-              placeholder="Confirmez votre mot de passe"
-              leftIcon={<Lock className="h-4 w-4" />}
-              rightIcon={
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              }
-              error={errors.confirmPassword?.message}
-            />
+            {/* Nouveau mot de passe */}
+            <div className="space-y-2">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+                Nouveau mot de passe
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <input
+                  {...register('password')}
+                  type="password"
+                  id="password"
+                  className="block w-full pl-10 pr-3 py-2 border border-input rounded-md shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Minimum 6 caractères
+              </p>
+            </div>
+
+            {/* Confirmation */}
+            <div className="space-y-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground">
+                Confirmer le mot de passe
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <input
+                  {...register('confirmPassword')}
+                  type="password"
+                  id="confirmPassword"
+                  className="block w-full pl-10 pr-3 py-2 border border-input rounded-md shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+              )}
+            </div>
 
             <Button
               type="submit"
               className="w-full"
               size="lg"
-              disabled={isLoading || !accessToken}
-              loading={isLoading}
-              loadingText="Mise à jour..."
+              disabled={isLoading}
             >
-              Mettre à jour le mot de passe
+              {isLoading ? 'Réinitialisation...' : 'Réinitialiser le mot de passe'}
             </Button>
+
+            <div className="text-center">
+              <Link
+                href="/auth/login"
+                className="text-sm text-primary hover:text-primary/80"
+              >
+                Retour à la connexion
+              </Link>
+            </div>
           </form>
         </motion.div>
       </div>
