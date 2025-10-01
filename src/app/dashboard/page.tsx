@@ -6,7 +6,6 @@ import { motion } from 'framer-motion';
 import { 
   Plus, 
   TrendingUp, 
-  Users, 
   Package, 
   Calendar,
   Euro,
@@ -29,7 +28,7 @@ import { QuickActions } from '@/components/dashboard/quick-actions';
 import { RecentInvoices } from '@/components/dashboard/recent-invoices';
 import { RevenueChart } from '@/components/dashboard/revenue-chart';
 
-const _DashboardPage = () => {
+const DashboardPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   
@@ -75,7 +74,7 @@ const _DashboardPage = () => {
   }
 
   // Préparer les statistiques pour les cards
-  const _stats = [
+  const stats = [
     {
       title: "Revenus du jour",
       value: formatCurrency(todayStats?.totalRevenue || 0),
@@ -110,7 +109,7 @@ const _DashboardPage = () => {
     },
   ];
 
-  const _quickActions = [
+  const quickActions = [
     {
       title: "Nouvelle facture",
       description: "Créer une facture client",
