@@ -86,19 +86,19 @@ interface InvoiceFormData {
   tags: string[];
 }
 
-const _URGENCY_CONFIG = {
+const URGENCY_CONFIG = {
   normal: { label: 'Normal', description: 'Délai standard', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', description: '24-48h', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', description: 'Même jour', color: 'bg-red-100 text-red-800' },
 };
 
 export default function EditInvoicePage() {
-  const _params = useParams();
-  const _router = useRouter();
-  const _invoiceId = params?.id as string;
+  const params = useParams();
+  const router = useRouter();
+  const invoiceId = params?.id as string;
   
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   
   // États des stores
   const { invoices, isLoading: invoicesLoading } = useInvoices();
@@ -108,7 +108,7 @@ export default function EditInvoicePage() {
   const { getActiveArticles } = useArticleHelpers();
 
   // Récupérer la facture
-  const _invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
+  const invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
 
   // États du formulaire
   const [formData, setFormData] = useState<InvoiceFormData>({
@@ -149,7 +149,7 @@ export default function EditInvoicePage() {
   // Vérifier les permissions
   useEffect(() => {
     if (invoice && user) {
-      const _canEdit = invoice.status === 'active' && (
+      const canEdit = invoice.status === 'active' && (
         permissions.isOwner || 
         invoice.createdBy === user.id
       );
@@ -183,27 +183,27 @@ export default function EditInvoicePage() {
   }, [invoice, hasChanges, setCurrentInvoice]);
 
   // Marquer comme modifié lors des changements
-  const _updateFormData = useCallback((updates: Partial<InvoiceFormData>) => {
+  const updateFormData = useCallback((updates: Partial<InvoiceFormData>) => {
     setFormData(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
   }, []);
 
   // Articles actifs pour la recherche
-  const _activeArticles = getActiveArticles();
-  const _filteredArticles = activeArticles.filter(article =>
+  const activeArticles = getActiveArticles();
+  const filteredArticles = activeArticles.filter(article =>
     article.name.toLowerCase().includes(articleSearch.toLowerCase()) ||
     article.category.toLowerCase().includes(articleSearch.toLowerCase())
   );
 
   // Calculs automatiques
-  const _subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-  const _total = calculateInvoiceTotal(subtotal, formData.discount, formData.discountType, formData.tax);
+  const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  const total = calculateInvoiceTotal(subtotal, formData.discount, formData.discountType, formData.tax);
 
   // Calculer la date prêt estimée selon l'urgence
   useEffect(() => {
     if (!hasChanges) return;
     
-    const _depositDate = new Date(formData.depositDate);
+    const depositDate = new Date(formData.depositDate);
     let daysToAdd = 3;
 
     switch (formData.urgency) {
@@ -218,7 +218,7 @@ export default function EditInvoicePage() {
         break;
     }
 
-    const _estimatedDate = new Date(depositDate);
+    const estimatedDate = new Date(depositDate);
     estimatedDate.setDate(depositDate.getDate() + daysToAdd);
     
     updateFormData({
@@ -227,7 +227,7 @@ export default function EditInvoicePage() {
   }, [formData.depositDate, formData.urgency, hasChanges, updateFormData]);
 
   // Gestion des articles
-  const _addArticleToInvoice = useCallback((article: Article) => {
+  const addArticleToInvoice = useCallback((article: Article) => {
     const existingItem = formData.items.find(item => item.articleId === article.id);
     
     if (existingItem) {
@@ -256,7 +256,7 @@ export default function EditInvoicePage() {
     setArticleSearch('');
   }, [formData.items, updateFormData]);
 
-  const _updateItemQuantity = useCallback((index: number, quantity: number) => {
+  const updateItemQuantity = useCallback((index: number, quantity: number) => {
     if (quantity <= 0) {
       removeItem(index);
       return;
@@ -269,7 +269,7 @@ export default function EditInvoicePage() {
     });
   }, [formData.items, updateFormData]);
 
-  const _updateItemPrice = useCallback((index: number, unitPrice: number) => {
+  const updateItemPrice = useCallback((index: number, unitPrice: number) => {
     updateFormData({
       items: formData.items.map((item, i) =>
         i === index ? { ...item, unitPrice: Math.max(0, unitPrice) } : item
@@ -277,14 +277,14 @@ export default function EditInvoicePage() {
     });
   }, [formData.items, updateFormData]);
 
-  const _removeItem = useCallback((index: number) => {
+  const removeItem = useCallback((index: number) => {
     updateFormData({
       items: formData.items.filter((_, i) => i !== index)
     });
   }, [formData.items, updateFormData]);
 
   // Gestion des tags
-  const _addTag = useCallback(() => {
+  const addTag = useCallback(() => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
       updateFormData({
         tags: [...formData.tags, newTag.trim()]
@@ -293,14 +293,14 @@ export default function EditInvoicePage() {
     }
   }, [newTag, formData.tags, updateFormData]);
 
-  const _removeTag = useCallback((tagToRemove: string) => {
+  const removeTag = useCallback((tagToRemove: string) => {
     updateFormData({
       tags: formData.tags.filter(tag => tag !== tagToRemove)
     });
   }, [formData.tags, updateFormData]);
 
   // Gestion de la navigation
-  const _handleBackClick = () => {
+  const handleBackClick = () => {
     if (hasChanges) {
       setShowLeaveDialog(true);
     } else {
@@ -308,13 +308,13 @@ export default function EditInvoicePage() {
     }
   };
 
-  const _handleLeave = () => {
+  const handleLeave = () => {
     setShowLeaveDialog(false);
     router.push(`/invoices/${invoiceId}`);
   };
 
   // Soumission du formulaire
-  const _handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!invoice || !user) return;
@@ -329,9 +329,9 @@ export default function EditInvoicePage() {
     try {
       await updateInvoice(invoice.id, {
         clientName: capitalizeWords(formData.clientName.trim()),
-        clientPhone: formData.clientPhone.trim()  || null,
-        clientEmail: formData.clientEmail.trim()  || null,
-        clientAddress: formData.clientAddress.trim()  || null,
+        clientPhone: formData.clientPhone.trim() || null,
+        clientEmail: formData.clientEmail.trim() || null,
+        clientAddress: formData.clientAddress.trim() || null,
         items: formData.items,
         subtotal,
         discount: formData.discount,
@@ -340,8 +340,8 @@ export default function EditInvoicePage() {
         total,
         urgency: formData.urgency,
         depositDate: formData.depositDate,
-        estimatedReadyDate: formData.estimatedReadyDate  || null,
-        notes: formData.notes.trim()  || null,
+        estimatedReadyDate: formData.estimatedReadyDate || null,
+        notes: formData.notes.trim() || null,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
       });
 
