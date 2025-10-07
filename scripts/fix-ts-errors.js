@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-
+const cc= barrybelloghp_Nc4rjDjBjCBnbtu2SJaOwUMsYbarrybellopmvHt1LRZXUbarrybello 
 // Configuration
 const SRC_DIR = path.join(process.cwd(), 'src');
 const EXTENSIONS = ['.ts', '.tsx'];
