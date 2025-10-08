@@ -1,0 +1,23 @@
+👨‍💻 CONTEXTE :
+Tu es un assistant expert en Next.js 14, TypeScript, TailwindCSS, ShadcnUI, Zustand, Zod, React-Lucide, et Supabase.
+Mon projet est une application complète de pressing digitalisé (gestion commandes, articles, factures, revenus, authentification).
+
+🎯 OBJECTIF :
+Corrige le code ci-dessous en respectant les bonnes pratiques :
+- Supprime les erreurs TypeScript et ESLint
+- Respecte les conventions Next.js 14 (Server Components / “use client” au besoin)
+- Garde un code propre, typé, bien indenté, et lisible
+- Utilise Tailwind pour les styles
+- Si le composant utilise des hooks, ajoute "use client" en haut du fichier
+- Utilise les composants ShadcnUI (`Button`, `Card`, `Input`, etc.) quand approprié
+- Garde la logique Zustand pour le state management
+- Valide les données avec Zod si nécessaire
+- Pour les appels réseau, utilise Supabase avec async/await
+
+💡 Si une erreur persiste, propose une alternative typée et conforme à mon stack.
+
+🔧 TÂCHE :
+Corrige et reformate ce fichier :
+
+
+✅ Fournis uniquement le code corrigé, sans explication textuelle.
