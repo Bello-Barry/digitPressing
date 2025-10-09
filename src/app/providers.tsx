@@ -142,7 +142,7 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({ children })
         </ThemeProvider>
 
         {process.env.NODE_ENV === 'development' && (
-          <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
+          <ReactQueryDevtools initialIsOpen={false} position="bottomRight" />
         )}
       </QueryClientProvider>
     </ErrorBoundaryProvider>
