@@ -158,16 +158,21 @@ export interface Invoice {
   updatedAt: string;
 }
 
+// CORRECTION PRINCIPALE: InvoiceItem avec les bonnes propriétés
 export interface InvoiceItem {
-  id: string;
+  // Propriétés de base (obligatoires)
   articleId: string;
-  articleName: string;
-  category: ArticleCategory;
+  name: string;  // Ajouté pour correspondre à votre code
+  category: string;  // Ajouté pour correspondre à votre code
   quantity: number;
   unitPrice: number;
-  totalPrice: number;
+  
+  // Propriétés optionnelles (pour compatibilité avec l'ancien système)
+  id?: string;
+  articleName?: string;  // Alias de 'name' pour compatibilité
+  totalPrice?: number;
   specialInstructions?: string;
-  completed: boolean;
+  completed?: boolean;
   completedAt?: string;
 }
 
