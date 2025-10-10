@@ -186,12 +186,12 @@ export default function EditInvoicePage() {
   const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
   
   // FIX: This is the primary fix. The function now correctly receives a single object.
-  const total = calculateInvoiceTotal({
-    subtotal, 
-    discount: formData.discount, 
-    discountType: formData.discountType,
-    tax: formData.tax
-  });
+  const total = calculateInvoiceTotal(
+  subtotal, 
+  formData.discount, 
+  formData.discountType,
+  formData.tax
+);
 
   // REFACTOR: Simplified the useEffect for calculating the estimated ready date.
   // This avoids including a setter function in the dependency array.
