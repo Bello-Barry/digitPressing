@@ -334,9 +334,9 @@ export default function EditInvoicePage() {
     try {
       await updateInvoice(invoice.id, {
         clientName: capitalizeWords(formData.clientName.trim()),
-        clientPhone: formData.clientPhone.trim() || null,
-        clientEmail: formData.clientEmail.trim() || null,
-        clientAddress: formData.clientAddress.trim() || null,
+        clientPhone: formData.clientPhone.trim() || undefined,
+        clientEmail: formData.clientEmail.trim() || undefined,
+        clientAddress: formData.clientAddress.trim() || undefined,
         items: formData.items,
         subtotal,
         discount: formData.discount,
@@ -345,8 +345,8 @@ export default function EditInvoicePage() {
         total,
         urgency: formData.urgency,
         depositDate: formData.depositDate,
-        estimatedReadyDate: formData.estimatedReadyDate || null,
-        notes: formData.notes.trim() || null,
+        estimatedReadyDate: formData.estimatedReadyDate || undefined,
+        notes: formData.notes.trim() || undefined,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
       });
 
