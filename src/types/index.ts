@@ -434,6 +434,41 @@ export interface ExportOptions {
   includeDetails: boolean;
 }
 
+// Types pour les inputs de création/modification
+export interface CreateInvoiceInput {
+  clientName: string;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  clientAddress?: string | null;
+  items: InvoiceItem[];
+  discount?: number;
+  discountType?: 'amount' | 'percentage';
+  tax?: number;
+  urgency: UrgencyLevel;
+  depositDate: string;
+  estimatedReadyDate?: string | null;
+  notes?: string | null;
+  tags?: string[];
+}
+
+export interface UpdateInvoiceInput {
+  clientName?: string;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  clientAddress?: string | null;
+  items?: InvoiceItem[];
+  discount?: number;
+  discountType?: 'amount' | 'percentage';
+  tax?: number;
+  subtotal?: number;
+  total?: number;
+  urgency?: UrgencyLevel;
+  depositDate?: string;
+  estimatedReadyDate?: string | null;
+  notes?: string | null;
+  tags?: string[];
+}
+
 // Types utilitaires
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
