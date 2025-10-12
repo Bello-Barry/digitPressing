@@ -66,18 +66,18 @@ import {
 } from '@/lib/utils';
 import type { Invoice } from '@/types';
 
-const _URGENCY_CONFIG = {
+const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
 };
 
-const _STATUS_CONFIG = {
+const STATUS_CONFIG = {
   active: { label: 'Active', icon: CheckCircle, color: 'text-green-600' },
   cancelled: { label: 'Annulée', icon: XCircle, color: 'text-red-600' },
 };
 
-const _PAYMENT_METHODS = {
+const PAYMENT_METHODS = {
   cash: 'Espèces',
   card: 'Carte bancaire',
   check: 'Chèque',
@@ -86,12 +86,12 @@ const _PAYMENT_METHODS = {
 };
 
 export default function InvoiceDetailPage() {
-  const _params = useParams();
-  const _router = useRouter();
-  const _invoiceId = params?.id as string;
+  const params = useParams();
+  const router = useRouter();
+  const invoiceId = params?.id as string;
   
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   const { pressing } = usePressing();
   
   // États des stores
@@ -112,10 +112,10 @@ export default function InvoiceDetailPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const _printRef = useRef<HTMLDivElement>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Récupérer la facture
-  const _invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
+  const invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
 
   // Charger la facture si pas trouvée
   useEffect(() => {
@@ -132,18 +132,18 @@ export default function InvoiceDetailPage() {
   }, [invoice, currentInvoice, invoiceId, setCurrentInvoice]);
 
   // Vérifications
-  const _canEdit = invoice?.status === 'active' && (
+  const canEdit = invoice?.status === 'active' && (
     permissions.isOwner || 
     invoice.createdBy === user?.id
   );
 
-  const _canCancel = invoice?.status === 'active' && (
+  const canCancel = invoice?.status === 'active' && (
     permissions.isOwner || 
     permissions.canCancelInvoice
   );
 
   // Actions
-  const _handleCancelInvoice = async () => {
+  const handleCancelInvoice = async () => {
     if (!invoice || !cancelReason.trim()) return;
 
     setIsProcessing(true);
@@ -158,7 +158,7 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const _handleMarkAsPaid = async () => {
+  const handleMarkAsPaid = async () => {
     if (!invoice) return;
 
     setIsProcessing(true);
@@ -172,7 +172,7 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const _handleMarkAsWithdrawn = async () => {
+  const handleMarkAsWithdrawn = async () => {
     if (!invoice) return;
 
     setIsProcessing(true);
@@ -185,21 +185,21 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const _handleDuplicate = async () => {
+  const handleDuplicate = async () => {
     if (!invoice) return;
 
     try {
-      const _duplicated = await duplicateInvoice(invoice.id);
+      const duplicated = await duplicateInvoice(invoice.id);
       router.push(`/invoices/${duplicated.id}/edit`);
     } catch (error) {
       console.error('Erreur lors de la duplication:', error);
     }
   };
 
-  const _handlePrint = () => {
+  const handlePrint = () => {
     if (printRef.current) {
       const printContent = printRef.current.innerHTML;
-      const _originalContent = document.body.innerHTML;
+      const originalContent = document.body.innerHTML;
       
       document.body.innerHTML = printContent;
       window.print();
@@ -208,7 +208,7 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const _handleShare = async () => {
+  const handleShare = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
@@ -253,7 +253,7 @@ export default function InvoiceDetailPage() {
     );
   }
 
-  const _StatusIcon = STATUS_CONFIG[invoice.status].icon;
+  const StatusIcon = STATUS_CONFIG[invoice.status].icon;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
