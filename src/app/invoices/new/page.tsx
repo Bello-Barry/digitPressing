@@ -153,6 +153,14 @@ export default function NewInvoicePage() {
     }));
   }, [formData.depositDate, formData.urgency]);
 
+  // Déclarer removeItem en premier pour éviter les problèmes de référence
+  const removeItem = useCallback((index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  }, []);
+
   // Gestion des articles
   const addArticleToInvoice = useCallback((article: Article) => {
     const existingItem = formData.items.find(item => item.articleId === article.id);
@@ -209,13 +217,6 @@ export default function NewInvoicePage() {
       )
     }));
   }, [formData.items]);
-
-  const removeItem = useCallback((index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  }, []);
 
   // Gestion des tags
   const addTag = useCallback(() => {
