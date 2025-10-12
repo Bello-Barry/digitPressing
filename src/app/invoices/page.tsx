@@ -64,21 +64,21 @@ import {
 import { formatCurrency, formatDate, formatRelativeDate } from '@/lib/utils';
 import type { Invoice } from '@/types';
 
-const _URGENCY_CONFIG = {
+const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
 };
 
-const _STATUS_CONFIG = {
+const STATUS_CONFIG = {
   active: { label: 'Active', icon: CheckCircle, color: 'text-green-600' },
   cancelled: { label: 'Annulée', icon: XCircle, color: 'text-red-600' },
 };
 
 export default function InvoicesPage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   
   // États des stores
   const { invoices, isLoading, error, pagination } = useInvoices();
@@ -111,7 +111,7 @@ export default function InvoicesPage() {
 
   // Gestion de la recherche avec debounce
   useEffect(() => {
-    const _timer = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (searchTerm.trim()) {
         searchInvoices(searchTerm);
       } else {
@@ -130,7 +130,7 @@ export default function InvoicesPage() {
   }, [error, clearError]);
 
   // Actions sur les factures
-  const _handleCancelInvoice = async () => {
+  const handleCancelInvoice = async () => {
     if (!selectedInvoice || !cancelReason.trim()) return;
 
     try {
@@ -143,7 +143,7 @@ export default function InvoicesPage() {
     }
   };
 
-  const _handleMarkAsPaid = async (invoice: Invoice) => {
+  const handleMarkAsPaid = async (invoice: Invoice) => {
     try {
       await markAsPaid(invoice.id, 'cash'); // Par défaut espèces
     } catch (error) {
@@ -151,7 +151,7 @@ export default function InvoicesPage() {
     }
   };
 
-  const _handleMarkAsWithdrawn = async (invoice: Invoice) => {
+  const handleMarkAsWithdrawn = async (invoice: Invoice) => {
     try {
       await markAsWithdrawn(invoice.id);
     } catch (error) {
@@ -159,7 +159,7 @@ export default function InvoicesPage() {
     }
   };
 
-  const _handleDuplicateInvoice = async (invoice: Invoice) => {
+  const handleDuplicateInvoice = async (invoice: Invoice) => {
     try {
       const duplicated = await duplicateInvoice(invoice.id);
       router.push(`/invoices/${duplicated.id}/edit`);
@@ -169,7 +169,7 @@ export default function InvoicesPage() {
   };
 
   // Rendu des statistiques rapides
-  const _renderQuickStats = () => {
+  const renderQuickStats = () => {
     if (!todayStats) return null;
 
     return (
@@ -220,7 +220,7 @@ export default function InvoicesPage() {
   };
 
   // Rendu des filtres
-  const _renderFilters = () => {
+  const renderFilters = () => {
     if (!showFilters) return null;
 
     return (
@@ -292,9 +292,9 @@ export default function InvoicesPage() {
   };
 
   // Rendu d'une ligne de facture
-  const _renderInvoiceRow = (invoice: Invoice) => {
+  const renderInvoiceRow = (invoice: Invoice) => {
     const StatusIcon = STATUS_CONFIG[invoice.status].icon;
-    const _canEdit = invoice.status === 'active' && (
+    const canEdit = invoice.status === 'active' && (
       permissions.isOwner || 
       invoice.createdBy === user?.id
     );
