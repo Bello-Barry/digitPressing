@@ -236,13 +236,33 @@ export default function NewInvoicePage() {
     }));
   }, [formData.tags]);
 
+  // Fonction utilitaire pour convertir les valeurs vides en undefined
+  const toOptionalString = (value: string): string | undefined => {
+    return value.trim() || undefined;
+  };
+
+  // Fonction utilitaire pour les dates optionnelles
+  const toOptionalDate = (value: string): string | undefined => {
+    return value || undefined;
+  };
+
   // Soumission du formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user) return;
+    if (!user) {
+      setError('Utilisateur non connecté');
+      return;
+    }
+
     if (formData.items.length === 0) {
       setError('Veuillez ajouter au moins un article');
+      return;
+    }
+
+    // Validation du nom du client
+    if (!formData.clientName.trim()) {
+      setError('Le nom du client est obligatoire');
       return;
     }
 
@@ -252,31 +272,35 @@ export default function NewInvoicePage() {
     try {
       const invoiceNumber = await generateInvoiceNumber();
       
-      const invoice = await createInvoice({
+      // Préparer les données avec les types corrects
+      const invoiceData = {
         number: invoiceNumber,
         pressingId: user.pressingId,
         clientName: capitalizeWords(formData.clientName.trim()),
-        clientPhone: formData.clientPhone.trim() || null,
-        clientEmail: formData.clientEmail.trim() || null,
-        clientAddress: formData.clientAddress.trim() || null,
+        clientPhone: toOptionalString(formData.clientPhone),
+        clientEmail: toOptionalString(formData.clientEmail),
+        clientAddress: toOptionalString(formData.clientAddress),
         items: formData.items,
         subtotal,
-        discount: formData.discount,
+        discount: formData.discount || undefined,
         discountType: formData.discountType,
-        tax: formData.tax,
+        tax: formData.tax || undefined,
         total,
-        status: 'active',
+        status: 'active' as const,
         paid: false,
         withdrawn: false,
         urgency: formData.urgency,
         depositDate: formData.depositDate,
-        estimatedReadyDate: formData.estimatedReadyDate,
-        notes: formData.notes.trim() || null,
+        estimatedReadyDate: toOptionalDate(formData.estimatedReadyDate),
+        notes: toOptionalString(formData.notes),
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         createdBy: user.id,
         createdByName: user.fullName,
-      });
+      };
 
+      const invoice = await createInvoice(invoiceData);
+
+      // Redirection vers la page de détail de la facture créée
       router.push(`/invoices/${invoice.id}`);
     } catch (error: any) {
       console.error('Erreur lors de la création:', error);
@@ -285,6 +309,34 @@ export default function NewInvoicePage() {
       setIsSubmitting(false);
     }
   };
+
+  // État de chargement
+  if (articlesLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Chargement des articles...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Vérification des permissions
+  if (user && !permissions.canCreateInvoice) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-yellow-600" />
+        <h2 className="text-xl font-semibold mb-2">Accès non autorisé</h2>
+        <p className="text-muted-foreground mb-4">
+          Vous n'avez pas la permission de créer des factures.
+        </p>
+        <Button onClick={() => router.push('/dashboard')}>
+          Retour au tableau de bord
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -300,6 +352,7 @@ export default function NewInvoicePage() {
         <Button 
           variant="outline" 
           onClick={() => router.back()}
+          disabled={isSubmitting}
         >
           Annuler
         </Button>
@@ -396,7 +449,7 @@ export default function NewInvoicePage() {
               
               <Popover open={showArticleSearch} onOpenChange={setShowArticleSearch}>
                 <PopoverTrigger asChild>
-                  <Button type="button">
+                  <Button type="button" disabled={isSubmitting}>
                     <Plus className="h-4 w-4 mr-2" />
                     Ajouter un article
                   </Button>
@@ -414,6 +467,7 @@ export default function NewInvoicePage() {
                         <CommandItem
                           key={article.id}
                           onSelect={() => addArticleToInvoice(article)}
+                          disabled={isSubmitting}
                         >
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
@@ -456,6 +510,7 @@ export default function NewInvoicePage() {
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(index, item.quantity - 1)}
+                        disabled={isSubmitting}
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -466,6 +521,7 @@ export default function NewInvoicePage() {
                         value={item.quantity}
                         onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)}
                         className="w-20 text-center"
+                        disabled={isSubmitting}
                       />
                       
                       <Button
@@ -473,6 +529,7 @@ export default function NewInvoicePage() {
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(index, item.quantity + 1)}
+                        disabled={isSubmitting}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -486,6 +543,7 @@ export default function NewInvoicePage() {
                         value={item.unitPrice}
                         onChange={(e) => updateItemPrice(index, parseFloat(e.target.value) || 0)}
                         className="w-32 text-right"
+                        disabled={isSubmitting}
                       />
                       <span className="text-sm text-muted-foreground">FCFA</span>
                     </div>
@@ -502,6 +560,7 @@ export default function NewInvoicePage() {
                       size="sm"
                       onClick={() => removeItem(index)}
                       className="text-red-600 hover:text-red-700"
+                      disabled={isSubmitting}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -530,6 +589,7 @@ export default function NewInvoicePage() {
                   onValueChange={(value: 'normal' | 'express' | 'urgent') =>
                     setFormData(prev => ({ ...prev, urgency: value }))
                   }
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -563,6 +623,7 @@ export default function NewInvoicePage() {
                       onChange={(e) => setFormData(prev => ({ ...prev, depositDate: e.target.value }))}
                       className="pl-10"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -577,6 +638,7 @@ export default function NewInvoicePage() {
                       value={formData.estimatedReadyDate}
                       onChange={(e) => setFormData(prev => ({ ...prev, estimatedReadyDate: e.target.value }))}
                       className="pl-10"
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -590,6 +652,7 @@ export default function NewInvoicePage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="Instructions spéciales, remarques..."
                   rows={3}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -603,6 +666,7 @@ export default function NewInvoicePage() {
                         type="button"
                         onClick={() => removeTag(tag)}
                         className="ml-1 hover:text-red-600"
+                        disabled={isSubmitting}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -620,8 +684,13 @@ export default function NewInvoicePage() {
                         addTag();
                       }
                     }}
+                    disabled={isSubmitting}
                   />
-                  <Button type="button" onClick={addTag} disabled={!newTag.trim()}>
+                  <Button 
+                    type="button" 
+                    onClick={addTag} 
+                    disabled={!newTag.trim() || isSubmitting}
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -653,6 +722,7 @@ export default function NewInvoicePage() {
                     step="0.01"
                     value={formData.discount}
                     onChange={(e) => setFormData(prev => ({ ...prev, discount: parseFloat(e.target.value) || 0 }))}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -663,6 +733,7 @@ export default function NewInvoicePage() {
                     onValueChange={(value: 'amount' | 'percentage') =>
                       setFormData(prev => ({ ...prev, discountType: value }))
                     }
+                    disabled={isSubmitting}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -700,6 +771,7 @@ export default function NewInvoicePage() {
                   step="0.01"
                   value={formData.tax}
                   onChange={(e) => setFormData(prev => ({ ...prev, tax: parseFloat(e.target.value) || 0 }))}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -733,7 +805,7 @@ export default function NewInvoicePage() {
           
           <Button
             type="submit"
-            disabled={isSubmitting || formData.items.length === 0}
+            disabled={isSubmitting || formData.items.length === 0 || !formData.clientName.trim()}
           >
             <Save className="h-4 w-4 mr-2" />
             {isSubmitting ? 'Création...' : 'Créer la facture'}
