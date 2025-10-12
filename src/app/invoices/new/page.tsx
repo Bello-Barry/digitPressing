@@ -22,7 +22,7 @@ import {
   Search,
   Package
 } from 'lucide-react';
-import { useInvoiceActions, useCurrentInvoice } from '@/store/invoices';
+import { useInvoiceActions } from '@/store/invoices';
 import { useArticles, useArticleHelpers } from '@/store/articles';
 import { useAuth, useUserPermissions } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -69,16 +69,16 @@ interface InvoiceFormData {
   tags: string[];
 }
 
-const _URGENCY_CONFIG = {
+const URGENCY_CONFIG = {
   normal: { label: 'Normal', description: 'Délai standard', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', description: '24-48h', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', description: 'Même jour', color: 'bg-red-100 text-red-800' },
 };
 
 export default function NewInvoicePage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   
   // États des stores
   const { createInvoice, generateInvoiceNumber } = useInvoiceActions();
@@ -117,19 +117,19 @@ export default function NewInvoicePage() {
   const [newTag, setNewTag] = useState('');
 
   // Articles actifs pour la recherche
-  const _activeArticles = getActiveArticles();
-  const _filteredArticles = activeArticles.filter(article =>
+  const activeArticles = getActiveArticles();
+  const filteredArticles = activeArticles.filter(article =>
     article.name.toLowerCase().includes(articleSearch.toLowerCase()) ||
     article.category.toLowerCase().includes(articleSearch.toLowerCase())
   );
 
   // Calculs automatiques
-  const _subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-  const _total = calculateInvoiceTotal(subtotal, formData.discount, formData.discountType, formData.tax);
+  const subtotal = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  const total = calculateInvoiceTotal(subtotal, formData.discount, formData.discountType, formData.tax);
 
   // Calculer la date prêt estimée selon l'urgence
   useEffect(() => {
-    const _depositDate = new Date(formData.depositDate);
+    const depositDate = new Date(formData.depositDate);
     let daysToAdd = 3; // Par défaut
 
     switch (formData.urgency) {
@@ -144,7 +144,7 @@ export default function NewInvoicePage() {
         break;
     }
 
-    const _estimatedDate = new Date(depositDate);
+    const estimatedDate = new Date(depositDate);
     estimatedDate.setDate(depositDate.getDate() + daysToAdd);
     
     setFormData(prev => ({
@@ -154,7 +154,7 @@ export default function NewInvoicePage() {
   }, [formData.depositDate, formData.urgency]);
 
   // Gestion des articles
-  const _addArticleToInvoice = useCallback((article: Article) => {
+  const addArticleToInvoice = useCallback((article: Article) => {
     const existingItem = formData.items.find(item => item.articleId === article.id);
     
     if (existingItem) {
@@ -187,7 +187,7 @@ export default function NewInvoicePage() {
     setArticleSearch('');
   }, [formData.items]);
 
-  const _updateItemQuantity = useCallback((index: number, quantity: number) => {
+  const updateItemQuantity = useCallback((index: number, quantity: number) => {
     if (quantity <= 0) {
       removeItem(index);
       return;
@@ -199,18 +199,18 @@ export default function NewInvoicePage() {
         i === index ? { ...item, quantity } : item
       )
     }));
-  }, []);
+  }, [formData.items, removeItem]);
 
-  const _updateItemPrice = useCallback((index: number, unitPrice: number) => {
+  const updateItemPrice = useCallback((index: number, unitPrice: number) => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.map((item, i) =>
         i === index ? { ...item, unitPrice: Math.max(0, unitPrice) } : item
       )
     }));
-  }, []);
+  }, [formData.items]);
 
-  const _removeItem = useCallback((index: number) => {
+  const removeItem = useCallback((index: number) => {
     setFormData(prev => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index)
@@ -218,7 +218,7 @@ export default function NewInvoicePage() {
   }, []);
 
   // Gestion des tags
-  const _addTag = useCallback(() => {
+  const addTag = useCallback(() => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
       setFormData(prev => ({
         ...prev,
@@ -228,15 +228,15 @@ export default function NewInvoicePage() {
     }
   }, [newTag, formData.tags]);
 
-  const _removeTag = useCallback((tagToRemove: string) => {
+  const removeTag = useCallback((tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
-  }, []);
+  }, [formData.tags]);
 
   // Soumission du formulaire
-  const _handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user) return;
@@ -249,15 +249,15 @@ export default function NewInvoicePage() {
     setError(null);
 
     try {
-      const _invoiceNumber = await generateInvoiceNumber();
+      const invoiceNumber = await generateInvoiceNumber();
       
-      const _invoice = await createInvoice({
+      const invoice = await createInvoice({
         number: invoiceNumber,
         pressingId: user.pressingId,
         clientName: capitalizeWords(formData.clientName.trim()),
-        clientPhone: formData.clientPhone.trim()  || null,
-        clientEmail: formData.clientEmail.trim()  || null,
-        clientAddress: formData.clientAddress.trim()  || null,
+        clientPhone: formData.clientPhone.trim() || null,
+        clientEmail: formData.clientEmail.trim() || null,
+        clientAddress: formData.clientAddress.trim() || null,
         items: formData.items,
         subtotal,
         discount: formData.discount,
@@ -270,7 +270,7 @@ export default function NewInvoicePage() {
         urgency: formData.urgency,
         depositDate: formData.depositDate,
         estimatedReadyDate: formData.estimatedReadyDate,
-        notes: formData.notes.trim()  || null,
+        notes: formData.notes.trim() || null,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         createdBy: user.id,
         createdByName: user.fullName,
