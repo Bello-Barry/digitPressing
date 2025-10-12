@@ -64,7 +64,7 @@ import {
   formatRelativeDate, 
   capitalizeWords 
 } from '@/lib/utils';
-import type { Invoice } from '@/types';
+import type { Invoice, Pressing } from '@/types';
 
 const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
@@ -356,22 +356,28 @@ export default function InvoiceDetailPage() {
               <CardTitle className="text-lg">Pressing</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {pressing?.logo && (
+              {(pressing as Pressing)?.logo ? (
                 <img 
-                  src={pressing.logo} 
-                  alt={pressing.name}
-                  className="h-16 w-auto mb-4"
+                  src={(pressing as Pressing).logo} 
+                  alt={pressing?.name || 'Logo pressing'}
+                  className="h-16 w-auto mb-4 object-contain"
                 />
+              ) : (
+                <div className="flex items-center justify-center h-16 w-16 bg-primary/10 rounded-lg mb-4">
+                  <span className="text-lg font-bold text-primary">
+                    {pressing?.name?.charAt(0) || 'P'}
+                  </span>
+                </div>
               )}
-              <p className="font-semibold">{pressing?.name}</p>
-              {pressing?.address && (
-                <p className="text-sm text-muted-foreground">{pressing.address}</p>
+              <p className="font-semibold text-lg">{pressing?.name || 'Nom du pressing'}</p>
+              {(pressing as Pressing)?.address && (
+                <p className="text-sm text-muted-foreground">{(pressing as Pressing).address}</p>
               )}
-              {pressing?.phone && (
-                <p className="text-sm">{pressing.phone}</p>
+              {(pressing as Pressing)?.phone && (
+                <p className="text-sm">{(pressing as Pressing).phone}</p>
               )}
-              {pressing?.email && (
-                <p className="text-sm">{pressing.email}</p>
+              {(pressing as Pressing)?.email && (
+                <p className="text-sm">{(pressing as Pressing).email}</p>
               )}
             </CardContent>
           </Card>
