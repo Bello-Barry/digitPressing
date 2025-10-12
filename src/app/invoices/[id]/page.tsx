@@ -24,8 +24,7 @@ import {
   AlertTriangle,
   MoreHorizontal,
   ArrowLeft,
-  Copy,
-  Trash2
+  Copy
 } from 'lucide-react';
 import { 
   useInvoices,
@@ -61,10 +60,9 @@ import {
   formatCurrency, 
   formatDate, 
   formatDateTime, 
-  formatRelativeDate, 
-  capitalizeWords 
+  formatRelativeDate
 } from '@/lib/utils';
-import type { Invoice, Pressing } from '@/types';
+import type { Invoice } from '@/types';
 
 const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
@@ -85,6 +83,15 @@ const PAYMENT_METHODS = {
   mobile_money: 'Mobile Money',
 };
 
+// Interface pour les informations du pressing affichées
+interface PressingInfo {
+  name?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  logo?: string;
+}
+
 export default function InvoiceDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -92,7 +99,7 @@ export default function InvoiceDetailPage() {
   
   const { user } = useAuth();
   const permissions = useUserPermissions();
-  const { pressing } = usePressing();
+  const { pressing: pressingSettings } = usePressing();
   
   // États des stores
   const { invoices, isLoading } = useInvoices();
@@ -116,6 +123,15 @@ export default function InvoiceDetailPage() {
 
   // Récupérer la facture
   const invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
+
+  // Informations du pressing (adaptées depuis les settings)
+  const pressingInfo: PressingInfo = {
+    name: pressingSettings?.name || 'Mon Pressing',
+    address: pressingSettings?.address,
+    phone: pressingSettings?.phone,
+    email: pressingSettings?.email,
+    // Logo non disponible dans PressingSettings - utiliser un placeholder
+  };
 
   // Charger la facture si pas trouvée
   useEffect(() => {
@@ -356,28 +372,21 @@ export default function InvoiceDetailPage() {
               <CardTitle className="text-lg">Pressing</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {(pressing as Pressing)?.logo ? (
-                <img 
-                  src={(pressing as Pressing).logo} 
-                  alt={pressing?.name || 'Logo pressing'}
-                  className="h-16 w-auto mb-4 object-contain"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-16 w-16 bg-primary/10 rounded-lg mb-4">
-                  <span className="text-lg font-bold text-primary">
-                    {pressing?.name?.charAt(0) || 'P'}
-                  </span>
-                </div>
+              {/* Logo placeholder - le logo n'est pas disponible dans PressingSettings */}
+              <div className="flex items-center justify-center h-16 w-16 bg-primary/10 rounded-lg mb-4">
+                <span className="text-lg font-bold text-primary">
+                  {pressingInfo.name?.charAt(0) || 'P'}
+                </span>
+              </div>
+              <p className="font-semibold text-lg">{pressingInfo.name}</p>
+              {pressingInfo.address && (
+                <p className="text-sm text-muted-foreground">{pressingInfo.address}</p>
               )}
-              <p className="font-semibold text-lg">{pressing?.name || 'Nom du pressing'}</p>
-              {(pressing as Pressing)?.address && (
-                <p className="text-sm text-muted-foreground">{(pressing as Pressing).address}</p>
+              {pressingInfo.phone && (
+                <p className="text-sm">{pressingInfo.phone}</p>
               )}
-              {(pressing as Pressing)?.phone && (
-                <p className="text-sm">{(pressing as Pressing).phone}</p>
-              )}
-              {(pressing as Pressing)?.email && (
-                <p className="text-sm">{(pressing as Pressing).email}</p>
+              {pressingInfo.email && (
+                <p className="text-sm">{pressingInfo.email}</p>
               )}
             </CardContent>
           </Card>
