@@ -83,13 +83,12 @@ const PAYMENT_METHODS = {
   mobile_money: 'Mobile Money',
 };
 
-// Interface pour les informations du pressing affichées
-interface PressingInfo {
-  name?: string;
+// Interface basique pour les informations du pressing
+interface PressingDisplayInfo {
+  name: string;
   address?: string;
   phone?: string;
   email?: string;
-  logo?: string;
 }
 
 export default function InvoiceDetailPage() {
@@ -124,14 +123,34 @@ export default function InvoiceDetailPage() {
   // Récupérer la facture
   const invoice = invoices.find(inv => inv.id === invoiceId) || currentInvoice;
 
-  // Informations du pressing (adaptées depuis les settings)
-  const pressingInfo: PressingInfo = {
-    name: pressingSettings?.name || 'Mon Pressing',
-    address: pressingSettings?.address,
-    phone: pressingSettings?.phone,
-    email: pressingSettings?.email,
-    // Logo non disponible dans PressingSettings - utiliser un placeholder
+  // Informations du pressing - solution robuste
+  const getPressingInfo = (): PressingDisplayInfo => {
+    // Si pressingSettings est null ou undefined, retourner des valeurs par défaut
+    if (!pressingSettings) {
+      return {
+        name: 'Mon Pressing',
+        address: undefined,
+        phone: undefined,
+        email: undefined
+      };
+    }
+
+    // Accéder aux propriétés de manière sécurisée
+    // Note: Les propriétés peuvent être dans pressingSettings directement ou dans un sous-objet
+    return {
+      name: (pressingSettings as any).name || 
+            (pressingSettings as any).pressingName || 
+            'Mon Pressing',
+      address: (pressingSettings as any).address || 
+               (pressingSettings as any).pressingAddress,
+      phone: (pressingSettings as any).phone || 
+             (pressingSettings as any).pressingPhone,
+      email: (pressingSettings as any).email || 
+             (pressingSettings as any).pressingEmail
+    };
   };
+
+  const pressingInfo = getPressingInfo();
 
   // Charger la facture si pas trouvée
   useEffect(() => {
@@ -372,10 +391,10 @@ export default function InvoiceDetailPage() {
               <CardTitle className="text-lg">Pressing</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {/* Logo placeholder - le logo n'est pas disponible dans PressingSettings */}
+              {/* Logo placeholder */}
               <div className="flex items-center justify-center h-16 w-16 bg-primary/10 rounded-lg mb-4">
                 <span className="text-lg font-bold text-primary">
-                  {pressingInfo.name?.charAt(0) || 'P'}
+                  {pressingInfo.name.charAt(0)}
                 </span>
               </div>
               <p className="font-semibold text-lg">{pressingInfo.name}</p>
@@ -428,6 +447,7 @@ export default function InvoiceDetailPage() {
           </Card>
         </div>
 
+        {/* Le reste du code reste identique... */}
         {/* Informations facture */}
         <Card className="mb-6">
           <CardHeader>
