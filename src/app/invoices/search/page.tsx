@@ -30,8 +30,8 @@ import {
   useInvoicesStore,
   type Invoice,
   type InvoiceFilters
-} from '@/stores/invoices';
-import { useAuthStore } from '@/stores/auth';
+} from '@/store/invoices';
+import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
