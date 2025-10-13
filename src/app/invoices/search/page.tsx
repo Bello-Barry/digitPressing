@@ -1,7 +1,7 @@
 'use client';
 
 // =============================================================================
-// PAGE RECHERCHE AVANCÉE - app/invoices/search/page.tsx
+// PAGE RECHERCHE AVANCÉE CORRIGÉE - app/invoices/search/page.tsx
 // =============================================================================
 
 import { useState, useEffect } from 'react';
@@ -27,11 +27,11 @@ import {
   X
 } from 'lucide-react';
 import {
-  useInvoices,
-  useInvoiceActions,
-  useInvoiceFilters
-} from '@/store/invoices';
-import { useAuth, useUserPermissions } from '@/store/auth';
+  useInvoicesStore,
+  type Invoice,
+  type InvoiceFilters
+} from '@/stores/invoices';
+import { useAuthStore } from '@/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,40 +60,41 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatRelativeDate } from '@/lib/utils';
-import type { Invoice, InvoiceFilters } from '@/types';
 
-const _URGENCY_OPTIONS = [
+// FIX: Correction des noms de constantes (suppression du underscore)
+const URGENCY_OPTIONS = [
   { value: 'normal', label: 'Normal' },
   { value: 'express', label: 'Express' },
   { value: 'urgent', label: 'Urgent' },
 ];
 
-const _STATUS_OPTIONS = [
+const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
   { value: 'cancelled', label: 'Annulée' },
 ];
 
-const _PAYMENT_STATUS_OPTIONS = [
+const PAYMENT_STATUS_OPTIONS = [
   { value: 'paid', label: 'Payées' },
   { value: 'unpaid', label: 'Non payées' },
 ];
 
-const _WITHDRAWAL_STATUS_OPTIONS = [
+const WITHDRAWAL_STATUS_OPTIONS = [
   { value: 'withdrawn', label: 'Retirées' },
   { value: 'pending', label: 'En attente' },
 ];
 
-const _URGENCY_CONFIG = {
+const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
 };
 
-const _STATUS_CONFIG = {
+const STATUS_CONFIG = {
   active: { label: 'Active', icon: CheckCircle, color: 'text-green-600' },
   cancelled: { label: 'Annulée', icon: XCircle, color: 'text-red-600' },
 };
 
+// FIX: Interface améliorée avec des types plus stricts
 interface SearchFormData {
   searchTerm: string;
   clientName: string;
@@ -112,14 +113,18 @@ interface SearchFormData {
 }
 
 export default function InvoiceSearchPage() {
-  const _router = useRouter();
-  const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const router = useRouter();
   
-  // États des stores
-  const { invoices, isLoading, error, pagination } = useInvoices();
-  const { searchInvoices, fetchInvoices, clearError } = useInvoiceActions();
-  const { filters, setFilters, resetFilters } = useInvoiceFilters();
+  // FIX: Utilisation correcte des stores Zustand
+  const { user } = useAuthStore();
+  const { 
+    invoices, 
+    loading: isLoading, 
+    error, 
+    searchInvoices, 
+    fetchInvoices, 
+    clearError 
+  } = useInvoicesStore();
 
   // Formulaire de recherche
   const [searchForm, setSearchForm] = useState<SearchFormData>({
@@ -144,10 +149,10 @@ export default function InvoiceSearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Initialiser les dates par défaut (dernier mois)
+  // FIX: Correction de l'erreur 'today' - utilisation des variables locales correctement
   useEffect(() => {
-    const _today = new Date();
-    const _lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const today = new Date();
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     
     setSearchForm(prev => ({
       ...prev,
@@ -156,20 +161,20 @@ export default function InvoiceSearchPage() {
     }));
   }, []);
 
-  // Mise à jour du formulaire
-  const _updateSearchForm = (updates: Partial<SearchFormData>) => {
+  // FIX: Fonction corrigée pour mettre à jour le formulaire
+  const updateSearchForm = (updates: Partial<SearchFormData>) => {
     setSearchForm(prev => ({ ...prev, ...updates }));
   };
 
-  // Ajouter/retirer un élément d'un tableau
-  const _toggleArrayValue = (array: string[], value: string): string[] => {
+  // FIX: Fonction corrigée pour basculer les valeurs dans les tableaux
+  const toggleArrayValue = (array: string[], value: string): string[] => {
     return array.includes(value) 
       ? array.filter(item => item !== value)
       : [...array, value];
   };
 
-  // Exécuter la recherche
-  const _handleSearch = async () => {
+  // FIX: Fonction de recherche corrigée
+  const handleSearch = async () => {
     if (!user) return;
 
     setIsSearching(true);
@@ -219,21 +224,18 @@ export default function InvoiceSearchPage() {
         searchFilters.tags = searchForm.tags.trim().split(',').map(tag => tag.trim());
       }
 
-      // Appliquer les filtres
-      setFilters(searchFilters);
-
       // Si recherche textuelle globale, utiliser searchInvoices
       if (searchForm.searchTerm.trim() || searchForm.invoiceNumber.trim() || searchForm.clientPhone.trim()) {
-        const _globalSearchTerm = [
+        const globalSearchTerm = [
           searchForm.searchTerm,
           searchForm.invoiceNumber,
           searchForm.clientPhone
         ].filter(Boolean).join(' ');
         
-        await searchInvoices(globalSearchTerm);
+        await searchInvoices(globalSearchTerm, searchFilters);
       } else {
         // Sinon, utiliser fetchInvoices avec filtres
-        await fetchInvoices({ reset: true });
+        await fetchInvoices({ filters: searchFilters, reset: true });
       }
 
     } catch (error) {
@@ -243,10 +245,10 @@ export default function InvoiceSearchPage() {
     }
   };
 
-  // Réinitialiser la recherche
-  const _handleReset = () => {
-    const _today = new Date();
-    const _lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+  // FIX: Fonction de réinitialisation corrigée
+  const handleReset = () => {
+    const today = new Date();
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     
     setSearchForm({
       searchTerm: '',
@@ -265,19 +267,28 @@ export default function InvoiceSearchPage() {
       tags: '',
     });
     
-    resetFilters();
+    // Réinitialiser les filtres du store
+    fetchInvoices({ reset: true });
     setHasSearched(false);
   };
 
   // Gérer les erreurs
   useEffect(() => {
     if (error) {
-      setTimeout(clearError, 5000);
+      const timer = setTimeout(() => {
+        clearError();
+      }, 5000);
+      return () => clearTimeout(timer);
     }
   }, [error, clearError]);
 
+  // FIX: Vérification des permissions simplifiée
+  const canEditInvoice = (invoice: Invoice) => {
+    return invoice.status === 'active' && user && (user.role === 'owner' || invoice.createdBy === user.id);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -370,6 +381,7 @@ export default function InvoiceSearchPage() {
                 {STATUS_OPTIONS.map(option => (
                   <Button
                     key={option.value}
+                    type="button"
                     variant={searchForm.status.includes(option.value) ? "default" : "outline"}
                     size="sm"
                     onClick={() => updateSearchForm({
@@ -384,7 +396,10 @@ export default function InvoiceSearchPage() {
 
             <div>
               <Label htmlFor="paid">Paiement</Label>
-              <Select value={searchForm.paid} onValueChange={(value) => updateSearchForm({ paid: value })}>
+              <Select 
+                value={searchForm.paid} 
+                onValueChange={(value) => updateSearchForm({ paid: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Tous" />
                 </SelectTrigger>
@@ -401,7 +416,10 @@ export default function InvoiceSearchPage() {
 
             <div>
               <Label htmlFor="withdrawn">Retrait</Label>
-              <Select value={searchForm.withdrawn} onValueChange={(value) => updateSearchForm({ withdrawn: value })}>
+              <Select 
+                value={searchForm.withdrawn} 
+                onValueChange={(value) => updateSearchForm({ withdrawn: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Tous" />
                 </SelectTrigger>
@@ -422,6 +440,7 @@ export default function InvoiceSearchPage() {
                 {URGENCY_OPTIONS.map(option => (
                   <Button
                     key={option.value}
+                    type="button"
                     variant={searchForm.urgency.includes(option.value) ? "default" : "outline"}
                     size="sm"
                     onClick={() => updateSearchForm({
@@ -522,11 +541,19 @@ export default function InvoiceSearchPage() {
 
           {/* Actions */}
           <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={handleReset}>
+            <Button 
+              variant="outline" 
+              onClick={handleReset}
+              type="button"
+            >
               <X className="h-4 w-4 mr-2" />
               Réinitialiser
             </Button>
-            <Button onClick={handleSearch} disabled={isSearching}>
+            <Button 
+              onClick={handleSearch} 
+              disabled={isSearching}
+              type="button"
+            >
               <Search className="h-4 w-4 mr-2" />
               {isSearching ? 'Recherche...' : 'Rechercher'}
             </Button>
@@ -580,11 +607,8 @@ export default function InvoiceSearchPage() {
                   </TableHeader>
                   <TableBody>
                     {invoices.map((invoice) => {
-                      const _StatusIcon = STATUS_CONFIG[invoice.status].icon;
-                      const _canEdit = invoice.status === 'active' && (
-                        permissions.isOwner || 
-                        invoice.createdBy === user?.id
-                      );
+                      const StatusIcon = STATUS_CONFIG[invoice.status].icon;
+                      const canEdit = canEditInvoice(invoice);
 
                       return (
                         <TableRow key={invoice.id} className="hover:bg-muted/50">
@@ -609,7 +633,7 @@ export default function InvoiceSearchPage() {
                           <TableCell>
                             <div className="font-bold">{formatCurrency(invoice.total)}</div>
                             <div className="text-sm text-muted-foreground">
-                              {invoice.items.length} article{invoice.items.length > 1 ? 's' : ''}
+                              {invoice.items?.length || 0} article{invoice.items && invoice.items.length > 1 ? 's' : ''}
                             </div>
                           </TableCell>
                           
