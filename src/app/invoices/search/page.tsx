@@ -118,7 +118,7 @@ export default function InvoiceSearchPage() {
   const { user } = useAuthStore();
   const { 
     invoices, 
-    loading: isLoading, 
+    isLoading, 
     error, 
     searchInvoices, 
     fetchInvoices, 
