@@ -115,7 +115,7 @@ interface SearchFormData {
 export default function InvoiceSearchPage() {
   const router = useRouter();
   
-  const { user } = useAuthStore();
+  // FIX: Ajout du type de retour explicite pour fetchInvoices
   const { 
     invoices, 
     isLoading, 
@@ -123,7 +123,14 @@ export default function InvoiceSearchPage() {
     searchInvoices, 
     fetchInvoices, 
     clearError 
-  } = useInvoicesStore();
+  } = useInvoicesStore((state) => ({
+    invoices: state.invoices,
+    isLoading: state.isLoading,
+    error: state.error,
+    searchInvoices: state.searchInvoices,
+    fetchInvoices: state.fetchInvoices,
+    clearError: state.clearError,
+  }));
 
   // Formulaire de recherche
   const [searchForm, setSearchForm] = useState<SearchFormData>({
@@ -231,7 +238,7 @@ export default function InvoiceSearchPage() {
         filters.tags = searchForm.tags.trim().split(',').map(tag => tag.trim()).filter(Boolean);
       }
 
-      // FIX: Appel correct avec 2 paramètres
+      // Construction du terme de recherche global
       const globalSearchTerm = [
         searchForm.searchTerm,
         searchForm.invoiceNumber,
@@ -239,9 +246,23 @@ export default function InvoiceSearchPage() {
       ].filter(Boolean).join(' ').trim();
       
       if (globalSearchTerm) {
-        await searchInvoices(globalSearchTerm, filters);
+        // Utiliser fetchInvoices avec recherche textuelle dans clientName
+        await fetchInvoices({ 
+          filters: {
+            ...filters,
+            clientName: globalSearchTerm 
+          } as Partial<InvoiceFilters>, 
+          reset: true 
+        });
+      } else if (Object.keys(filters).length > 0) {
+        // Utiliser fetchInvoices avec uniquement les filtres
+        await fetchInvoices({ 
+          filters: filters as Partial<InvoiceFilters>, 
+          reset: true 
+        });
       } else {
-        await fetchInvoices({ filters, reset: true });
+        // Charger toutes les factures sans filtre
+        await fetchInvoices({ reset: true });
       }
 
     } catch (err) {
@@ -252,7 +273,7 @@ export default function InvoiceSearchPage() {
   };
 
   // Fonction de réinitialisation
-  const handleReset = () => {
+  const handleReset = async () => {
     const today = new Date();
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
     
@@ -273,7 +294,8 @@ export default function InvoiceSearchPage() {
       tags: '',
     });
     
-    fetchInvoices({ reset: true });
+    // Réinitialiser les factures sans filtres
+    await fetchInvoices({ reset: true });
     setHasSearched(false);
   };
 
