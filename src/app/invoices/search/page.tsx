@@ -26,12 +26,12 @@ import {
   MoreHorizontal,
   X
 } from 'lucide-react';
-import {
-  useInvoicesStore,
-  type Invoice,
-  type InvoiceFilters
-} from '@/store/invoices';
+
+// FIX: Import des types depuis @/types au lieu de @/store/invoices
+import type { Invoice, InvoiceFilters } from '@/types';
+import { useInvoicesStore } from '@/store/invoices';
 import { useAuthStore } from '@/store/auth';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,40 +61,40 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatRelativeDate } from '@/lib/utils';
 
-// FIX: Correction des noms de constantes (suppression du underscore)
+// Configuration des options
 const URGENCY_OPTIONS = [
   { value: 'normal', label: 'Normal' },
   { value: 'express', label: 'Express' },
   { value: 'urgent', label: 'Urgent' },
-];
+] as const;
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
   { value: 'cancelled', label: 'Annulée' },
-];
+] as const;
 
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'paid', label: 'Payées' },
   { value: 'unpaid', label: 'Non payées' },
-];
+] as const;
 
 const WITHDRAWAL_STATUS_OPTIONS = [
   { value: 'withdrawn', label: 'Retirées' },
   { value: 'pending', label: 'En attente' },
-];
+] as const;
 
 const URGENCY_CONFIG = {
   normal: { label: 'Normal', color: 'bg-gray-100 text-gray-800' },
   express: { label: 'Express', color: 'bg-yellow-100 text-yellow-800' },
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
-};
+} as const;
 
 const STATUS_CONFIG = {
   active: { label: 'Active', icon: CheckCircle, color: 'text-green-600' },
   cancelled: { label: 'Annulée', icon: XCircle, color: 'text-red-600' },
-};
+} as const;
 
-// FIX: Interface améliorée avec des types plus stricts
+// Interface pour le formulaire de recherche
 interface SearchFormData {
   searchTerm: string;
   clientName: string;
@@ -115,7 +115,6 @@ interface SearchFormData {
 export default function InvoiceSearchPage() {
   const router = useRouter();
   
-  // FIX: Utilisation correcte des stores Zustand
   const { user } = useAuthStore();
   const { 
     invoices, 
@@ -144,12 +143,11 @@ export default function InvoiceSearchPage() {
     tags: '',
   });
 
-  // États locaux
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // FIX: Correction de l'erreur 'today' - utilisation des variables locales correctement
+  // Initialiser les dates par défaut
   useEffect(() => {
     const today = new Date();
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
@@ -161,91 +159,99 @@ export default function InvoiceSearchPage() {
     }));
   }, []);
 
-  // FIX: Fonction corrigée pour mettre à jour le formulaire
+  // Fonction pour mettre à jour le formulaire
   const updateSearchForm = (updates: Partial<SearchFormData>) => {
     setSearchForm(prev => ({ ...prev, ...updates }));
   };
 
-  // FIX: Fonction corrigée pour basculer les valeurs dans les tableaux
+  // Fonction pour basculer les valeurs dans les tableaux
   const toggleArrayValue = (array: string[], value: string): string[] => {
     return array.includes(value) 
       ? array.filter(item => item !== value)
       : [...array, value];
   };
 
-  // FIX: Fonction de recherche corrigée
+  // FIX: Fonction de recherche corrigée avec les bons paramètres
   const handleSearch = async () => {
-    if (!user) return;
+    if (!user) {
+      console.error('Utilisateur non connecté');
+      return;
+    }
 
     setIsSearching(true);
     setHasSearched(true);
 
     try {
-      // Construire les filtres à partir du formulaire
-      const searchFilters: Partial<InvoiceFilters> = {};
+      // Construire les filtres
+      const filters: Partial<InvoiceFilters> = {};
 
       if (searchForm.status.length > 0) {
-        searchFilters.status = searchForm.status as ('active' | 'cancelled')[];
+        filters.status = searchForm.status as ('active' | 'cancelled')[];
       }
 
       if (searchForm.paid) {
-        searchFilters.paid = searchForm.paid === 'paid';
+        filters.paid = searchForm.paid === 'paid';
       }
 
       if (searchForm.withdrawn) {
-        searchFilters.withdrawn = searchForm.withdrawn === 'withdrawn';
+        filters.withdrawn = searchForm.withdrawn === 'withdrawn';
       }
 
       if (searchForm.urgency.length > 0) {
-        searchFilters.urgency = searchForm.urgency as ('normal' | 'express' | 'urgent')[];
+        filters.urgency = searchForm.urgency as ('normal' | 'express' | 'urgent')[];
       }
 
       if (searchForm.dateFrom) {
-        searchFilters.dateFrom = searchForm.dateFrom;
+        filters.dateFrom = searchForm.dateFrom;
       }
 
       if (searchForm.dateTo) {
-        searchFilters.dateTo = searchForm.dateTo;
+        filters.dateTo = searchForm.dateTo;
       }
 
       if (searchForm.clientName.trim()) {
-        searchFilters.clientName = searchForm.clientName.trim();
+        filters.clientName = searchForm.clientName.trim();
       }
 
       if (searchForm.minAmount) {
-        searchFilters.minAmount = parseFloat(searchForm.minAmount);
+        const amount = parseFloat(searchForm.minAmount);
+        if (!isNaN(amount)) {
+          filters.minAmount = amount;
+        }
       }
 
       if (searchForm.maxAmount) {
-        searchFilters.maxAmount = parseFloat(searchForm.maxAmount);
+        const amount = parseFloat(searchForm.maxAmount);
+        if (!isNaN(amount)) {
+          filters.maxAmount = amount;
+        }
       }
 
       if (searchForm.tags.trim()) {
-        searchFilters.tags = searchForm.tags.trim().split(',').map(tag => tag.trim());
+        filters.tags = searchForm.tags.trim().split(',').map(tag => tag.trim()).filter(Boolean);
       }
 
-      // Si recherche textuelle globale, utiliser searchInvoices
-      if (searchForm.searchTerm.trim() || searchForm.invoiceNumber.trim() || searchForm.clientPhone.trim()) {
-        const globalSearchTerm = [
-          searchForm.searchTerm,
-          searchForm.invoiceNumber,
-          searchForm.clientPhone
-        ].filter(Boolean).join(' ');
-        
-        await searchInvoices(globalSearchTerm, searchFilters);
+      // FIX: Appel correct avec 2 paramètres
+      const globalSearchTerm = [
+        searchForm.searchTerm,
+        searchForm.invoiceNumber,
+        searchForm.clientPhone
+      ].filter(Boolean).join(' ').trim();
+      
+      if (globalSearchTerm) {
+        await searchInvoices(globalSearchTerm, filters);
       } else {
-        // Sinon, utiliser fetchInvoices avec filtres
-        await fetchInvoices({ filters: searchFilters, reset: true });
+        await fetchInvoices({ filters, reset: true });
       }
 
-    } catch (error) {
-      console.error('Erreur lors de la recherche:', error);
+    } catch (err) {
+      console.error('Erreur lors de la recherche:', err);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // FIX: Fonction de réinitialisation corrigée
+  // Fonction de réinitialisation
   const handleReset = () => {
     const today = new Date();
     const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
@@ -267,12 +273,11 @@ export default function InvoiceSearchPage() {
       tags: '',
     });
     
-    // Réinitialiser les filtres du store
     fetchInvoices({ reset: true });
     setHasSearched(false);
   };
 
-  // Gérer les erreurs
+  // Gérer les erreurs avec auto-clear
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -282,20 +287,24 @@ export default function InvoiceSearchPage() {
     }
   }, [error, clearError]);
 
-  // FIX: Vérification des permissions simplifiée
-  const canEditInvoice = (invoice: Invoice) => {
-    return invoice.status === 'active' && user && (user.role === 'owner' || invoice.createdBy === user.id);
+  // Vérifier les permissions d'édition
+  const canEditInvoice = (invoice: Invoice): boolean => {
+    if (!user) return false;
+    if (invoice.status !== 'active') return false;
+    return user.role === 'owner' || invoice.createdBy === user.id;
+  };
+
+  // Fonction pour exporter les résultats
+  const handleExport = () => {
+    // TODO: Implémenter l'export CSV/Excel
+    console.log('Export des résultats...');
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-        >
+        <Button variant="ghost" size="sm" asChild>
           <Link href="/invoices">
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -349,6 +358,7 @@ export default function InvoiceSearchPage() {
                 value={searchForm.searchTerm}
                 onChange={(e) => updateSearchForm({ searchTerm: e.target.value })}
                 placeholder="Recherche dans tous les champs..."
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
 
@@ -359,6 +369,7 @@ export default function InvoiceSearchPage() {
                 value={searchForm.invoiceNumber}
                 onChange={(e) => updateSearchForm({ invoiceNumber: e.target.value })}
                 placeholder="Ex: 2024-001"
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
 
@@ -369,6 +380,7 @@ export default function InvoiceSearchPage() {
                 value={searchForm.clientName}
                 onChange={(e) => updateSearchForm({ clientName: e.target.value })}
                 placeholder="Nom du client"
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
           </div>
@@ -463,7 +475,7 @@ export default function InvoiceSearchPage() {
                 <div>
                   <Label htmlFor="dateFrom">Date de début</Label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="dateFrom"
                       type="date"
@@ -477,7 +489,7 @@ export default function InvoiceSearchPage() {
                 <div>
                   <Label htmlFor="dateTo">Date de fin</Label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                       id="dateTo"
                       type="date"
@@ -523,6 +535,7 @@ export default function InvoiceSearchPage() {
                     value={searchForm.clientPhone}
                     onChange={(e) => updateSearchForm({ clientPhone: e.target.value })}
                     placeholder="+242 XX XXX XXXX"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
               </div>
@@ -545,17 +558,27 @@ export default function InvoiceSearchPage() {
               variant="outline" 
               onClick={handleReset}
               type="button"
+              disabled={isSearching}
             >
               <X className="h-4 w-4 mr-2" />
               Réinitialiser
             </Button>
             <Button 
               onClick={handleSearch} 
-              disabled={isSearching}
+              disabled={isSearching || !user}
               type="button"
             >
-              <Search className="h-4 w-4 mr-2" />
-              {isSearching ? 'Recherche...' : 'Rechercher'}
+              {isSearching ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Recherche...
+                </>
+              ) : (
+                <>
+                  <Search className="h-4 w-4 mr-2" />
+                  Rechercher
+                </>
+              )}
             </Button>
           </div>
         </CardContent>
@@ -570,7 +593,12 @@ export default function InvoiceSearchPage() {
                 Résultats de la recherche ({invoices.length} facture{invoices.length !== 1 ? 's' : ''})
               </CardTitle>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleExport}
+                  disabled={invoices.length === 0}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Exporter
                 </Button>
@@ -633,7 +661,7 @@ export default function InvoiceSearchPage() {
                           <TableCell>
                             <div className="font-bold">{formatCurrency(invoice.total)}</div>
                             <div className="text-sm text-muted-foreground">
-                              {invoice.items?.length || 0} article{invoice.items && invoice.items.length > 1 ? 's' : ''}
+                              {invoice.items?.length || 0} article{(invoice.items?.length || 0) > 1 ? 's' : ''}
                             </div>
                           </TableCell>
                           
@@ -687,12 +715,14 @@ export default function InvoiceSearchPage() {
                                 </DropdownMenuItem>
                                 
                                 {canEdit && (
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/invoices/${invoice.id}/edit`}>
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Modifier
-                                    </Link>
-                                  </DropdownMenuItem>
+                                  <>
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/invoices/${invoice.id}/edit`}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Modifier
+                                      </Link>
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
