@@ -102,45 +102,20 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY'
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block'
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
-          }
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' }
         ]
       },
       {
         source: '/sw.js',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate'
-          }
-        ]
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }]
       },
       {
         source: '/manifest.json',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable'
-          }
-        ]
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
       }
     ];
   },
@@ -148,16 +123,8 @@ const nextConfig = {
   // Redirects and rewrites
   async redirects() {
     return [
-      {
-        source: '/login',
-        destination: '/auth/login',
-        permanent: true
-      },
-      {
-        source: '/register',
-        destination: '/auth/register',
-        permanent: true
-      }
+      { source: '/login', destination: '/auth/login', permanent: true },
+      { source: '/register', destination: '/auth/register', permanent: true }
     ];
   },
 
@@ -183,7 +150,7 @@ const nextConfig = {
 
   // ESLint configuration - DÉSACTIVÉ pour le build
   eslint: {
-    ignoreDuringBuilds: true, // Ajouter cette ligne pour ignorer ESLint
+    ignoreDuringBuilds: true,
   },
 
   // Environment variables
@@ -193,18 +160,19 @@ const nextConfig = {
 
   // Output configuration for static export if needed
   output: 'standalone',
-  
-  // Experimental features - CONSOLIDÉ
+
+  // Experimental features (nettoyé)
   experimental: {
-    
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
     optimizeCss: true,
     optimizePackageImports: [
       '@radix-ui/react-icons',
       'lucide-react',
       'date-fns'
     ]
-  }
+  },
+
+  // Nouvelle clé conforme à Next 15
+  serverExternalPackages: ['@supabase/supabase-js']
 };
 
 module.exports = withBundleAnalyzer(withPWA(nextConfig));

@@ -12,6 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://zua-pressing.vercel.app'), // ✅ ajouté
   title: {
     default: 'Digit Pressing - Gestion Digitale',
     template: '%s | Digit Pressing',
