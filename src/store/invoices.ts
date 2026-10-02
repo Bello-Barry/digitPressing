@@ -182,7 +182,7 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices: Invoice[] = data?.map(row => ({
+        const invoices: Invoice[] = data?.map((row: any) => ({
           id: row.id,
           number: row.number,
           pressingId: row.pressing_id,
@@ -260,7 +260,7 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices = data?.invoices || [];
+        const invoices = (data?.invoices || []) as any[];
         set({
           invoices,
           pagination: {
@@ -299,7 +299,7 @@ export const useInvoicesStore = create<InvoicesState>()(
             client_phone: invoiceData.clientPhone,
             client_email: invoiceData.clientEmail,
             client_address: invoiceData.clientAddress,
-            items: invoiceData.items,
+            items: invoiceData.items as any,
             subtotal: invoiceData.subtotal,
             discount: invoiceData.discount,
             discount_type: invoiceData.discountType,
@@ -390,15 +390,36 @@ export const useInvoicesStore = create<InvoicesState>()(
 
         set({ isLoading: true, error: null });
 
+        const updatePayload: any = {
+          modified_by: user.id,
+          modified_by_name: user.fullName,
+          modified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        if (updates.clientName !== undefined) updatePayload.client_name = updates.clientName;
+        if (updates.clientPhone !== undefined) updatePayload.client_phone = updates.clientPhone;
+        if (updates.clientEmail !== undefined) updatePayload.client_email = updates.clientEmail;
+        if (updates.clientAddress !== undefined) updatePayload.client_address = updates.clientAddress;
+        if (updates.items !== undefined) updatePayload.items = updates.items;
+        if (updates.subtotal !== undefined) updatePayload.subtotal = updates.subtotal;
+        if (updates.discount !== undefined) updatePayload.discount = updates.discount;
+        if (updates.discountType !== undefined) updatePayload.discount_type = updates.discountType;
+        if (updates.tax !== undefined) updatePayload.tax = updates.tax;
+        if (updates.total !== undefined) updatePayload.total = updates.total;
+        if (updates.status !== undefined) updatePayload.status = updates.status;
+        if (updates.paid !== undefined) updatePayload.paid = updates.paid;
+        if (updates.paymentMethod !== undefined) updatePayload.payment_method = updates.paymentMethod;
+        if (updates.depositDate !== undefined) updatePayload.deposit_date = updates.depositDate;
+        if (updates.paymentDate !== undefined) updatePayload.payment_date = updates.paymentDate;
+        if (updates.estimatedReadyDate !== undefined) updatePayload.estimated_ready_date = updates.estimatedReadyDate;
+        if (updates.notes !== undefined) updatePayload.notes = updates.notes;
+        if (updates.urgency !== undefined) updatePayload.urgency = updates.urgency;
+        if (updates.tags !== undefined) updatePayload.tags = updates.tags;
+
         const { data, error } = await supabase
           .from('invoices')
-          .update({
-            ...updates,
-            modified_by: user.id,
-            modified_by_name: user.fullName,
-            modified_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq('id', id)
           .eq('pressing_id', user.pressingId)
           .select()

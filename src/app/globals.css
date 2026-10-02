@@ -379,12 +379,12 @@
   }
   
   /* Animation d'apparition */
-  .animate-in {
-    @apply animate-in fade-in-0 zoom-in-95 duration-200;
+  .fade-zoom-in {
+    @apply transition-opacity duration-200;
   }
   
-  .animate-out {
-    @apply animate-out fade-out-0 zoom-out-95 duration-200;
+  .fade-zoom-out {
+    @apply transition-opacity duration-200;
   }
   
   /* États interactifs améliorés */

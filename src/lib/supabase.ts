@@ -183,7 +183,11 @@ export const subscribeToTable = (
 
 // Helper pour se désabonner d'un canal
 export const unsubscribeFromChannel = (channelName: string) => {
-  return supabase.removeChannel(supabase.getChannels().find(ch => ch.topic === channelName));
+  const channel = supabase.getChannels().find(ch => ch.topic === channelName);
+  if (channel) {
+    return supabase.removeChannel(channel);
+  }
+  return Promise.resolve('ok');
 };
 
 // Configuration des buckets de stockage

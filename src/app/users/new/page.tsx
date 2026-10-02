@@ -21,7 +21,7 @@ import { isValidEmail, isValidPhone, capitalizeWords } from '@/lib/utils';
 import type { UserPermission } from '@/types';
 
 // Schéma de validation
-const _createUserSchema = z.object({
+const createUserSchema = z.object({
   fullName: z.string()
     .min(2, 'Le nom doit contenir au moins 2 caractères')
     .max(255, 'Le nom ne peut pas dépasser 255 caractères')
@@ -42,7 +42,7 @@ const _createUserSchema = z.object({
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
 // Permissions disponibles avec descriptions
-const _AVAILABLE_PERMISSIONS = [
+const AVAILABLE_PERMISSIONS = [
   {
     action: 'create_invoice',
     label: 'Créer des factures',
@@ -82,22 +82,22 @@ const _AVAILABLE_PERMISSIONS = [
 ];
 
 // Permissions par défaut selon le rôle
-const _getDefaultPermissions = (role: 'owner' | 'employee'): UserPermission[] => {
+const getDefaultPermissions = (role: 'owner' | 'employee'): UserPermission[] => {
   if (role === 'owner') {
     return AVAILABLE_PERMISSIONS.map(perm => ({
-      action: perm.action,
+      action: perm.action as any,
       granted: true,
     }));
   }
   
   return AVAILABLE_PERMISSIONS.map(perm => ({
-    action: perm.action,
+    action: perm.action as any,
     granted: perm.action === 'create_invoice', // Seule permission par défaut pour employés
   }));
 };
 
 export default function NewUserPage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { createUser } = useUserActions();
   const { user } = useAuth();
   const { canManageUsers, isOwner } = useUserPermissions();
@@ -106,7 +106,7 @@ export default function NewUserPage() {
     getDefaultPermissions('employee')
   );
 
-  const _form = useForm<CreateUserForm>({
+  const form = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       fullName: '',
@@ -124,12 +124,12 @@ export default function NewUserPage() {
     return null;
   }
 
-  const _handleRoleChange = (role: 'owner' | 'employee') => {
+  const handleRoleChange = (role: 'owner' | 'employee') => {
     form.setValue('role', role);
     setSelectedPermissions(getDefaultPermissions(role));
   };
 
-  const _handlePermissionChange = (action: string, granted: boolean) => {
+  const handlePermissionChange = (action: string, granted: boolean) => {
     setSelectedPermissions(prev =>
       prev.map(perm =>
         perm.action === action ? { ...perm, granted } : perm
@@ -137,15 +137,17 @@ export default function NewUserPage() {
     );
   };
 
-  const _onSubmit = async (data: CreateUserForm) => {
+  const onSubmit = async (data: CreateUserForm) => {
     try {
       setIsSubmitting(true);
 
-      const _userData = {
-        ...data,
+      const userData = {
         fullName: capitalizeWords(data.fullName.trim()),
         email: data.email.trim().toLowerCase(),
-        phone: data.phone?.trim()  || null,
+        phone: data.phone?.trim() || null,
+        role: data.role,
+        pressingId: user.pressingId,
+        isActive: data.isActive,
         permissions: selectedPermissions,
       };
 
@@ -167,7 +169,7 @@ export default function NewUserPage() {
     }
   };
 
-  const _groupedPermissions = AVAILABLE_PERMISSIONS.reduce((acc, perm) => {
+  const groupedPermissions = AVAILABLE_PERMISSIONS.reduce((acc, perm) => {
     if (!acc[perm.category]) {
       acc[perm.category] = [];
     }
@@ -217,8 +219,10 @@ export default function NewUserPage() {
                   id="fullName"
                   placeholder="Ex: Jean Dupont"
                   {...form.register('fullName')}
-                  error={form.formState.errors.fullName?.message}
                 />
+                {form.formState.errors.fullName && (
+                  <p className="text-sm text-destructive">{form.formState.errors.fullName.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -231,9 +235,11 @@ export default function NewUserPage() {
                     className="pl-9"
                     placeholder="jean.dupont@exemple.com"
                     {...form.register('email')}
-                    error={form.formState.errors.email?.message}
                   />
                 </div>
+                {form.formState.errors.email && (
+                  <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -246,9 +252,11 @@ export default function NewUserPage() {
                     className="pl-9"
                     placeholder="+242 06 XXX XXXX"
                     {...form.register('phone')}
-                    error={form.formState.errors.phone?.message}
                   />
                 </div>
+                {form.formState.errors.phone && (
+                  <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -313,9 +321,9 @@ export default function NewUserPage() {
                 </h4>
                 <div className="space-y-3">
                   {permissions.map((perm) => {
-                    const _permission = selectedPermissions.find(p => p.action === perm.action);
-                    const _isChecked = permission?.granted || false;
-                    const _isDisabled = form.watch('role') === 'owner';
+                    const permission = selectedPermissions.find(p => p.action === perm.action);
+                    const isChecked = permission?.granted || false;
+                    const isDisabled = form.watch('role') === 'owner';
 
                     return (
                       <div

@@ -114,6 +114,7 @@ interface SearchFormData {
 
 export default function InvoiceSearchPage() {
   const router = useRouter();
+  const user = useAuthStore(state => state.user);
   
   // FIX: Ajout du type de retour explicite pour fetchInvoices
   const { 
@@ -246,22 +247,15 @@ export default function InvoiceSearchPage() {
       ].filter(Boolean).join(' ').trim();
       
       if (globalSearchTerm) {
-        // Utiliser fetchInvoices avec recherche textuelle dans clientName
-        await fetchInvoices({ 
-          filters: {
-            ...filters,
-            clientName: globalSearchTerm 
-          } as Partial<InvoiceFilters>, 
-          reset: true 
+        useInvoicesStore.getState().setFilters({
+          ...filters,
+          clientName: globalSearchTerm,
         });
+        await fetchInvoices({ reset: true });
       } else if (Object.keys(filters).length > 0) {
-        // Utiliser fetchInvoices avec uniquement les filtres
-        await fetchInvoices({ 
-          filters: filters as Partial<InvoiceFilters>, 
-          reset: true 
-        });
+        useInvoicesStore.getState().setFilters(filters);
+        await fetchInvoices({ reset: true });
       } else {
-        // Charger toutes les factures sans filtre
         await fetchInvoices({ reset: true });
       }
 
@@ -301,19 +295,19 @@ export default function InvoiceSearchPage() {
 
   // Gérer les erreurs avec auto-clear
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        clearError();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
+    if (!error) return;
+    const timer = setTimeout(() => {
+      clearError();
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [error, clearError]);
 
   // Vérifier les permissions d'édition
   const canEditInvoice = (invoice: Invoice): boolean => {
     if (!user) return false;
     if (invoice.status !== 'active') return false;
-    return user.role === 'owner' || invoice.createdBy === user.id;
+    if (user.role === 'owner' || invoice.createdBy === user.id) return true;
+    return false;
   };
 
   // Fonction pour exporter les résultats

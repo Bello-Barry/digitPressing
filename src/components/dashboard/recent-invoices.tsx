@@ -1,16 +1,14 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eye, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-// Import du store invoices - ajustez le chemin selon votre structure
-// import { useInvoices, useInvoiceActions } from '@/store/invoices';
 
-interface Invoice {
+interface RecentInvoiceItem {
   id: string;
   invoiceNumber: string;
   customerName: string;
@@ -24,8 +22,7 @@ interface RecentInvoicesProps {
   className?: string;
 }
 
-// Données de démonstration
-const mockInvoices: Invoice[] = [
+const mockInvoices: RecentInvoiceItem[] = [
   {
     id: '1',
     invoiceNumber: 'FAC-2024-001',
@@ -68,7 +65,7 @@ const mockInvoices: Invoice[] = [
   },
 ];
 
-const _statusConfig = {
+const statusConfig = {
   pending: {
     label: 'En attente',
     color: 'bg-yellow-100 text-yellow-800',
@@ -94,20 +91,12 @@ const _statusConfig = {
 export const RecentInvoices: React.FC<RecentInvoicesProps> = ({ 
   className 
 }) => {
-  // Décommentez et ajustez selon votre store invoices
-  // const { invoices, isLoading } = useInvoices();
-  // const { fetchInvoices } = useInvoiceActions();
-  
-  // useEffect(() => {
-  //   fetchInvoices({ limit: 5, sortBy: 'createdAt', sortOrder: 'desc' });
-  // }, [fetchInvoices]);
+  const invoices = mockInvoices;
+  const isLoading = false;
 
-  // Pour l'instant, utilisez les données mock
-  const _invoices = mockInvoices;
-  const _isLoading = false;
   if (isLoading) {
     return (
-      <Card>
+      <Card className={className}>
         <CardHeader>
           <CardTitle>Factures récentes</CardTitle>
         </CardHeader>
@@ -132,7 +121,7 @@ export const RecentInvoices: React.FC<RecentInvoicesProps> = ({
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Factures récentes</CardTitle>
@@ -152,8 +141,8 @@ export const RecentInvoices: React.FC<RecentInvoicesProps> = ({
         ) : (
           <div className="space-y-3">
             {invoices.slice(0, 5).map((invoice, index) => {
-              const _statusInfo = statusConfig[invoice.status];
-              const _StatusIcon = statusInfo.icon;
+              const statusInfo = statusConfig[invoice.status];
+              const StatusIcon = statusInfo.icon;
               
               return (
                 <motion.div

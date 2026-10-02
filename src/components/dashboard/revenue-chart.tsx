@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -25,44 +24,46 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { TrendingUp, Calendar } from 'lucide-react';
 
-interface RevenueData {
-  date: string;
-  revenue: number;
-  transactions: number;
+interface RevenueDataPoint {
+  label: string;
+  value: number;
+  transactions?: number;
 }
 
 interface RevenueChartProps {
+  data?: RevenueDataPoint[];
+  isLoading?: boolean;
+  period?: '7d' | '30d' | '90d';
+  onPeriodChange?: (period: '7d' | '30d' | '90d') => void;
   className?: string;
 }
 
-// Données de démonstration
-const _generateMockData = (days: number): RevenueData[] => {
-  const data: RevenueData[] = [];
-  const _today = new Date();
+const generateMockData = (days: number): RevenueDataPoint[] => {
+  const points: RevenueDataPoint[] = [];
+  const today = new Date();
   
   for (let i = days - 1; i >= 0; i--) {
-    const _date = new Date(today);
+    const date = new Date(today);
     date.setDate(today.getDate() - i);
     
-    // Générer des données aléatoires mais réalistes
-    const _baseRevenue = 2000 + Math.random() * 3000;
-    const _weekend = date.getDay() === 0 || date.getDay() === 6;
-    const _revenue = weekend ? baseRevenue * 0.7 : baseRevenue;
+    const baseRevenue = 2000 + Math.random() * 3000;
+    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const revenue = isWeekend ? baseRevenue * 0.7 : baseRevenue;
     
-    data.push({
-      date: date.toLocaleDateString('fr-FR', { 
+    points.push({
+      label: date.toLocaleDateString('fr-FR', {
         month: 'short', 
         day: 'numeric' 
       }),
-      revenue: Math.round(revenue),
+      value: Math.round(revenue),
       transactions: Math.round(revenue / 45 + Math.random() * 10),
     });
   }
   
-  return data;
+  return points;
 };
 
-const _periodOptions = {
+const periodOptions: Record<'7d' | '30d' | '90d', { label: string; days: number }> = {
   '7d': { label: '7 jours', days: 7 },
   '30d': { label: '30 jours', days: 30 },
   '90d': { label: '90 jours', days: 90 },
@@ -75,21 +76,20 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
   onPeriodChange
 }) => {
   const [chartType, setChartType] = useState<'line' | 'bar'>('line');
-  const [selectedPeriod, setSelectedPeriod] = useState(period);
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>(period);
   
-  const _chartData = data || generateMockData(periodOptions[selectedPeriod].days);
+  const chartData = data || generateMockData(periodOptions[selectedPeriod].days);
 
-  const _handlePeriodChange = (newPeriod: '7d' | '30d' | '90d') => {
+  const handlePeriodChange = (newPeriod: '7d' | '30d' | '90d') => {
     setSelectedPeriod(newPeriod);
     if (onPeriodChange) {
       onPeriodChange(newPeriod);
     }
   };
 
-  // Calculer les statistiques
-  const _totalRevenue = chartData.reduce((sum, item) => sum + item.revenue, 0);
-  const _totalTransactions = chartData.reduce((sum, item) => sum + item.transactions, 0);
-  const _averageRevenue = totalRevenue / chartData.length;
+  const totalRevenue = chartData.reduce((sum, item) => sum + item.value, 0);
+  const totalTransactions = chartData.reduce((sum, item) => sum + (item.transactions || 0), 0);
+  const averageRevenue = chartData.length > 0 ? totalRevenue / chartData.length : 0;
 
   if (isLoading) {
     return (
@@ -120,7 +120,7 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
           <div className="flex gap-2">
             <Select 
               value={selectedPeriod} 
-              onValueChange={handlePeriodChange}
+              onValueChange={(val) => handlePeriodChange(val as '7d' | '30d' | '90d')}
             >
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -171,7 +171,7 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           {chartType === 'line' ? (
-            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis 
                 dataKey="label" 
@@ -190,8 +190,8 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [
-                  formatCurrency(value),
+                formatter={(value: any) => [
+                  formatCurrency(Number(value) || 0),
                   'Revenus'
                 ]}
                 labelStyle={{ fontWeight: 600 }}
@@ -208,7 +208,7 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
               />
             </LineChart>
           ) : (
-            <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis 
                 dataKey="label" 
@@ -227,8 +227,8 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
-                formatter={(value: number) => [
-                  formatCurrency(value),
+                formatter={(value: any) => [
+                  formatCurrency(Number(value) || 0),
                   'Revenus'
                 ]}
                 labelStyle={{ fontWeight: 600 }}
