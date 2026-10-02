@@ -329,6 +329,24 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 /**
  * Formate un numéro de téléphone français
  */
+/**
+ * Normalise un numéro de téléphone Congo (+242)
+ */
+export function normalizePhoneNumber(phone: string, country = 'CG'): string {
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.slice(2);
+  }
+  if (!cleaned.startsWith('+')) {
+    if (cleaned.startsWith('0')) {
+      cleaned = '+242' + cleaned.slice(1);
+    } else {
+      cleaned = '+242' + cleaned;
+    }
+  }
+  return cleaned;
+}
+
 export function formatPhoneNumber(phone: string): string {
   const cleaned = phone.replace(/\D/g, '');
   
