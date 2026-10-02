@@ -1,25 +1,42 @@
 // =============================================================================
-// TYPES PRINCIPAUX - Digit PRESSING
+// TYPES PRINCIPAUX - Digit PRESSING / SAAS PRESSING
 // =============================================================================
 
 // Types utilisateur et authentification
-export type UserRole = 'owner' | 'employee';
+export type UserRole = 'owner' | 'employee' | 'manager' | 'caissier';
 
 export interface User {
   id: string;
   email: string;
   role: UserRole;
   pressingId: string;
+  organizationId?: string;
   fullName: string;
+  phone?: string;
   permissions: Permission[];
   createdAt: string;
-  lastLogin?: string;
+  lastLogin?: string | null;
   isActive: boolean;
 }
 
 export interface Permission {
-  action: 'create_invoice' | 'cancel_invoice' | 'view_revenue' | 'manage_users' | 'modify_prices' | 'export_data';
+  action: 'create_invoice' | 'cancel_invoice' | 'view_revenue' | 'manage_users' | 'modify_prices' | 'export_data' | 'create_order' | 'cancel_order' | 'manage_team';
   granted: boolean;
+  [key: string]: unknown;
+}
+
+export type UserPermission = Permission;
+
+export interface UserFilters {
+  role?: UserRole[];
+  isActive?: boolean;
+  search?: string;
+  searchTerm?: string;
+}
+
+export interface UserSort {
+  field: 'fullName' | 'email' | 'role' | 'createdAt' | 'lastLogin';
+  direction: 'asc' | 'desc';
 }
 
 export interface AuthSession {
@@ -27,6 +44,21 @@ export interface AuthSession {
   accessToken: string;
   refreshToken: string;
   expiresAt: string;
+}
+
+// Types multi-tenant organisation
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  country: string;
+  phone?: string;
+  email?: string;
+  logoUrl?: string;
+  currency: string;
+  settings: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Types pressing
@@ -49,6 +81,7 @@ export interface PressingSettings {
   defaultDiscount?: number;
   businessHours: BusinessHours;
   notifications: NotificationSettings;
+  [key: string]: unknown;
 }
 
 export interface BusinessHours {
@@ -59,6 +92,7 @@ export interface BusinessHours {
   friday: DayHours;
   saturday: DayHours;
   sunday: DayHours;
+  [key: string]: unknown;
 }
 
 export interface DayHours {
@@ -74,7 +108,6 @@ export interface NotificationSettings {
 }
 
 // Types articles
-// Types articles - MISE À JOUR DU TYPE ArticleCategory
 export type ArticleCategory = 
   | 'vetement' 
   | 'chaussure' 
@@ -97,22 +130,24 @@ export interface Article {
   customizable: boolean;
   isActive: boolean;
   pressingId: string;
+  organizationId?: string;
   description?: string;
   estimatedDays?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-// Types factures
+// Types factures / commandes
 export type InvoiceStatus = 'active' | 'cancelled';
 export type UrgencyLevel = 'normal' | 'express' | 'urgent';
-export type PaymentMethod = 'cash' | 'card' | 'check' | 'transfer';
+export type PaymentMethod = 'cash' | 'card' | 'check' | 'transfer' | 'mobile_money';
 
 export interface Invoice {
   // Identifiants
   id: string;
   number: string;
   pressingId: string;
+  organizationId?: string;
   
   // Informations client
   clientName: string;
@@ -158,22 +193,19 @@ export interface Invoice {
   updatedAt: string;
 }
 
-// CORRECTION PRINCIPALE: InvoiceItem avec les bonnes propriétés
 export interface InvoiceItem {
-  // Propriétés de base (obligatoires)
   articleId: string;
-  name: string;  // Ajouté pour correspondre à votre code
-  category: string;  // Ajouté pour correspondre à votre code
+  name: string;
+  category: string;
   quantity: number;
   unitPrice: number;
-  
-  // Propriétés optionnelles (pour compatibilité avec l'ancien système)
   id?: string;
-  articleName?: string;  // Alias de 'name' pour compatibilité
+  articleName?: string;
   totalPrice?: number;
   specialInstructions?: string;
   completed?: boolean;
   completedAt?: string;
+  [key: string]: unknown;
 }
 
 export interface InvoiceFilters {
@@ -199,26 +231,48 @@ export interface InvoiceSort {
 export interface DailyRevenue {
   date: string; // YYYY-MM-DD
   pressingId: string;
+  organizationId?: string;
   
-  // Factures du jour
-  depositInvoices: Invoice[];
-  withdrawalInvoices: Invoice[];
+  depositInvoices?: Invoice[];
+  withdrawalInvoices?: Invoice[];
   
-  // Calculs
   depositTotal: number;
   withdrawalTotal: number;
   dailyTotal: number;
   
-  // Statistiques
   totalTransactions: number;
   averageTicket: number;
-  employeeBreakdown: EmployeeRevenue[];
-  
-  // Détail par méthode de paiement
-  paymentMethodBreakdown: PaymentMethodBreakdown[];
-  
-  // Détail par catégorie d'articles
-  categoryBreakdown: CategoryBreakdown[];
+  employeeBreakdown?: EmployeeRevenue[];
+  paymentMethodBreakdown?: PaymentMethodBreakdown[];
+  categoryBreakdown?: CategoryBreakdown[];
+
+  categories?: Record<string, number>;
+  paymentMethods?: Record<string, number>;
+}
+
+export interface RevenueFilters {
+  dateFrom?: string;
+  dateTo?: string;
+  paymentMethod?: PaymentMethod[];
+  employeeId?: string;
+}
+
+export interface RevenueStats {
+  totalRevenue: number;
+  depositTotal: number;
+  withdrawalTotal: number;
+  totalTransactions: number;
+  averageTicket: number;
+  growthRate?: number;
+}
+
+export interface RevenueChartData {
+  date: string;
+  amount: number;
+  deposits: number;
+  withdrawals: number;
+  value?: number;
+  label?: string;
 }
 
 export interface EmployeeRevenue {
@@ -250,7 +304,7 @@ export interface MonthlyRevenue {
   averageTicket: number;
   dailyBreakdown: DailyRevenue[];
   topArticles: TopArticle[];
-  growthRate?: number; // Comparé au mois précédent
+  growthRate?: number;
 }
 
 export interface TopArticle {
@@ -262,7 +316,6 @@ export interface TopArticle {
   averagePrice: number;
 }
 
-// Types rapports
 export interface ReportPeriod {
   startDate: string;
   endDate: string;
@@ -294,6 +347,7 @@ export interface Client {
   email?: string;
   address?: string;
   pressingId: string;
+  organizationId?: string;
   totalInvoices: number;
   totalSpent: number;
   lastVisit?: string;
@@ -362,7 +416,6 @@ export interface SearchResponse<T> extends PaginatedResponse<T> {
   };
 }
 
-// Types d'erreurs
 export interface AppError {
   code: string;
   message: string;
@@ -375,7 +428,6 @@ export interface ValidationError extends AppError {
   value: unknown;
 }
 
-// Types configuration et préférences
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
   language: 'fr' | 'en';
@@ -393,7 +445,6 @@ export interface UserPreferences {
   };
 }
 
-// Types pour les hooks et state management
 export interface LoadingState {
   isLoading: boolean;
   error?: string;
@@ -407,7 +458,6 @@ export interface FormState<T> extends LoadingState {
   errors: Record<string, string>;
 }
 
-// Types PWA
 export interface PWAInstallPrompt {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -422,7 +472,6 @@ export interface OfflineQueueItem {
   retryCount: number;
 }
 
-// Types exports
 export type ExportFormat = 'pdf' | 'xlsx' | 'csv';
 export type ExportType = 'invoices' | 'revenue' | 'clients' | 'articles';
 
@@ -434,7 +483,6 @@ export interface ExportOptions {
   includeDetails: boolean;
 }
 
-// Types pour les inputs de création/modification
 export interface CreateInvoiceInput {
   clientName: string;
   clientPhone?: string | null;
@@ -469,14 +517,12 @@ export interface UpdateInvoiceInput {
   tags?: string[];
 }
 
-// Types utilitaires
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
-// Types pour les composants UI
 export interface TableColumn<T> {
   key: keyof T | string;
   title: string;

@@ -1,45 +1,41 @@
 // =============================================================================
-// MIDDLEWARE DE PROTECTION
+// MIDDLEWARE DE PROTECTION SUPABASE - SAAS PRESSING
 // =============================================================================
 
-// middleware.ts
-import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const { pathname } = req.nextUrl;
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const { pathname } = req.nextUrl;
 
-    // Rediriger vers login si pas connecté
-    if (!token && pathname.startsWith('/dashboard')) {
-      return NextResponse.redirect(new URL('/auth/login', req.url));
-    }
-
-    // Vérifier les permissions pour certaines routes
-    if (pathname.startsWith('/admin')) {
-      if (token?.role !== 'owner') {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    }
-
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        // Permettre l'accès aux pages publiques
-        const { pathname } = req.nextUrl;
-        if (pathname.startsWith('/auth') || pathname === '/') {
-          return true;
-        }
-
-        // Exiger une session pour les autres pages
-        return !!token;
-      },
-    },
+  // Permettre l'accès aux pages publiques, assets et routes auth
+  if (
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/public') ||
+    pathname === '/' ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.jpg') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.json') ||
+    pathname.endsWith('.svg')
+  ) {
+    return res;
   }
-);
+
+  // Extraire les cookies d'authentification Supabase
+  const sbAccessToken = req.cookies.get('sb-access-token')?.value ||
+                        req.cookies.get('supabase-auth-token')?.value;
+
+  // Protection des routes /dashboard et /admin
+  if (!sbAccessToken && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin'))) {
+    const redirectUrl = new URL('/auth/login', req.url);
+    redirectUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  return res;
+}
 
 export const config = {
   matcher: [
