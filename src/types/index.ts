@@ -3,7 +3,7 @@
 // =============================================================================
 
 // Types utilisateur et authentification
-export type UserRole = 'owner' | 'employee' | 'manager' | 'caissier';
+export type UserRole = 'owner' | 'manager' | 'cashier' | 'delivery' | 'employee' | 'caissier';
 
 export interface User {
   id: string;
@@ -12,7 +12,7 @@ export interface User {
   pressingId: string;
   organizationId?: string;
   fullName: string;
-  phone?: string;
+  phone?: string | null;
   permissions: Permission[];
   createdAt: string;
   lastLogin?: string | null;
@@ -51,10 +51,11 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  ticketPrefix: string;
   country: string;
-  phone?: string;
-  email?: string;
-  logoUrl?: string;
+  phone?: string | null;
+  email?: string | null;
+  logoUrl?: string | null;
   currency: string;
   settings: Record<string, unknown>;
   createdAt: string;
@@ -65,10 +66,10 @@ export interface Organization {
 export interface Pressing {
   id: string;
   name: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  logo?: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  logo?: string | null;
   settings: PressingSettings;
   createdAt: string;
   updatedAt: string;
@@ -96,8 +97,8 @@ export interface BusinessHours {
 }
 
 export interface DayHours {
-  open: string; // HH:mm format
-  close: string; // HH:mm format
+  open: string;
+  close: string;
   closed: boolean;
 }
 
@@ -127,14 +128,28 @@ export interface Article {
   name: string;
   defaultPrice: number;
   category: ArticleCategory;
-  customizable: boolean;
+  customizable?: boolean;
   isActive: boolean;
   pressingId: string;
   organizationId?: string;
-  description?: string;
-  estimatedDays?: number;
+  description?: string | null;
+  estimatedDays?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ArticleFilters {
+  category?: ArticleCategory[];
+  isActive?: boolean;
+  search?: string;
+  searchTerm?: string;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface ArticleSort {
+  field: 'name' | 'category' | 'defaultPrice' | 'createdAt';
+  direction: 'asc' | 'desc';
 }
 
 // Types factures / commandes
@@ -143,52 +158,45 @@ export type UrgencyLevel = 'normal' | 'express' | 'urgent';
 export type PaymentMethod = 'cash' | 'card' | 'check' | 'transfer' | 'mobile_money';
 
 export interface Invoice {
-  // Identifiants
   id: string;
   number: string;
   pressingId: string;
   organizationId?: string;
   
-  // Informations client
   clientName: string;
-  clientPhone?: string;
-  clientEmail?: string;
-  clientAddress?: string;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  clientAddress?: string | null;
   
-  // Articles et calculs
   items: InvoiceItem[];
   subtotal: number;
-  discount?: number;
-  discountType?: 'amount' | 'percentage';
-  tax?: number;
+  discount?: number | null;
+  discountType?: 'amount' | 'percentage' | null;
+  tax?: number | null;
   total: number;
   
-  // États et dates
   status: InvoiceStatus;
   paid: boolean;
   withdrawn: boolean;
-  paymentMethod?: PaymentMethod;
+  paymentMethod?: PaymentMethod | null;
   depositDate: string;
-  paymentDate?: string;
-  withdrawalDate?: string;
-  estimatedReadyDate?: string;
+  paymentDate?: string | null;
+  withdrawalDate?: string | null;
+  estimatedReadyDate?: string | null;
   
-  // Traçabilité
   createdBy: string;
   createdByName: string;
-  modifiedBy?: string;
-  modifiedByName?: string;
-  modifiedAt?: string;
-  cancellationReason?: string;
-  cancelledBy?: string;
-  cancelledAt?: string;
+  modifiedBy?: string | null;
+  modifiedByName?: string | null;
+  modifiedAt?: string | null;
+  cancellationReason?: string | null;
+  cancelledBy?: string | null;
+  cancelledAt?: string | null;
   
-  // Métadonnées
-  notes?: string;
+  notes?: string | null;
   urgency: UrgencyLevel;
-  tags?: string[];
+  tags?: string[] | null;
   
-  // Timestamps
   createdAt: string;
   updatedAt: string;
 }
@@ -202,9 +210,9 @@ export interface InvoiceItem {
   id?: string;
   articleName?: string;
   totalPrice?: number;
-  specialInstructions?: string;
+  specialInstructions?: string | null;
   completed?: boolean;
-  completedAt?: string;
+  completedAt?: string | null;
   [key: string]: unknown;
 }
 
@@ -229,7 +237,7 @@ export interface InvoiceSort {
 
 // Types revenus et statistiques
 export interface DailyRevenue {
-  date: string; // YYYY-MM-DD
+  date: string;
   pressingId: string;
   organizationId?: string;
   
@@ -263,6 +271,7 @@ export interface RevenueStats {
   withdrawalTotal: number;
   totalTransactions: number;
   averageTicket: number;
+  dailyAverage?: number;
   growthRate?: number;
 }
 
@@ -297,7 +306,7 @@ export interface CategoryBreakdown {
 }
 
 export interface MonthlyRevenue {
-  month: string; // YYYY-MM
+  month: string;
   pressingId: string;
   totalRevenue: number;
   totalTransactions: number;
@@ -343,15 +352,15 @@ export interface RevenueReport {
 export interface Client {
   id: string;
   name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
   pressingId: string;
   organizationId?: string;
   totalInvoices: number;
   totalSpent: number;
-  lastVisit?: string;
-  notes?: string;
+  lastVisit?: string | null;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -392,7 +401,7 @@ export interface AuditLog {
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
-  error?: string;
+  error?: string | null;
   message?: string;
 }
 
@@ -447,8 +456,8 @@ export interface UserPreferences {
 
 export interface LoadingState {
   isLoading: boolean;
-  error?: string;
-  lastUpdated?: string;
+  error: string | null;
+  lastUpdated?: string | null;
 }
 
 export interface FormState<T> extends LoadingState {

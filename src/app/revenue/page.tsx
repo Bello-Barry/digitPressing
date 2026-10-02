@@ -12,17 +12,13 @@ import {
   Calendar,
   DollarSign,
   CreditCard,
-  Users,
   Package,
   BarChart3,
-  PieChart,
   Download,
   Filter,
   RefreshCw,
   AlertTriangle,
-  Eye,
-  ChevronDown,
-  ChevronUp
+  Eye
 } from 'lucide-react';
 import {
   useRevenue,
@@ -33,9 +29,7 @@ import {
 import { useAuth, useUserPermissions } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { 
   Select,
   SelectContent,
@@ -49,6 +43,7 @@ import {
   BarChart,
   Bar,
   PieChart as RechartsPieChart,
+  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -59,7 +54,7 @@ import {
 } from 'recharts';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-const _PERIOD_OPTIONS = [
+const PERIOD_OPTIONS = [
   { value: 'today', label: 'Aujourd\'hui' },
   { value: 'week', label: 'Cette semaine' },
   { value: 'month', label: 'Ce mois' },
@@ -67,20 +62,19 @@ const _PERIOD_OPTIONS = [
   { value: 'custom', label: 'Période personnalisée' },
 ];
 
-const _CHART_COLORS = [
+const CHART_COLORS = [
   '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1',
   '#d084d0', '#ffb347', '#87ceeb', '#dda0dd', '#98fb98'
 ];
 
 export default function RevenuePage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { user } = useAuth();
-  const _permissions = useUserPermissions();
+  const permissions = useUserPermissions();
   
   // États des stores
   const { 
     dailyRevenues, 
-    stats, 
     todayStats, 
     monthStats, 
     chartData, 
@@ -97,16 +91,12 @@ export default function RevenuePage() {
   } = useRevenueActions();
   
   const { 
-    filters, 
-    dateRange, 
     setDateRange, 
-    setFilters 
   } = useRevenueFilters();
   
   const { 
     calculateGrowthRate, 
     getTopCategories, 
-    getTopPaymentMethods 
   } = useRevenueHelpers();
 
   // États locaux
@@ -117,7 +107,7 @@ export default function RevenuePage() {
   const [activeChart, setActiveChart] = useState<'daily' | 'categories' | 'methods'>('daily');
 
   // Vérifier les permissions
-  const _canViewRevenue = permissions.isOwner || permissions.canViewRevenue;
+  const canViewRevenue = permissions.isOwner || permissions.canViewRevenue;
 
   useEffect(() => {
     if (user && !canViewRevenue) {
@@ -125,15 +115,7 @@ export default function RevenuePage() {
     }
   }, [user, canViewRevenue, router]);
 
-  // Charger les données au montage
-  useEffect(() => {
-    if (user && canViewRevenue) {
-      loadRevenueData();
-    }
-  }, [user, canViewRevenue]);
-
-  // Charger les données selon la période
-  const _loadRevenueData = async () => {
+  const loadRevenueData = async () => {
     try {
       // Mettre à jour le CA du jour
       await updateTodayRevenue();
@@ -143,10 +125,11 @@ export default function RevenuePage() {
         await fetchRevenueStats('custom', customStartDate, customEndDate);
         await fetchDailyRevenues(customStartDate, customEndDate);
       } else {
-        await fetchRevenueStats(selectedPeriod);
+        const statsPeriod = selectedPeriod === 'week' ? 'month' : selectedPeriod;
+        await fetchRevenueStats(statsPeriod);
         
         // Définir les dates selon la période
-        const _now = new Date();
+        const now = new Date();
         let startDate: string;
         let endDate = now.toISOString().split('T')[0];
         
@@ -155,7 +138,7 @@ export default function RevenuePage() {
             startDate = endDate;
             break;
           case 'week':
-            const _weekStart = new Date(now);
+            const weekStart = new Date(now);
             weekStart.setDate(now.getDate() - 7);
             startDate = weekStart.toISOString().split('T')[0];
             break;
@@ -178,13 +161,20 @@ export default function RevenuePage() {
       await fetchChartData('categories');
       await fetchChartData('payment_methods');
       
-    } catch (error) {
-      console.error('Erreur lors du chargement des revenus:', error);
+    } catch (err) {
+      console.error('Erreur lors du chargement des revenus:', err);
     }
   };
 
+  // Charger les données au montage
+  useEffect(() => {
+    if (user && canViewRevenue) {
+      loadRevenueData();
+    }
+  }, [user, canViewRevenue]);
+
   // Gérer le changement de période
-  const _handlePeriodChange = (period: typeof selectedPeriod) => {
+  const handlePeriodChange = (period: typeof selectedPeriod) => {
     setSelectedPeriod(period);
     if (period !== 'custom') {
       loadRevenueData();
@@ -192,7 +182,7 @@ export default function RevenuePage() {
   };
 
   // Appliquer la période personnalisée
-  const _applyCustomPeriod = () => {
+  const applyCustomPeriod = () => {
     if (customStartDate && customEndDate) {
       loadRevenueData();
     }
@@ -200,20 +190,19 @@ export default function RevenuePage() {
 
   // Gérer les erreurs
   useEffect(() => {
-    if (error) {
-      setTimeout(clearError, 5000);
-    }
+    if (!error) return;
+    const timer = setTimeout(clearError, 5000);
+    return () => clearTimeout(timer);
   }, [error, clearError]);
 
   // Calculs des statistiques de croissance
-  const _todayRevenue = todayStats?.totalRevenue || 0;
-  const _monthRevenue = monthStats?.totalRevenue || 0;
-  const _previousMonthRevenue = monthRevenue * 0.85; // Simulation
-  const _growthRate = calculateGrowthRate(monthRevenue, previousMonthRevenue);
+  const todayRevenue = todayStats?.totalRevenue || 0;
+  const monthRevenue = monthStats?.totalRevenue || 0;
+  const previousMonthRevenue = monthRevenue * 0.85; // Simulation
+  const growthRate = calculateGrowthRate(monthRevenue, previousMonthRevenue);
 
-  // Top catégories et méthodes de paiement
-  const _topCategories = getTopCategories(5);
-  const _topPaymentMethods = getTopPaymentMethods();
+  // Top catégories
+  const topCategories = getTopCategories(5);
 
   if (!user || !canViewRevenue) {
     return (
@@ -413,10 +402,10 @@ export default function RevenuePage() {
                 <LineChart data={chartData.daily}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" />
-                  <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                  <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
                   <Tooltip 
                     labelFormatter={(label) => `Date: ${label}`}
-                    formatter={(value: number) => [formatCurrency(value), 'CA']}
+                    formatter={(value: any) => [formatCurrency(Number(value) || 0), 'CA']}
                   />
                   <Line 
                     type="monotone" 
@@ -434,9 +423,9 @@ export default function RevenuePage() {
                 <BarChart data={chartData.categories}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
-                  <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                  <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
                   <Tooltip 
-                    formatter={(value: number) => [formatCurrency(value), 'CA']}
+                    formatter={(value: any) => [formatCurrency(Number(value) || 0), 'CA']}
                   />
                   <Bar dataKey="value" fill="#82ca9d" />
                 </BarChart>
@@ -455,11 +444,11 @@ export default function RevenuePage() {
                     outerRadius={100}
                     label={(entry) => `${entry.name}: ${formatCurrency(entry.value)}`}
                   >
-                    {chartData.paymentMethods.map((entry, index) => (
+                    {chartData.paymentMethods.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value) || 0)} />
                   <Legend />
                 </RechartsPieChart>
               </ResponsiveContainer>
@@ -498,7 +487,7 @@ export default function RevenuePage() {
                       <div 
                         className="bg-primary h-2 rounded-full"
                         style={{
-                          width: `${(category.total / topCategories[0].total) * 100}%`
+                          width: `${(category.total / (topCategories[0]?.total || 1)) * 100}%`
                         }}
                       />
                     </div>
@@ -525,9 +514,9 @@ export default function RevenuePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {dailyRevenues.slice(0, 10).map((revenue) => (
+              {dailyRevenues.slice(0, 10).map((revenue, idx) => (
                 <div 
-                  key={revenue.id} 
+                  key={revenue.date || idx}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
                 >
                   <div className="flex items-center gap-4">

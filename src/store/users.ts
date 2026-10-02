@@ -149,8 +149,8 @@ export const useUsersStore = create<UsersState>()(
           .eq('pressing_id', currentUser.pressingId);
 
         // Application des filtres
-        if (filters.role) {
-          query = query.eq('role', filters.role);
+        if (filters.role && filters.role.length > 0) {
+          query = query.in('role', filters.role);
         }
 
         if (filters.isActive !== undefined) {
@@ -177,10 +177,10 @@ export const useUsersStore = create<UsersState>()(
           throw error;
         }
 
-        const users: User[] = data?.map(row => ({
+        const users: User[] = data?.map((row: any) => ({
           id: row.id,
           email: row.email,
-          role: row.role,
+          role: row.role as any,
           pressingId: row.pressing_id,
           fullName: row.full_name,
           phone: row.phone,
@@ -259,9 +259,8 @@ export const useUsersStore = create<UsersState>()(
             pressing_id: currentUser.pressingId,
             email: userData.email,
             full_name: userData.fullName,
-            phone: userData.phone,
             role: userData.role,
-            permissions: permissions,
+            permissions: permissions as any,
             is_active: userData.isActive !== false,
           })
           .select()
@@ -276,10 +275,10 @@ export const useUsersStore = create<UsersState>()(
         const newUser: User = {
           id: data.id,
           email: data.email,
-          role: data.role,
+          role: data.role as any,
           pressingId: data.pressing_id,
           fullName: data.full_name,
-          phone: data.phone,
+          phone: (data as any).phone || null,
           permissions: data.permissions as UserPermission[],
           isActive: data.is_active,
           lastLogin: data.last_login,
@@ -388,7 +387,7 @@ export const useUsersStore = create<UsersState>()(
     changeUserRole: async (id: string, newRole: 'owner' | 'employee') => {
       try {
         const permissions = newRole === 'owner' ? OWNER_PERMISSIONS : DEFAULT_EMPLOYEE_PERMISSIONS;
-        await get().updateUser(id, { role: newRole, permissions });
+        await get().updateUser(id, { role: newRole as any, permissions });
       } catch (error) {
         throw error;
       }
@@ -449,17 +448,17 @@ export const useUsersStore = create<UsersState>()(
 
         set({ isLoading: true, error: null });
 
-        const updates = userIds.map(id => ({
-          id,
-          permissions,
-          updated_at: new Date().toISOString(),
-        }));
+        for (const id of userIds) {
+          const { error } = await supabase
+            .from('users')
+            .update({
+              permissions: permissions as any,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
 
-        const { error } = await supabase
-          .from('users')
-          .upsert(updates);
-
-        if (error) throw error;
+          if (error) throw error;
+        }
 
         // Mettre à jour localement
         set(state => ({

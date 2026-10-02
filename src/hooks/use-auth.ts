@@ -1,44 +1,32 @@
-
 // =============================================================================
-// HOOKS NEXTAUTH
+// HOOKS AUTH - Digit PRESSING (Supabase Auth Wrapper)
 // =============================================================================
 
-// src/hooks/use-auth.ts
 'use client';
 
-import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useAuth as useSupabaseAuth, useAuthActions as useSupabaseAuthActions } from '@/store/auth';
 
-export const _useAuth = () => {
-  const { data: session, status } = useSession();
-  const _router = useRouter();
+export const useAuth = () => {
+  const router = useRouter();
+  const { user, session, isLoading } = useSupabaseAuth();
+  const { signIn, signOut } = useSupabaseAuthActions();
 
-  const _login = async (email: string, password: string) => {
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      throw new Error(result.error);
-    }
-
-    if (result?.ok) {
-      router.push('/dashboard');
-    }
+  const login = async (email: string, password: string) => {
+    await signIn(email, password);
+    router.push('/dashboard');
   };
 
-  const _logout = async () => {
-    await signOut({ redirect: false });
+  const logout = async () => {
+    await signOut();
     router.push('/');
   };
 
   return {
-    user: session?.user,
+    user,
     session,
-    isLoading: status === 'loading',
-    isAuthenticated: status === 'authenticated',
+    isLoading,
+    isAuthenticated: !!user,
     login,
     logout,
   };

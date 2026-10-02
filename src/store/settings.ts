@@ -87,7 +87,7 @@ export const useSettingsStore = create<SettingsState>()(
         const { error } = await supabase
           .from('pressings')
           .update({
-            settings: newSettings,
+            settings: newSettings as any,
             updated_at: new Date().toISOString(),
           })
           .eq('id', user.pressingId);
@@ -97,7 +97,7 @@ export const useSettingsStore = create<SettingsState>()(
         }
 
         set({
-          settings: newSettings,
+          settings: newSettings as any,
           isLoading: false,
         });
 

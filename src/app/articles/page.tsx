@@ -445,9 +445,9 @@ export default function ArticlesPage() {
         <Card className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
-              value={filters.category || 'all'}
+              value={filters.category && filters.category[0] ? filters.category[0] : 'all'}
               onValueChange={(value) => 
-                setFilters({ category: value === 'all' ? undefined : value as keyof typeof CATEGORY_CONFIG })
+                setFilters({ category: value === 'all' ? undefined : [value as any] })
               }
             >
               <SelectTrigger>

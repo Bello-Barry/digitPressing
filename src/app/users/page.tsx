@@ -17,15 +17,13 @@ import {
   UserCheck,
   UserX,
   Mail,
-  Phone,
   Shield,
   Search,
-  Filter,
   Settings,
   Eye,
-  MoreHorizontal,
   CheckCircle,
-  XCircle
+  XCircle,
+  User as UserIcon
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -35,7 +33,7 @@ import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
 import { formatDate, cn } from '@/lib/utils';
 
-interface User {
+interface PageUser {
   id: string;
   fullName: string;
   email: string;
@@ -53,7 +51,7 @@ interface CreateUserData {
   role: 'owner' | 'employee';
 }
 
-const _createUserSchema = z.object({
+const createUserSchema = z.object({
   fullName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
   email: z.string().email('Email invalide'),
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
@@ -61,20 +59,20 @@ const _createUserSchema = z.object({
 });
 
 export default function UsersPage() {
-  const _router = useRouter();
+  const router = useRouter();
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<PageUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [_editingUser, setEditingUser] = useState<PageUser | null>(null);
   const [showPermissions, setShowPermissions] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   // Vérifier les permissions
-  const _canManageUsers = currentUser?.role === 'owner';
+  const canManageUsers = currentUser?.role === 'owner';
 
   const {
     register,
@@ -85,6 +83,38 @@ export default function UsersPage() {
     resolver: zodResolver(createUserSchema),
   });
 
+  const loadUsers = async () => {
+    try {
+      if (!currentUser?.pressingId) return;
+      setIsLoading(true);
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('pressing_id', currentUser.pressingId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedUsers: PageUser[] = (data || []).map((u: any) => ({
+        id: u.id,
+        fullName: u.full_name || u.email,
+        email: u.email,
+        role: u.role,
+        isActive: u.is_active,
+        lastLogin: u.last_login,
+        createdAt: u.created_at,
+        permissions: (u.permissions as any) || [],
+      }));
+
+      setUsers(mappedUsers);
+    } catch (error) {
+      console.error('Erreur chargement utilisateurs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!canManageUsers) {
       router.push('/dashboard');
@@ -93,27 +123,7 @@ export default function UsersPage() {
     loadUsers();
   }, [canManageUsers, router]);
 
-  const _loadUsers = async () => {
-    try {
-      setIsLoading(true);
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('pressing_id', currentUser?.pressingId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setUsers(data || []);
-    } catch (error) {
-      console.error('Erreur chargement utilisateurs:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const _createUser = async (data: CreateUserData) => {
+  const handleCreateUser = async (data: CreateUserData) => {
     try {
       setIsCreating(true);
 
@@ -137,7 +147,7 @@ export default function UsersPage() {
           id: authUser.user.id,
           email: data.email,
           full_name: data.fullName,
-          pressing_id: currentUser?.pressingId,
+          pressing_id: currentUser?.pressingId || '',
           role: data.role,
           permissions: [
             { action: 'create_invoice', granted: true },
@@ -164,7 +174,7 @@ export default function UsersPage() {
     }
   };
 
-  const _toggleUserStatus = async (userId: string, newStatus: boolean) => {
+  const toggleUserStatus = async (userId: string, newStatus: boolean) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -177,7 +187,7 @@ export default function UsersPage() {
       if (error) throw error;
 
       setUsers(
-        users.map((user) => (user.id === userId ? { ...user, isActive: newStatus } : user))
+        users.map((u) => (u.id === userId ? { ...u, isActive: newStatus } : u))
       );
     } catch (error) {
       console.error('Erreur mise à jour statut:', error);
@@ -185,7 +195,7 @@ export default function UsersPage() {
     }
   };
 
-  const _deleteUser = async (userId: string) => {
+  const deleteUser = async (userId: string) => {
     if (
       !confirm(
         'Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.'
@@ -199,14 +209,14 @@ export default function UsersPage() {
 
       if (error) throw error;
 
-      setUsers(users.filter((user) => user.id !== userId));
+      setUsers(users.filter((u) => u.id !== userId));
     } catch (error) {
       console.error('Erreur suppression utilisateur:', error);
       alert('Erreur lors de la suppression');
     }
   };
 
-  const _updatePermissions = async (userId: string, permissions: any[]) => {
+  const updatePermissions = async (userId: string, permissions: any[]) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -219,8 +229,8 @@ export default function UsersPage() {
       if (error) throw error;
 
       setUsers(
-        users.map((user) =>
-          user.id === userId ? { ...user, permissions } : user
+        users.map((u) =>
+          u.id === userId ? { ...u, permissions } : u
         )
       );
     } catch (error) {
@@ -229,14 +239,14 @@ export default function UsersPage() {
     }
   };
 
-  const _filteredUsers = users.filter((user) => {
+  const filteredUsers = users.filter((u) => {
     const matchesSearch =
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const _matchesRole = filterRole === 'all' || user.role === filterRole;
-    const _matchesStatus = filterStatus === 'all' || 
-      (filterStatus === 'active' ? user.isActive : !user.isActive);
+    const matchesRole = filterRole === 'all' || u.role === filterRole;
+    const matchesStatus = filterStatus === 'all' ||
+      (filterStatus === 'active' ? u.isActive : !u.isActive);
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -281,7 +291,6 @@ export default function UsersPage() {
               placeholder="Rechercher un utilisateur..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              leftIcon={<Search className="h-4 w-4" />}
             />
           </div>
           <select
@@ -408,9 +417,9 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-border">
-                  {filteredUsers.map((user, index) => (
+                  {filteredUsers.map((u, index) => (
                     <motion.tr
-                      key={user.id}
+                      key={u.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
@@ -421,17 +430,17 @@ export default function UsersPage() {
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
                               <span className="text-sm font-medium text-white">
-                                {user.fullName.charAt(0).toUpperCase()}
+                                {u.fullName.charAt(0).toUpperCase()}
                               </span>
                             </div>
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-foreground">
-                              {user.fullName}
+                              {u.fullName}
                             </div>
                             <div className="text-sm text-muted-foreground flex items-center">
                               <Mail className="h-3 w-3 mr-1" />
-                              {user.email}
+                              {u.email}
                             </div>
                           </div>
                         </div>
@@ -440,19 +449,19 @@ export default function UsersPage() {
                         <span
                           className={cn(
                             'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                            user.role === 'owner'
+                            u.role === 'owner'
                               ? 'bg-primary/10 text-primary'
                               : 'bg-secondary/50 text-secondary-foreground'
                           )}
                         >
-                          {user.role === 'owner' ? (
+                          {u.role === 'owner' ? (
                             <>
                               <Settings className="h-3 w-3 mr-1" />
                               Propriétaire
                             </>
                           ) : (
                             <>
-                              <User className="h-3 w-3 mr-1" />
+                              <UserIcon className="h-3 w-3 mr-1" />
                               Employé
                             </>
                           )}
@@ -462,12 +471,12 @@ export default function UsersPage() {
                         <span
                           className={cn(
                             'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                            user.isActive
+                            u.isActive
                               ? 'bg-success/10 text-success'
                               : 'bg-destructive/10 text-destructive'
                           )}
                         >
-                          {user.isActive ? (
+                          {u.isActive ? (
                             <>
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Actif
@@ -481,18 +490,18 @@ export default function UsersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {user.lastLogin ? formatDate(user.lastLogin) : 'Jamais'}
+                        {u.lastLogin ? formatDate(u.lastLogin) : 'Jamais'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => 
-                            setShowPermissions(showPermissions === user.id ? null : user.id)
+                            setShowPermissions(showPermissions === u.id ? null : u.id)
                           }
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          {user.permissions.filter(p => p.granted).length}/{user.permissions.length}
+                          {u.permissions.filter((p: any) => p.granted).length}/{u.permissions.length}
                         </Button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -500,7 +509,7 @@ export default function UsersPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setEditingUser(user)}
+                            onClick={() => setEditingUser(u)}
                             className="text-primary hover:text-primary"
                           >
                             <Edit className="h-4 w-4" />
@@ -508,16 +517,16 @@ export default function UsersPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => toggleUserStatus(user.id, !user.isActive)}
-                            className={user.isActive ? 'text-orange-600' : 'text-green-600'}
+                            onClick={() => toggleUserStatus(u.id, !u.isActive)}
+                            className={u.isActive ? 'text-orange-600' : 'text-green-600'}
                           >
-                            {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                            {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                           </Button>
-                          {user.id !== currentUser?.id && (
+                          {u.id !== currentUser?.id && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => deleteUser(user.id)}
+                              onClick={() => deleteUser(u.id)}
                               className="text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -541,16 +550,16 @@ export default function UsersPage() {
             className="bg-white rounded-lg border p-6"
           >
             {(() => {
-              const _user = users.find(u => u.id === showPermissions);
-              if (!user) return null;
+              const targetUser = users.find(u => u.id === showPermissions);
+              if (!targetUser) return null;
               
               return (
                 <div>
                   <h3 className="text-lg font-semibold mb-4">
-                    Permissions de {user.fullName}
+                    Permissions de {targetUser.fullName}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {user.permissions.map((perm, index) => (
+                    {targetUser.permissions.map((perm, index) => (
                       <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                         <span className="text-sm font-medium">
                           {perm.action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -560,9 +569,9 @@ export default function UsersPage() {
                             type="checkbox"
                             checked={perm.granted}
                             onChange={(e) => {
-                              const _newPermissions = [...user.permissions];
+                              const newPermissions = [...targetUser.permissions];
                               newPermissions[index] = { ...perm, granted: e.target.checked };
-                              updatePermissions(user.id, newPermissions);
+                              updatePermissions(targetUser.id, newPermissions);
                             }}
                             className="sr-only peer"
                           />
@@ -587,26 +596,38 @@ export default function UsersPage() {
             className="bg-white rounded-lg p-6 w-full max-w-md"
           >
             <h3 className="text-lg font-semibold mb-4">Ajouter un utilisateur</h3>
-            <form onSubmit={handleSubmit(createUser)} className="space-y-4">
-              <Input
-                {...register('fullName')}
-                label="Nom complet"
-                placeholder="Jean Dupont"
-                error={errors.fullName?.message}
-              />
-              <Input
-                {...register('email')}
-                label="Email"
-                type="email"
-                placeholder="jean@exemple.com"
-                error={errors.email?.message}
-              />
-              <Input
-                {...register('password')}
-                label="Mot de passe temporaire"
-                type="password"
-                error={errors.password?.message}
-              />
+            <form onSubmit={handleSubmit(handleCreateUser)} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium block mb-1">Nom complet</label>
+                <Input
+                  {...register('fullName')}
+                  placeholder="Jean Dupont"
+                />
+                {errors.fullName && (
+                  <p className="text-sm text-destructive mt-1">{errors.fullName.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Email</label>
+                <Input
+                  {...register('email')}
+                  type="email"
+                  placeholder="jean@exemple.com"
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Mot de passe temporaire</label>
+                <Input
+                  {...register('password')}
+                  type="password"
+                />
+                {errors.password && (
+                  <p className="text-sm text-destructive mt-1">{errors.password.message}</p>
+                )}
+              </div>
               <div>
                 <label className="text-sm font-medium block mb-2">Rôle</label>
                 <select
@@ -631,8 +652,8 @@ export default function UsersPage() {
                 >
                   Annuler
                 </Button>
-                <Button type="submit" disabled={isCreating} loading={isCreating}>
-                  Créer l'utilisateur
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating ? 'Création...' : 'Créer l\'utilisateur'}
                 </Button>
               </div>
             </form>

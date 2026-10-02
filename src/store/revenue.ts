@@ -1,5 +1,5 @@
 // =============================================================================
-// STORE REVENUE - Digit PRESSING
+// STORE REVENUE - Digit PRESSING / SAAS PRESSING
 // =============================================================================
 
 import { create } from 'zustand';
@@ -16,7 +16,6 @@ import { useAuthStore } from './auth';
 import { formatDate } from '@/lib/utils';
 
 interface RevenueState extends LoadingState {
-  // Données de revenus
   dailyRevenues: DailyRevenue[];
   currentDateRevenue: DailyRevenue | null;
   dateRange: {
@@ -24,13 +23,11 @@ interface RevenueState extends LoadingState {
     endDate: string;
   };
 
-  // Statistiques
   stats: RevenueStats | null;
   todayStats: RevenueStats | null;
   monthStats: RevenueStats | null;
   yearStats: RevenueStats | null;
 
-  // Données pour les graphiques
   chartData: {
     daily: RevenueChartData[];
     weekly: RevenueChartData[];
@@ -39,25 +36,22 @@ interface RevenueState extends LoadingState {
     paymentMethods: { name: string; value: number; color: string }[];
   };
 
-  // Filtres
   filters: RevenueFilters;
+  error: string | null;
+  lastUpdated?: string | null;
 
-  // Actions principales
   fetchDailyRevenues: (startDate?: string, endDate?: string) => Promise<void>;
   fetchRevenueStats: (period: 'today' | 'month' | 'year' | 'custom', startDate?: string, endDate?: string) => Promise<void>;
   fetchChartData: (type: 'daily' | 'weekly' | 'monthly' | 'categories' | 'payment_methods', period?: string) => Promise<void>;
   calculateDailyRevenue: (date: string) => Promise<void>;
   
-  // Actions de mise à jour automatique
   updateTodayRevenue: () => Promise<void>;
   syncRevenueData: () => Promise<void>;
 
-  // Gestion des filtres
   setFilters: (filters: Partial<RevenueFilters>) => void;
   setDateRange: (startDate: string, endDate: string) => void;
   resetFilters: () => void;
 
-  // Utilitaires
   getRevenueByDate: (date: string) => DailyRevenue | undefined;
   getRevenueByPeriod: (startDate: string, endDate: string) => DailyRevenue[];
   calculatePeriodTotal: (startDate: string, endDate: string) => number;
@@ -65,7 +59,6 @@ interface RevenueState extends LoadingState {
   getTopCategories: (limit?: number) => { category: string; total: number }[];
   getTopPaymentMethods: (limit?: number) => { method: string; total: number }[];
 
-  // État
   setCurrentDateRevenue: (revenue: DailyRevenue | null) => void;
   clearError: () => void;
   reset: () => void;
@@ -84,7 +77,6 @@ const initialDateRange = {
 
 export const useRevenueStore = create<RevenueState>()(
   subscribeWithSelector((set, get) => ({
-    // État initial
     dailyRevenues: [],
     currentDateRevenue: null,
     dateRange: initialDateRange,
@@ -102,9 +94,8 @@ export const useRevenueStore = create<RevenueState>()(
     filters: initialFilters,
     isLoading: false,
     error: null,
-    lastUpdated: undefined,
+    lastUpdated: null,
 
-    // Actions
     fetchDailyRevenues: async (startDate, endDate) => {
       try {
         const user = useAuthStore.getState().user;
@@ -132,7 +123,7 @@ export const useRevenueStore = create<RevenueState>()(
 
         if (error) throw error;
 
-        const dailyRevenues: DailyRevenue[] = data?.map(row => ({
+        const dailyRevenues: DailyRevenue[] = data?.map((row: any) => ({
           pressingId: row.pressing_id,
           date: row.date,
           depositTotal: row.deposit_total,
@@ -418,7 +409,7 @@ export const useRevenueStore = create<RevenueState>()(
             categories,
             employees,
             updated_at: new Date().toISOString(),
-          });
+          } as any);
 
         if (upsertError) throw upsertError;
 
@@ -546,7 +537,7 @@ export const useRevenueStore = create<RevenueState>()(
         filters: initialFilters,
         isLoading: false,
         error: null,
-        lastUpdated: undefined,
+        lastUpdated: null,
       });
     },
   }))

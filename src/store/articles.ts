@@ -110,12 +110,11 @@ export const useArticlesStore = create<ArticlesState>()(
         let query = supabase
           .from('articles')
           .select('*', { count: 'exact' })
-          .eq('pressing_id', user.pressingId)
-          .eq('is_deleted', false); // Filtrer les articles supprimés
+          .eq('pressing_id', user.pressingId);
 
         // Application des filtres
-        if (filters.category) {
-          query = query.eq('category', filters.category);
+        if (filters.category && filters.category.length > 0) {
+          query = query.in('category', filters.category);
         }
 
         if (filters.isActive !== undefined) {
@@ -152,7 +151,7 @@ export const useArticlesStore = create<ArticlesState>()(
           id: row.id,
           pressingId: row.pressing_id,
           name: row.name,
-          category: row.category,
+          category: row.category as any,
           defaultPrice: row.default_price,
           isActive: row.is_active,
           description: row.description || null,
@@ -232,7 +231,7 @@ export const useArticlesStore = create<ArticlesState>()(
           id: data.id,
           pressingId: data.pressing_id,
           name: data.name,
-          category: data.category,
+          category: data.category as any,
           defaultPrice: data.default_price,
           isActive: data.is_active,
           description: data.description || null,
@@ -344,11 +343,11 @@ export const useArticlesStore = create<ArticlesState>()(
 
         set({ isLoading: true, error: null });
 
-        // Soft delete - marquer comme supprimé
+        // Soft delete - marquer comme inactif
         const { error } = await supabase
           .from('articles')
           .update({
-            is_deleted: true,
+            is_active: false,
             updated_at: new Date().toISOString(),
           })
           .eq('id', id)
@@ -404,7 +403,7 @@ export const useArticlesStore = create<ArticlesState>()(
         const { error } = await supabase
           .from('articles')
           .update({
-            is_deleted: false,
+            is_active: true,
             updated_at: new Date().toISOString(),
           })
           .eq('id', id)
@@ -483,11 +482,17 @@ export const useArticlesStore = create<ArticlesState>()(
         }) || [];
 
         // Effectuer les mises à jour en lot
-        const { error: updateError } = await supabase
-          .from('articles')
-          .upsert(updates);
+        for (const update of updates) {
+          const { error: updateErr } = await supabase
+            .from('articles')
+            .update({
+              default_price: update.default_price,
+              updated_at: update.updated_at,
+            })
+            .eq('id', update.id);
 
-        if (updateError) throw updateError;
+          if (updateErr) throw updateErr;
+        }
 
         // Recharger les articles
         await get().fetchArticles({ reset: true });

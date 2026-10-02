@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(100) UNIQUE NOT NULL,
-  country country_code DEFAULT 'CG',
+  ticket_prefix VARCHAR(10) NOT NULL DEFAULT 'LB',
+  country VARCHAR(10) DEFAULT 'CG',
   phone VARCHAR(20),
   email VARCHAR(255),
   logo_url TEXT,
@@ -25,12 +26,12 @@ CREATE TABLE IF NOT EXISTS organizations (
   CONSTRAINT org_name_check CHECK (char_length(name) >= 2)
 );
 
--- 2. ORGANIZATION MEMBERS TABLE
+-- 2. ORGANIZATION MEMBERS TABLE WITH UNIFIED ROLES
 CREATE TABLE IF NOT EXISTS organization_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL DEFAULT 'employee' CHECK (role IN ('owner', 'manager', 'employee', 'caissier')),
+  role VARCHAR(50) NOT NULL DEFAULT 'cashier' CHECK (role IN ('owner', 'manager', 'cashier', 'delivery')),
   permissions JSONB DEFAULT '[
     {"action": "create_order", "granted": true},
     {"action": "cancel_order", "granted": false},
@@ -57,7 +58,7 @@ CREATE TABLE IF NOT EXISTS payments (
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   amount DECIMAL(10,2) NOT NULL,
-  payment_method payment_method NOT NULL DEFAULT 'cash',
+  payment_method VARCHAR(20) NOT NULL DEFAULT 'cash',
   notes TEXT,
   is_reversal BOOLEAN DEFAULT false,
   reversal_reason TEXT,
@@ -80,12 +81,11 @@ CREATE TABLE IF NOT EXISTS cash_registers (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. TICKET SEQUENCE COUNTER TABLE (ATOMIC PER ORGANIZATION)
+-- 6. PERSISTENT NON-RESETTING TICKET SEQUENCE COUNTER TABLE (PER ORGANIZATION)
 CREATE TABLE IF NOT EXISTS ticket_sequences (
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  date_key DATE NOT NULL DEFAULT CURRENT_DATE,
+  organization_id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
   last_value INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (organization_id, date_key)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 7. HELPER FUNCTIONS FOR MULTI-TENANT SECURITY
@@ -114,28 +114,68 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 8. ATOMIC TICKET GENERATOR FUNCTION
-CREATE OR REPLACE FUNCTION generate_atomic_ticket_number(p_org_id UUID)
+-- 8. ATOMIC FUNCTION: RECEIVE ORDER AND ASSIGN PERSISTENT OFFICIAL TICKET
+CREATE OR REPLACE FUNCTION receive_order_and_assign_ticket(
+  p_order_id UUID,
+  p_org_id UUID
+)
 RETURNS TEXT AS $$
 DECLARE
-  v_date_prefix TEXT;
+  v_prefix TEXT;
   v_next_val INTEGER;
+  v_ticket_number TEXT;
+  v_exists BOOLEAN;
 BEGIN
-  v_date_prefix := to_char(CURRENT_DATE, 'YYYYMMDD');
+  -- Verify order exists for organization FIRST before incrementing sequence
+  SELECT EXISTS (
+    SELECT 1 FROM invoices
+    WHERE id = p_order_id AND organization_id = p_org_id
+  ) INTO v_exists;
 
-  INSERT INTO ticket_sequences (organization_id, date_key, last_value)
-  VALUES (p_org_id, CURRENT_DATE, 1)
-  ON CONFLICT (organization_id, date_key)
-  DO UPDATE SET last_value = ticket_sequences.last_value + 1
+  IF NOT v_exists THEN
+    RAISE EXCEPTION 'Order % not found for organization %', p_order_id, p_org_id;
+  END IF;
+
+  -- Get organization prefix
+  SELECT ticket_prefix INTO v_prefix
+  FROM organizations
+  WHERE id = p_org_id;
+
+  IF v_prefix IS NULL THEN
+    v_prefix := 'LB';
+  END IF;
+
+  -- Lock and update persistent ticket sequence counter atomically
+  INSERT INTO ticket_sequences (organization_id, last_value, updated_at)
+  VALUES (p_org_id, 1, NOW())
+  ON CONFLICT (organization_id)
+  DO UPDATE SET
+    last_value = ticket_sequences.last_value + 1,
+    updated_at = NOW()
   RETURNING last_value INTO v_next_val;
 
-  RETURN 'TICK-' || v_date_prefix || '-' || lpad(v_next_val::text, 4, '0');
+  -- Format persistent ticket e.g., "LB-0001"
+  v_ticket_number := v_prefix || '-' || LPAD(v_next_val::TEXT, 4, '0');
+
+  -- Atomically update invoice/order with official ticket and RECEIVED state
+  UPDATE invoices
+  SET
+    number = v_ticket_number,
+    status = 'active',
+    updated_at = NOW()
+  WHERE id = p_order_id
+    AND organization_id = p_org_id;
+
+  RETURN v_ticket_number;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 9. ROW-LEVEL SECURITY (RLS) POLICIES FOR ALL TABLES
+-- 9. STRICT ROW-LEVEL SECURITY (RLS) POLICIES BY ORGANIZATION_ID ONLY
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cash_registers ENABLE ROW LEVEL SECURITY;
 
@@ -173,17 +213,14 @@ CREATE POLICY "Owners/Managers can manage org members"
     )
   );
 
--- ARTICLES RLS RE-APPLIED WITH ORGANIZATION_ID
-DROP POLICY IF EXISTS "Users can view pressing articles" ON articles;
+-- ARTICLES STRICT RLS BY ORGANIZATION_ID
 DROP POLICY IF EXISTS "Users can view org articles" ON articles;
 CREATE POLICY "Users can view org articles"
   ON articles FOR SELECT
   USING (
-    (organization_id = auth.user_organization_id() OR organization_id IS NULL)
-    AND is_deleted = false
+    organization_id = auth.user_organization_id() OR organization_id IS NULL
   );
 
-DROP POLICY IF EXISTS "Authorized users can create articles" ON articles;
 DROP POLICY IF EXISTS "Authorized users can create org articles" ON articles;
 CREATE POLICY "Authorized users can create org articles"
   ON articles FOR INSERT
@@ -191,48 +228,51 @@ CREATE POLICY "Authorized users can create org articles"
     organization_id = auth.user_organization_id()
   );
 
--- INVOICES/ORDERS RLS RE-APPLIED WITH ORGANIZATION_ID
-DROP POLICY IF EXISTS "Users can view pressing invoices" ON invoices;
+DROP POLICY IF EXISTS "Authorized users can update org articles" ON articles;
+CREATE POLICY "Authorized users can update org articles"
+  ON articles FOR UPDATE
+  USING (
+    organization_id = auth.user_organization_id()
+  );
+
+-- INVOICES/ORDERS STRICT RLS BY ORGANIZATION_ID
 DROP POLICY IF EXISTS "Users can view org invoices" ON invoices;
 CREATE POLICY "Users can view org invoices"
   ON invoices FOR SELECT
   USING (
-    organization_id = auth.user_organization_id() OR pressing_id = auth.user_pressing_id()
+    organization_id = auth.user_organization_id()
   );
 
-DROP POLICY IF EXISTS "Authorized users can create invoices" ON invoices;
 DROP POLICY IF EXISTS "Authorized users can create org invoices" ON invoices;
 CREATE POLICY "Authorized users can create org invoices"
   ON invoices FOR INSERT
   WITH CHECK (
-    organization_id = auth.user_organization_id() OR pressing_id = auth.user_pressing_id()
+    organization_id = auth.user_organization_id()
   );
 
 DROP POLICY IF EXISTS "Users can update org invoices" ON invoices;
 CREATE POLICY "Users can update org invoices"
   ON invoices FOR UPDATE
   USING (
-    organization_id = auth.user_organization_id() OR pressing_id = auth.user_pressing_id()
+    organization_id = auth.user_organization_id()
   );
 
--- CLIENTS RLS RE-APPLIED WITH ORGANIZATION_ID
-DROP POLICY IF EXISTS "Users can view pressing clients" ON clients;
+-- CLIENTS STRICT RLS BY ORGANIZATION_ID
 DROP POLICY IF EXISTS "Users can view org clients" ON clients;
 CREATE POLICY "Users can view org clients"
   ON clients FOR SELECT
   USING (
-    organization_id = auth.user_organization_id() OR pressing_id = auth.user_pressing_id()
+    organization_id = auth.user_organization_id()
   );
 
-DROP POLICY IF EXISTS "System can manage clients" ON clients;
 DROP POLICY IF EXISTS "System can manage org clients" ON clients;
 CREATE POLICY "System can manage org clients"
   ON clients FOR ALL
   USING (
-    organization_id = auth.user_organization_id() OR pressing_id = auth.user_pressing_id()
+    organization_id = auth.user_organization_id()
   );
 
--- PAYMENTS RLS
+-- PAYMENTS STRICT RLS BY ORGANIZATION_ID
 DROP POLICY IF EXISTS "Members can view org payments" ON payments;
 CREATE POLICY "Members can view org payments"
   ON payments FOR SELECT
@@ -243,7 +283,7 @@ CREATE POLICY "Members can insert org payments"
   ON payments FOR INSERT
   WITH CHECK (organization_id = auth.user_organization_id());
 
--- CASH REGISTERS RLS
+-- CASH REGISTERS STRICT RLS BY ORGANIZATION_ID
 DROP POLICY IF EXISTS "Members can view org cash registers" ON cash_registers;
 CREATE POLICY "Members can view org cash registers"
   ON cash_registers FOR SELECT
@@ -256,6 +296,6 @@ CREATE POLICY "Members can manage org cash registers"
 
 -- GRANTS
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT EXECUTE ON FUNCTION generate_atomic_ticket_number(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION receive_order_and_assign_ticket(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.user_organization_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.is_org_member(UUID) TO authenticated;

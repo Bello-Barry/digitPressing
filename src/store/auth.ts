@@ -105,11 +105,12 @@ export const useAuthStore = create<AuthState>()(
               isActive: profile.is_active,
             };
 
+            const expiresAtVal = data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '';
             const session: AuthSession = {
               user,
               accessToken: data.session?.access_token || '',
               refreshToken: data.session?.refresh_token || '',
-              expiresAt: data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '',
+              expiresAt: expiresAtVal,
             };
 
             set({ user, session, isLoading: false });
@@ -290,11 +291,12 @@ export const useAuthStore = create<AuthState>()(
                   isActive: profile.is_active,
                 };
 
+                const expiresAtVal = data.session.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '';
                 const session: AuthSession = {
                   user,
                   accessToken: data.session.access_token,
                   refreshToken: data.session.refresh_token,
-                  expiresAt: new Date(data.session.expires_at * 1000).toISOString(),
+                  expiresAt: expiresAtVal,
                 };
 
                 set({ user, session });
@@ -337,7 +339,7 @@ export const useAuthStore = create<AuthState>()(
                   user,
                   accessToken: session.access_token,
                   refreshToken: session.refresh_token,
-                  expiresAt: new Date(session.expires_at * 1000).toISOString(),
+                  expiresAt: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : '',
                 };
 
                 set({ user, session: authSession });
@@ -366,12 +368,18 @@ export const useAuthStore = create<AuthState>()(
 
             set({ isLoading: true, error: null });
 
+            const payload: any = {
+              updated_at: new Date().toISOString()
+            };
+            if (updates.fullName !== undefined) payload.full_name = updates.fullName;
+            if (updates.phone !== undefined) payload.phone = updates.phone;
+            if (updates.role !== undefined) payload.role = updates.role;
+            if (updates.permissions !== undefined) payload.permissions = updates.permissions;
+            if (updates.isActive !== undefined) payload.is_active = updates.isActive;
+
             const { error } = await supabase
               .from('users')
-              .update({
-                ...updates,
-                updated_at: new Date().toISOString()
-              })
+              .update(payload)
               .eq('id', user.id);
 
             if (error) {
