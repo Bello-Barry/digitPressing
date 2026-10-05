@@ -18,33 +18,82 @@ export interface WhatsAppTemplateVars {
 }
 
 /**
- * Normalise un numéro de téléphone pour le Congo (ou autre pays)
- * Exemple : '06 731 1016' -> '242067311016'
- * Exemple : '+242 06 766 2712' -> '242067662712'
+ * Règles par indicatif pays.
+ * Congo-Brazzaville (242) : le 0 initial FAIT PARTIE du numéro
+ * (ex. 06 731 1016 -> +242 06 731 1016). Il ne doit jamais être retiré.
+ * Pour un autre pays où le 0 est un préfixe local à retirer, laisser false.
+ */
+const COUNTRY_RULES: Record<string, { keepLeadingZero: boolean }> = {
+  '242': { keepLeadingZero: true },
+};
+
+/**
+ * Corrige un numéro déjà international qui commence par l'indicatif du pays :
+ * si le 0 manque (ancien format à 8 chiffres), on le rajoute pour le Congo.
+ */
+function fixCountryNumber(digits: string, countryCode: string): string {
+  if (!digits.startsWith(countryCode)) return digits;
+  const keepZero = COUNTRY_RULES[countryCode]?.keepLeadingZero ?? false;
+  const national = digits.slice(countryCode.length);
+  if (keepZero && national.length === 8) {
+    return `${countryCode}0${national}`;
+  }
+  return digits;
+}
+
+/**
+ * Normalise un numéro de téléphone au format international sans "+".
+ *
+ * Exemples (Congo) :
+ *  '06 731 1016'        -> '242067311016'
+ *  '067311016'          -> '242067311016'
+ *  '+242 06 766 2712'   -> '242067662712'
+ *  '00242067311016'     -> '242067311016'
+ *  '67311016' (8 chiffres, ancien format) -> '242067311016'
+ *  '+223 96 22 90 14'   -> '22396229014' (numéro étranger conservé tel quel)
  */
 export function normalizePhoneNumber(phone: string, defaultCountryCode = '242'): string {
   if (!phone) return '';
 
-  // Supprime tous les caractères non numériques
-  let cleaned = phone.replace(/[^0-9]/g, '');
+  const raw = phone.trim();
+  let digits = raw.replace(/[^0-9]/g, '');
+  if (!digits) return '';
 
-  // Si commence par l'indicatif pays sans le + (ex: 24206...)
-  if (cleaned.startsWith(defaultCountryCode)) {
-    return cleaned;
+  // Préfixe international explicite : "+..." ou "00..."
+  const isInternational = raw.startsWith('+') || digits.startsWith('00');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+
+  if (isInternational) {
+    return fixCountryNumber(digits, defaultCountryCode);
   }
 
-  // Si commence par un zéro local (ex: 067311016)
-  if (cleaned.startsWith('0')) {
-    cleaned = cleaned.substring(1);
-    return `${defaultCountryCode}${cleaned}`;
+  // Indicatif saisi sans "+" (ex. 242067311016)
+  if (digits.startsWith(defaultCountryCode)) {
+    return fixCountryNumber(digits, defaultCountryCode);
   }
 
-  // Si déjà au format local à 9 chiffres sans le 0 (ex: 67311016)
-  if (cleaned.length === 8 || cleaned.length === 9) {
-    return `${defaultCountryCode}${cleaned}`;
+  const keepZero = COUNTRY_RULES[defaultCountryCode]?.keepLeadingZero ?? false;
+
+  // Format local commençant par 0 (ex. 067311016)
+  if (digits.startsWith('0')) {
+    return keepZero
+      ? `${defaultCountryCode}${digits}` // Congo : on garde le 0
+      : `${defaultCountryCode}${digits.slice(1)}`; // autres pays : on retire le 0
   }
 
-  return cleaned;
+  // Local sans le 0 (ex. 67311016, ancien format à 8 chiffres)
+  return keepZero
+    ? `${defaultCountryCode}0${digits}`
+    : `${defaultCountryCode}${digits}`;
+}
+
+/**
+ * Vérifie qu'un numéro normalisé est un mobile congolais valide.
+ * Format attendu : 242 + 0 + [4-6] + 7 chiffres (12 chiffres au total).
+ * Exemple valide : '242067311016'
+ */
+export function isValidCongoMobile(normalized: string): boolean {
+  return /^2420[4-6]\d{7}$/.test(normalized);
 }
 
 /**
@@ -54,15 +103,16 @@ export function normalizePhoneNumber(phone: string, defaultCountryCode = '242'):
 export function formatPhoneDisplay(phone: string): string {
   if (!phone) return '';
   const cleaned = phone.replace(/[^0-9]/g, '');
-  if (cleaned.startsWith('242') && cleaned.length >= 11) {
-    const num = cleaned.substring(3);
-    return `+242 0${num.slice(0, 1)} ${num.slice(1, 4)} ${num.slice(4)}`;
+  if (cleaned.startsWith('242') && cleaned.length === 12) {
+    const local = cleaned.slice(3); // ex. 067311016
+    return `+242 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
   }
   return phone;
 }
 
 /**
  * Génère le lien direct WhatsApp wa.me
+ * Exemple : https://wa.me/242067311016?text=Bonjour...
  */
 export function generateWhatsAppLink(
   phone: string,
@@ -84,8 +134,10 @@ export function renderWhatsAppMessage(
   let result = template;
   for (const [key, value] of Object.entries(vars)) {
     if (value !== undefined && value !== null) {
-      const regex = new RegExp(`\\{${key}\\}`, 'gi');
-      result = result.replace(regex, String(value));
+      const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\{${safeKey}\\}`, 'gi');
+      // Fonction de remplacement : évite l'interprétation des "$&", "$1", etc.
+      result = result.replace(regex, () => String(value));
     }
   }
   return result;
