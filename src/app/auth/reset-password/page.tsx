@@ -9,8 +9,8 @@ import { motion } from 'framer-motion';
 import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { useAuthActions } from '@/store/auth';
 import Link from 'next/link';
+import { updatePasswordAction } from '@/actions/auth';
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
@@ -25,7 +25,6 @@ type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { updatePassword } = useAuthActions();
   
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -40,16 +39,9 @@ export default function ResetPasswordPage() {
     resolver: zodResolver(resetPasswordSchema),
   });
 
-  // Vérifier si nous avons un token valide
+  // The recovery code is exchanged by the SSR callback and stored in an HttpOnly cookie.
   useEffect(() => {
-    const token = searchParams.get('token');
-    const type = searchParams.get('type');
-    
-    if (type === 'recovery' && token) {
-      setIsValidToken(true);
-    } else {
-      setError('Lien de réinitialisation invalide ou expiré');
-    }
+    setIsValidToken(true);
   }, [searchParams]);
 
   const onSubmit = async (data: ResetPasswordData) => {
@@ -57,7 +49,8 @@ export default function ResetPasswordPage() {
       setIsLoading(true);
       setError(null);
 
-      await updatePassword(data.password);
+      const result = await updatePasswordAction(data.password);
+      if (!result.success) throw new Error(result.error || 'Mise à jour impossible.');
       
       setSuccess(true);
       

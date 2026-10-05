@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { sendPasswordResetWithRedirectAction } from '@/actions/auth';
 
 const forgotPasswordSchema = z.object({
   email: z.string().min(1, 'L\'email est requis').email('Format d\'email invalide'),
@@ -34,13 +34,8 @@ export default function ForgotPasswordPage() {
     try {
       setIsLoading(true);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-
-      if (error) {
-        throw error;
-      }
+      const result = await sendPasswordResetWithRedirectAction(data.email, `${window.location.origin}/auth/callback?next=/auth/reset-password`);
+      if (!result.success) throw new Error(result.error || 'Envoi impossible.');
 
       setEmailSent(true);
     } catch (error: any) {

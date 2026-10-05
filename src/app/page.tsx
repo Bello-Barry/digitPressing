@@ -1,285 +1,130 @@
-'use client';
+import Link from 'next/link';
+import { Shirt, ShoppingBag, ShieldCheck, ArrowRight, Search, Lock, MapPin, Phone } from 'lucide-react';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/store/auth';
-import { Button } from '@/components/ui/button';
-import dynamic from 'next/dynamic';
-import {
-  Shirt,
-  Users,
-  TrendingUp,
-  Shield,
-  Smartphone,
-  Zap,
-  ArrowRight,
-  CheckCircle,
-} from 'lucide-react';
-import { motion } from 'framer-motion'; 
-// ✅ Lazy load de framer-motion pour améliorer les performances
+export const metadata = {
+  title: 'LB Pressing | Blanchisserie & Pressing Haute Qualité Brazzaville',
+  description: 'Application de pressing et commande en ligne à Brazzaville. Suivi en direct et livraison à domicile.',
+};
 
-
-const HomePage = () => {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  // ✅ Redirection automatique si déjà connecté
-  useEffect(() => {
-    if (user && !isLoading) {
-      router.push('/dashboard');
-    }
-  }, [user, isLoading, router]);
-
-  // ✅ Écran de chargement temporaire
-  if (user && !isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">
-            Redirection vers le tableau de bord...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ✅ Données
-  const features = [
-    {
-      icon: Shirt,
-      title: 'Gestion des factures',
-      description:
-        'Créez, modifiez et suivez toutes vos factures en temps réel avec un système numérique complet.',
-    },
-    {
-      icon: TrendingUp,
-      title: 'Suivi des revenus',
-      description:
-        'Analysez automatiquement vos revenus et performances grâce à des statistiques précises.',
-    },
-    {
-      icon: Users,
-      title: 'Multi-utilisateurs',
-      description:
-        'Attribuez des rôles et permissions adaptés à chaque membre de votre équipe.',
-    },
-    {
-      icon: Shield,
-      title: 'Sécurité renforcée',
-      description:
-        'Toutes vos données sont chiffrées et sauvegardées automatiquement dans le cloud.',
-    },
-    {
-      icon: Smartphone,
-      title: 'Accessible partout',
-      description:
-        "Utilisez Digit Pressing sur tous vos appareils, même hors ligne, grâce à la technologie PWA.",
-    },
-    {
-      icon: Zap,
-      title: 'Ultra rapide',
-      description:
-        "Une interface fluide et optimisée pour une utilisation professionnelle quotidienne.",
-    },
-  ];
-
-  const benefits = [
-    'Fini les cahiers de factures perdus ou abîmés',
-    'Calcul automatique des revenus sans erreur',
-    'Recherche instantanée de n’importe quelle facture',
-    'Sauvegarde automatique de toutes vos données',
-    'Accès depuis n’importe quel appareil connecté',
-    'Interface intuitive, aucune formation nécessaire',
-  ];
-
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* ✅ Header */}
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center space-x-2"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-              <Shirt className="h-4 w-4" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      {/* Header */}
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md shadow-amber-500/20">
+              LB
             </div>
-            <span className="text-xl font-bold">Digit Pressing</span>
-          </motion.div>
+            <div>
+              <span className="font-extrabold text-base text-white tracking-tight">LB Pressing</span>
+              <span className="block text-[10px] text-amber-400 font-medium">Brazzaville, Congo</span>
+            </div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center space-x-4"
-          >
-            <Button
-              variant="ghost"
-              onClick={() => router.push('/auth/login')}
-              className="hidden sm:inline-flex"
+          <div className="flex items-center space-x-2">
+            <Link
+              href="/admin"
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-semibold flex items-center transition"
             >
-              Se connecter
-            </Button>
-            <Button onClick={() => router.push('/auth/login')}>
-              Commencer
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </motion.div>
+              <Lock className="w-3.5 h-3.5 mr-1 text-slate-400" />
+              Espace Admin
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main>
-        {/* ✅ Hero Section */}
-        <section className="py-20 lg:py-32 text-center">
-          <div className="container mx-auto max-w-4xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-                Modernisez votre <span className="text-gradient">pressing</span>
-              </h1>
-              <p className="mt-6 text-lg leading-8 text-muted-foreground sm:text-xl">
-                Remplacez vos cahiers par une solution digitale complète.
-                Gérez vos factures, calculez vos revenus et suivez votre activité
-                en temps réel.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mt-10 flex items-center justify-center gap-x-6"
-            >
-              <Button size="lg" onClick={() => router.push('/auth/login')}>
-                Commencer gratuitement
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button variant="outline" size="lg">
-                Voir la démo
-              </Button>
-            </motion.div>
+      {/* Hero Banner */}
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8 md:py-16 space-y-10">
+        <div className="text-center space-y-4 max-w-2xl mx-auto">
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Service Officiel LB Pressing</span>
           </div>
-        </section>
 
-        {/* ✅ Features */}
-        <section className="py-20 bg-muted/30">
-          <div className="container mx-auto max-w-6xl text-center">
-            <h2 className="text-3xl font-bold sm:text-4xl mb-4">
-              Tout ce dont vous avez besoin
-            </h2>
-            <p className="text-lg text-muted-foreground mb-16">
-              Une solution complète pour moderniser la gestion de votre pressing
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight">
+            L'excellence du pressing pour vos habits précieux.
+          </h1>
+
+          <p className="text-sm md:text-base text-slate-300">
+            Confiez vos costumes, robes de cérémonie, bazins et tissus délicats à notre atelier à Brazzaville. Commandez sans compte en 1 minute.
+          </p>
+
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/lb-pressing/commander"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-extrabold text-sm shadow-xl shadow-amber-500/20 flex items-center justify-center transition"
+            >
+              <ShoppingBag className="w-4 h-4 mr-2" />
+              Passer une commande
+            </Link>
+
+            <Link
+              href="/lb-pressing/suivi"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-sm flex items-center justify-center transition"
+            >
+              <Search className="w-4 h-4 mr-2 text-amber-400" />
+              Suivre mon linge
+            </Link>
+          </div>
+        </div>
+
+        {/* Accès Rapides */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+          <Link
+            href="/lb-pressing"
+            className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition group space-y-2"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <Shirt className="w-5 h-5" />
+            </div>
+            <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition">
+              Accueil LB Pressing
+            </h3>
+            <p className="text-xs text-slate-400">
+              Présentation, garanties, horaires d'ouverture et coordonnées.
             </p>
+          </Link>
 
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {features.map((feature, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="card group hover:shadow-soft transition-all duration-300 p-6 border rounded-lg bg-background"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary mx-auto mb-4 group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                    <feature.icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="text-lg font-semibold">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {feature.description}
-                  </p>
-                </motion.div>
-              ))}
+          <Link
+            href="/lb-pressing/services"
+            className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition group space-y-2"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5" />
             </div>
-          </div>
-        </section>
-
-        {/* ✅ Benefits */}
-        <section className="py-20">
-          <div className="container grid grid-cols-1 gap-16 lg:grid-cols-2 items-center">
-            <div>
-              <h2 className="text-3xl font-bold sm:text-4xl">
-                Pourquoi choisir Digit Pressing ?
-              </h2>
-              <p className="mt-4 text-lg text-muted-foreground">
-                Rejoignez les pressings modernes qui ont déjà fait le choix du numérique.
-              </p>
-
-              <ul className="mt-8 space-y-4">
-                {benefits.map((benefit, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="flex items-start gap-3"
-                  >
-                    <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
-                    <span className="text-sm">{benefit}</span>
-                  </motion.li>
-                ))}
-              </ul>
-
-              <div className="mt-8">
-                <Button size="lg" onClick={() => router.push('/auth/login')}>
-                  Essayer maintenant
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7 }}
-              className="rounded-2xl border bg-background p-8 shadow-soft"
-            >
-              <div className="space-y-4">
-                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-                <div className="h-8 w-full bg-muted rounded animate-pulse" />
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded">
-                  <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-12 bg-success/20 rounded animate-pulse" />
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ✅ CTA */}
-        <section className="py-20 bg-primary text-center text-primary-foreground">
-          <div className="container max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold sm:text-4xl">
-              Prêt à moderniser votre pressing ?
-            </h2>
-            <p className="mt-4 text-lg opacity-90">
-              Commencez dès aujourd’hui et découvrez la différence du numérique.
+            <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition">
+              Prestations & Tarifs
+            </h3>
+            <p className="text-xs text-slate-400">
+              Grille tarifaire officielle complète pour chaque type de vêtement.
             </p>
-            <div className="mt-8 flex items-center justify-center">
-              <Button
-                size="lg"
-                variant="secondary"
-                onClick={() => router.push('/auth/login')}
-              >
-                Créer mon compte
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+          </Link>
+
+          <Link
+            href="/admin"
+            className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition group space-y-2"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <Lock className="w-5 h-5" />
             </div>
-          </div>
-        </section>
+            <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition">
+              Espace Personnel & Admin
+            </h3>
+            <p className="text-xs text-slate-400">
+              Validation des demandes, réception, tickets LB-XXXX et caisse.
+            </p>
+          </Link>
+        </div>
       </main>
 
-      {/* ✅ Footer */}
-      <footer className="border-t bg-background">
-        <div className="container py-12 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Digit Pressing. Tous droits réservés.</p>
-        </div>
+      {/* Footer */}
+      <footer className="border-t border-slate-900 py-6 text-center text-xs text-slate-500 space-y-1">
+        <p>© {new Date().getFullYear()} LB Pressing — Brazzaville, Congo.</p>
+        <p className="text-[11px] text-slate-600">
+          Plateforme SaaS développée sur Digit Pressing.
+        </p>
       </footer>
     </div>
   );
-};
-
-export default HomePage;
+}

@@ -648,7 +648,7 @@ export const useInvoicesStore = create<InvoicesState>()(
         const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .rpc('generate_invoice_number', {
             pressing_id: user.pressingId
           });
@@ -722,8 +722,7 @@ export const useInvoicesStore = create<InvoicesState>()(
 
         const today = new Date().toISOString().split('T')[0];
 
-        const { data, error } = await supabase
-          .from('invoices')
+        const { data, error } = await (supabase.from('invoices' as any) as any)
           .select('*')
           .eq('pressing_id', user.pressingId)
           .eq('deposit_date', today)
@@ -733,11 +732,11 @@ export const useInvoicesStore = create<InvoicesState>()(
           throw error;
         }
 
-        const invoices = data || [];
+        const invoices: any[] = data || [];
         const totalInvoices = invoices.length;
-        const paidInvoices = invoices.filter(inv => inv.paid).length;
+        const paidInvoices = invoices.filter((inv: any) => inv.paid).length;
         const pendingInvoices = totalInvoices - paidInvoices;
-        const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.paid ? inv.total : 0), 0);
+        const totalRevenue = invoices.reduce((sum: number, inv: any) => sum + (inv.paid ? inv.total : 0), 0);
         const averageTicket = totalInvoices > 0 ? totalRevenue / paidInvoices || 0 : 0;
 
         set({

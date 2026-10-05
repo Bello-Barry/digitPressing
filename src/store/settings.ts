@@ -41,7 +41,7 @@ export const useSettingsStore = create<SettingsState>()(
           throw new Error('Utilisateur non connecté');
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('pressings')
           .select('settings')
           .eq('id', user.pressingId)
@@ -84,7 +84,7 @@ export const useSettingsStore = create<SettingsState>()(
           ...updates,
         };
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('pressings')
           .update({
             settings: newSettings as any,
@@ -176,7 +176,7 @@ if (typeof window !== 'undefined') {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'pressings',
+          table: 'pressings' as any,
           filter: `id=eq.${user.pressingId}`,
         },
         (payload) => {

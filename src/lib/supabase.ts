@@ -1,98 +1,65 @@
 // =============================================================================
-// CLIENT SUPABASE - Digit PRESSING
+// CLIENT SUPABASE - DIGIT PRESSING / SAAS PRESSING
+// Schéma multi-tenant aligné sur copilote.md
 // =============================================================================
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 
 // Variables d'environnement
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl) {
   throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
 }
 
 if (!supabaseAnonKey) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  console.warn('Warning: Missing NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
 
-// Client principal pour l'application côté client
-export const supabase: SupabaseClient<Database> = createClient(
+// Client principal pour le navigateur
+const browserSupabase: SupabaseClient<Database> = createBrowserClient<Database>(
   supabaseUrl,
   supabaseAnonKey,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    },
-    db: {
-      schema: 'public',
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'Digit-pressing@1.0.0',
-      },
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
-      },
-    },
-  }
+  { db: { schema: 'public' }, global: { headers: { 'X-Client-Info': 'Digit-pressing@1.0.0' } } }
 );
 
-// Client avec service role pour les opérations administratives (côté serveur uniquement)
-export const supabaseAdmin: SupabaseClient<Database> | null = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-      db: {
-        schema: 'public',
-      },
-    })
-  : null;
+/** Client navigateur. Les pages/actions serveur importent createServerSupabaseClient. */
+export const supabase = browserSupabase;
 
-// Types utilitaires pour TypeScript
 export type SupabaseClientType = typeof supabase;
-export type SupabaseAdminType = typeof supabaseAdmin;
 
-// Configuration des politiques RLS par défaut
-export const RLS_POLICIES = {
-  USERS_ACCESS_OWN_PRESSING: 'users_access_own_pressing',
-  INVOICES_ACCESS_OWN_PRESSING: 'invoices_access_own_pressing',
-  ARTICLES_ACCESS_OWN_PRESSING: 'articles_access_own_pressing',
-  CLIENTS_ACCESS_OWN_PRESSING: 'clients_access_own_pressing',
-  REVENUE_ACCESS_OWN_PRESSING: 'revenue_access_own_pressing',
-  AUDIT_LOGS_READ_ONLY: 'audit_logs_read_only',
-} as const;
+// =============================================================================
+// HELPERS D'AUTHENTIFICATION & PROFILS MULTI-TENANT
+// =============================================================================
 
-// Helper functions pour la gestion des erreurs
-export const handleSupabaseError = (error: unknown): string => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    return (error as { message: string }).message;
-  }
-  return 'Une erreur inattendue est survenue';
-};
+export interface UserMembershipProfile {
+  user: {
+    id: string;
+    email?: string;
+  };
+  membership: {
+    id: string;
+    organization_id: string;
+    role: Database['public']['Enums']['member_role'];
+    full_name: string | null;
+    phone: string | null;
+    is_active: boolean;
+  } | null;
+  organization: Database['public']['Tables']['organizations']['Row'] | null;
+  isPlatformAdmin: boolean;
+}
 
-// Helper pour vérifier la session utilisateur
+/**
+ * Récupère l'utilisateur connecté
+ */
 export const getCurrentUser = async () => {
   try {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (error) {
-      throw error;
-    }
-
+    if (error || !user) return null;
     return user;
   } catch (error) {
     console.error('Erreur lors de la récupération de l\'utilisateur:', error);
@@ -100,218 +67,251 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Helper pour vérifier si l'utilisateur est connecté
-export const isAuthenticated = async (): Promise<boolean> => {
-  const user = await getCurrentUser();
-  return user !== null;
-};
-
-// Helper pour récupérer le profil utilisateur complet - EXPORT CORRIGÉ
-export const getUserProfile = async (userId?: string) => {
+/**
+ * Récupère le profil complet (adhésion + organisation)
+ */
+export const getUserProfile = async (userId: string) => {
   try {
-    const user = userId ? { id: userId } : await getCurrentUser();
-    if (!user) return null;
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user || userData.user.id !== userId) return null;
+    const effectiveUserId = userData.user.id;
 
-    const { data, error } = await supabase
-      .from('users')
-      .select(`
-        *,
-        pressing:pressings(*)
-      `)
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      throw error;
+    if (!effectiveUserId) {
+      return null;
     }
 
-    return data;
+    const { data: membershipData, error: memError } = await supabase
+      .from('memberships')
+      .select('id, user_id, organization_id, role, full_name, phone, is_active')
+      .eq('user_id', effectiveUserId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (memError || !membershipData) {
+      return null;
+    }
+
+    const authUser = userData?.user ?? { email: null, id: effectiveUserId };
+
+    return {
+      id: effectiveUserId,
+      email: authUser.email ?? null,
+      role: membershipData.role,
+      pressing_id: membershipData.organization_id,
+      organization_id: membershipData.organization_id,
+      full_name: membershipData.full_name,
+      phone: membershipData.phone,
+      permissions: [],
+      is_active: membershipData.is_active,
+      created_at: new Date().toISOString(),
+    };
   } catch (error) {
-    console.error('Erreur lors de la récupération du profil:', error);
+    console.error('Erreur getUserProfile:', error);
     return null;
   }
 };
 
-// Helper pour la déconnexion
+export const paginateQuery = async (query: any, page: number, limit: number) => {
+  const offset = (page - 1) * limit;
+  return query.range(offset, offset + limit - 1);
+};
+
+export const buildSearchQuery = (query: any, searchTerm: string) => {
+  if (!searchTerm || !searchTerm.trim()) {
+    return query;
+  }
+
+  const term = searchTerm.trim();
+  return query.or(`client_name.ilike.%${term}%,client_phone.ilike.%${term}%`);
+};
+
+export const getUserMembership = async (
+  userId?: string
+): Promise<UserMembershipProfile | null> => {
+  try {
+    const authenticatedUser = await getCurrentUser();
+    if (userId && authenticatedUser?.id !== userId) return null;
+    const user = authenticatedUser;
+    if (!user) return null;
+
+    // Vérifier si platform_admin
+    const { data: adminData } = await supabase
+      .from('platform_admins')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const isPlatformAdmin = Boolean(adminData);
+
+    // Récupérer le membership actif
+    const { data: membershipData, error: memError } = await supabase
+      .from('memberships')
+      .select(`
+        id,
+        organization_id,
+        role,
+        full_name,
+        phone,
+        is_active,
+        organization:organizations(*)
+      `)
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (memError) {
+      console.error('Erreur membership:', memError);
+    }
+
+    const org = (membershipData?.organization as unknown as Database['public']['Tables']['organizations']['Row']) || null;
+
+    return {
+      user: {
+        id: user.id,
+        email: 'email' in user ? (user.email as string) : undefined,
+      },
+      membership: membershipData
+        ? {
+            id: membershipData.id,
+            organization_id: membershipData.organization_id,
+            role: membershipData.role,
+            full_name: membershipData.full_name,
+            phone: membershipData.phone,
+            is_active: membershipData.is_active,
+          }
+        : null,
+      organization: org,
+      isPlatformAdmin,
+    };
+  } catch (error) {
+    console.error('Erreur getUserMembership:', error);
+    return null;
+  }
+};
+
+/**
+ * Déconnexion
+ */
 export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
   } catch (error) {
-    console.error('Erreur lors de la déconnexion:', error);
+    console.error('Erreur déconnexion:', error);
     throw error;
   }
 };
 
-// Helper pour écouter les changements d'authentification
-export const onAuthStateChange = (
-  callback: (event: string, session: any) => void
-) => {
-  return supabase.auth.onAuthStateChange(callback);
-};
+// =============================================================================
+// HELPERS PUBLICS (sans authentification requise)
+// =============================================================================
 
-// Configuration des canaux en temps réel
-export const REALTIME_CHANNELS = {
-  INVOICES: 'invoices_changes',
-  REVENUE: 'revenue_changes',
-  ARTICLES: 'articles_changes',
-  USERS: 'users_changes',
-} as const;
+/**
+ * Récupère le profil public d'une organisation par son slug (ex: lb-pressing)
+ */
+export const getOrganizationBySlug = async (slug: string) => {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id, name, slug, ticket_prefix, phone_1, phone_2, email, currency, slogan, address, footer_text, logo_url, settings, is_active')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .single();
 
-// Helper pour s'abonner aux changements en temps réel
-export const subscribeToTable = (
-  table: keyof Database['public']['Tables'],
-  pressingId: string,
-  callback: (payload: any) => void
-) => {
-  return supabase
-    .channel(`${table}_${pressingId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table,
-        filter: `pressing_id=eq.${pressingId}`,
-      },
-      callback
-    )
-    .subscribe();
-};
-
-// Helper pour se désabonner d'un canal
-export const unsubscribeFromChannel = (channelName: string) => {
-  const channel = supabase.getChannels().find(ch => ch.topic === channelName);
-  if (channel) {
-    return supabase.removeChannel(channel);
+  if (error || !data) {
+    return null;
   }
-  return Promise.resolve('ok');
+  return data;
 };
 
-// Configuration des buckets de stockage
-export const STORAGE_BUCKETS = {
-  LOGOS: 'pressing-logos',
-  EXPORTS: 'exports',
-  TEMP: 'temp-files',
-} as const;
+/**
+ * Récupère les services actifs d'une organisation
+ */
+export const getActiveServices = async (organizationId: string) => {
+  const { data, error } = await supabase
+    .from('services')
+    .select('id, name, description, category, price, estimated_days')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('category')
+    .order('price');
 
-// Helper pour uploader un fichier
-export const uploadFile = async (
-  bucket: keyof typeof STORAGE_BUCKETS,
-  path: string,
-  file: File,
-  options?: {
-    cacheControl?: string;
-    contentType?: string;
-    upsert?: boolean;
+  if (error) {
+    console.error('Erreur chargement services:', error);
+    return [];
   }
-) => {
-  try {
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKETS[bucket])
-      .upload(path, file, options);
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Erreur lors de l\'upload:', error);
-    throw error;
-  }
+  return data || [];
 };
 
-// Helper pour obtenir l'URL publique d'un fichier
-export const getPublicUrl = (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
-  const { data } = supabase.storage.from(STORAGE_BUCKETS[bucket]).getPublicUrl(path);
-  return data.publicUrl;
-};
-
-// Helper pour supprimer un fichier
-export const deleteFile = async (bucket: keyof typeof STORAGE_BUCKETS, path: string) => {
-  try {
-    const { error } = await supabase.storage.from(STORAGE_BUCKETS[bucket]).remove([path]);
-
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.error('Erreur lors de la suppression:', error);
-    throw error;
-  }
-};
-
-// Configuration des fonctions Edge
-export const EDGE_FUNCTIONS = {
-  SEND_EMAIL: 'send-email',
-  GENERATE_PDF: 'generate-pdf',
-  CALCULATE_STATS: 'calculate-stats',
-  SYNC_OFFLINE: 'sync-offline',
-} as const;
-
-// Helper pour appeler une fonction Edge
-export const callEdgeFunction = async (
-  functionName: keyof typeof EDGE_FUNCTIONS,
-  payload: any
-) => {
-  try {
-    const { data, error } = await supabase.functions.invoke(
-      EDGE_FUNCTIONS[functionName],
-      {
-        body: payload,
-      }
-    );
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    console.error(`Erreur lors de l'appel de la fonction ${functionName}:`, error);
-    throw error;
-  }
-};
-
-// Helper pour la pagination - EXPORT CORRIGÉ
-export const paginateQuery = <T>(
-  query: any,
-  page: number = 1,
-  limit: number = 50
-) => {
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-  
-  return query.range(from, to);
-};
-
-// Helper pour les requêtes de recherche
-export const buildSearchQuery = (
-  baseQuery: any,
-  searchTerm: string,
-  searchFields: string[]
-) => {
-  if (!searchTerm.trim()) {
-    return baseQuery;
-  }
-
-  // Construction de la requête de recherche full-text
-  const searchConditions = searchFields
-    .map(field => `${field}.ilike.%${searchTerm}%`)
-    .join(',');
-
-  return baseQuery.or(searchConditions);
-};
-
-// Configuration pour le développement
-if (process.env.NODE_ENV === 'development') {
-  // Logs supplémentaires en développement
-  supabase.auth.onAuthStateChange((event, session) => {
-    console.log('Auth state changed:', event, session?.user?.email);
+/**
+ * Crée une demande de commande client via la RPC sécurisée create_order_request
+ */
+export const submitPublicOrderRequest = async (payload: {
+  orgId: string;
+  clientName: string;
+  clientPhone: string;
+  items: Array<{
+    service_id?: string | null;
+    service_name: string;
+    quantity: number;
+    unit_price: number;
+    notes?: string | null;
+  }>;
+  mode?: 'DROP_OFF' | 'PICKUP' | 'DELIVERY';
+  address?: string | null;
+  notes?: string | null;
+  honeypot?: string;
+  ipHash?: string;
+}) => {
+  const { data, error } = await supabase.rpc('create_order_request', {
+    p_org_id: payload.orgId,
+    p_client_name: payload.clientName,
+    p_client_phone: payload.clientPhone,
+    p_items: payload.items,
+    p_mode: payload.mode || 'DROP_OFF',
+    p_address: payload.address || undefined,
+    p_notes: payload.notes || undefined,
+    p_honeypot: payload.honeypot || undefined,
+    p_ip_hash: payload.ipHash || undefined,
   });
-}
+
+  if (error) {
+    throw new Error(error.message || 'Erreur lors de la création de la demande');
+  }
+
+  return data as {
+    order_id: string;
+    request_code: string;
+    total_amount: number;
+  };
+};
+
+/**
+ * Suivi d'une commande sans compte via RPC sécurisée
+ */
+export const trackOrderPublic = async (
+  orgId: string,
+  requestCode: string,
+  clientPhone: string
+) => {
+  const { data, error } = await supabase.rpc('get_order_tracking', {
+    p_org_id: orgId,
+    p_request_code: requestCode.trim().toUpperCase(),
+    p_phone: clientPhone.trim(),
+  });
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as {
+    request_code: string;
+    ticket_number: string | null;
+    status: Database['public']['Enums']['order_status'];
+    client_name: string;
+    total_amount: number;
+    created_at: string;
+    updated_at: string;
+  };
+};
 
 export default supabase;

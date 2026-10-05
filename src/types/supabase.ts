@@ -1,7 +1,3 @@
-// =============================================================================
-// TYPES SUPABASE GÉNÉRÉS - Digit PRESSING
-// =============================================================================
-
 export type Json =
   | string
   | number
@@ -10,669 +6,849 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = any; /*
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
-      articles: {
-        Row: {
-          id: string
-          pressing_id: string
-          name: string
-          category: string
-          default_price: number
-          is_active: boolean
-          description: string | null
-          estimated_days: number | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          pressing_id: string
-          name: string
-          category: string
-          default_price: number
-          is_active?: boolean
-          description?: string | null
-          estimated_days?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          pressing_id?: string
-          name?: string
-          category?: string
-          default_price?: number
-          is_active?: boolean
-          description?: string | null
-          estimated_days?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "articles_pressing_id_fkey"
-            columns: ["pressing_id"]
-            isOneToOne: false
-            referencedRelation: "pressings"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       audit_logs: {
         Row: {
-          id: string
-          table_name: string
-          record_id: string
           action: string
-          old_values: Json | null
-          new_values: Json | null
-          user_id: string
-          user_name: string
-          user_role: string
-          ip_address: string | null
-          user_agent: string | null
+          changed_by: string | null
+          changed_by_name: string | null
           created_at: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          organization_id: string | null
+          record_id: string
+          table_name: string
         }
         Insert: {
-          id?: string
-          table_name: string
-          record_id: string
           action: string
-          old_values?: Json | null
-          new_values?: Json | null
-          user_id: string
-          user_name: string
-          user_role: string
-          ip_address?: string | null
-          user_agent?: string | null
+          changed_by?: string | null
+          changed_by_name?: string | null
           created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          organization_id?: string | null
+          record_id: string
+          table_name: string
         }
         Update: {
-          id?: string
-          table_name?: string
-          record_id?: string
           action?: string
-          old_values?: Json | null
-          new_values?: Json | null
-          user_id?: string
-          user_name?: string
-          user_role?: string
-          ip_address?: string | null
-          user_agent?: string | null
+          changed_by?: string | null
+          changed_by_name?: string | null
           created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          organization_id?: string | null
+          record_id?: string
+          table_name?: string
         }
         Relationships: [
           {
-            foreignKeyName: "audit_logs_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
-      clients: {
+      cash_closings: {
         Row: {
-          id: string
-          pressing_id: string
-          name: string
-          phone: string | null
-          email: string | null
-          address: string | null
-          total_invoices: number
-          total_spent: number
-          last_visit: string | null
-          notes: string | null
+          closed_at: string | null
+          closed_by: string | null
+          counted_cash: number | null
           created_at: string
+          date: string
+          discrepancy: number | null
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opened_by: string
+          opening_balance: number
+          organization_id: string
+          status: Database["public"]["Enums"]["cash_register_status"]
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          date: string
+          discrepancy?: number | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by: string
+          opening_balance?: number
+          organization_id: string
+          status?: Database["public"]["Enums"]["cash_register_status"]
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          date?: string
+          discrepancy?: number | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string
+          opening_balance?: number
+          organization_id?: string
+          status?: Database["public"]["Enums"]["cash_register_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_closings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          full_name: string
+          id: string
+          last_order_at: string | null
+          notes: string | null
+          organization_id: string
+          phone_display: string | null
+          phone_normalized: string
+          total_orders: number
+          total_spent: number
           updated_at: string
         }
         Insert: {
-          id?: string
-          pressing_id: string
-          name: string
-          phone?: string | null
-          email?: string | null
           address?: string | null
-          total_invoices?: number
-          total_spent?: number
-          last_visit?: string | null
-          notes?: string | null
           created_at?: string
+          full_name: string
+          id?: string
+          last_order_at?: string | null
+          notes?: string | null
+          organization_id: string
+          phone_display?: string | null
+          phone_normalized: string
+          total_orders?: number
+          total_spent?: number
           updated_at?: string
         }
         Update: {
-          id?: string
-          pressing_id?: string
-          name?: string
-          phone?: string | null
-          email?: string | null
           address?: string | null
-          total_invoices?: number
-          total_spent?: number
-          last_visit?: string | null
-          notes?: string | null
           created_at?: string
+          full_name?: string
+          id?: string
+          last_order_at?: string | null
+          notes?: string | null
+          organization_id?: string
+          phone_display?: string | null
+          phone_normalized?: string
+          total_orders?: number
+          total_spent?: number
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "clients_pressing_id_fkey"
-            columns: ["pressing_id"]
+            foreignKeyName: "customers_organization_id_fkey"
+            columns: ["organization_id"]
             isOneToOne: false
-            referencedRelation: "pressings"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
-      invoices: {
+      memberships: {
         Row: {
+          created_at: string
+          full_name: string | null
           id: string
-          pressing_id: string
-          number: string
-          client_name: string
-          client_phone: string | null
-          client_email: string | null
-          client_address: string | null
-          items: Json
-          subtotal: number
-          discount: number | null
-          discount_type: string | null
-          tax: number | null
-          total: number
-          status: string
-          paid: boolean
-          withdrawn: boolean
-          payment_method: string | null
-          deposit_date: string
-          payment_date: string | null
-          withdrawal_date: string | null
-          estimated_ready_date: string | null
-          created_by: string
-          created_by_name: string
-          modified_by: string | null
-          modified_by_name: string | null
-          modified_at: string | null
+          is_active: boolean
+          organization_id: string
+          phone: string | null
+          role: Database["public"]["Enums"]["member_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["member_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["member_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+          variables: string[] | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+          variables?: string[] | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          variables?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          line_total: number
+          notes: string | null
+          order_id: string
+          organization_id: string
+          quantity: number
+          service_id: string | null
+          service_name: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_total: number
+          notes?: string | null
+          order_id: string
+          organization_id: string
+          quantity?: number
+          service_id?: string | null
+          service_name: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_total?: number
+          notes?: string | null
+          order_id?: string
+          organization_id?: string
+          quantity?: number
+          service_id?: string | null
+          service_name?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_payment_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
           cancellation_reason: string | null
           cancelled_by: string | null
-          cancelled_at: string | null
-          notes: string | null
-          urgency: string
-          tags: string[] | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          pressing_id: string
-          number: string
           client_name: string
-          client_phone?: string | null
-          client_email?: string | null
-          client_address?: string | null
-          items: Json
-          subtotal: number
-          discount?: number | null
-          discount_type?: string | null
-          tax?: number | null
-          total: number
-          status?: string
-          paid?: boolean
-          withdrawn?: boolean
-          payment_method?: string | null
-          deposit_date: string
-          payment_date?: string | null
-          withdrawal_date?: string | null
-          estimated_ready_date?: string | null
-          created_by: string
-          created_by_name: string
-          modified_by?: string | null
-          modified_by_name?: string | null
-          modified_at?: string | null
-          cancellation_reason?: string | null
-          cancelled_by?: string | null
-          cancelled_at?: string | null
-          notes?: string | null
-          urgency?: string
-          tags?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          pressing_id?: string
-          number?: string
-          client_name?: string
-          client_phone?: string | null
-          client_email?: string | null
-          client_address?: string | null
-          items?: Json
-          subtotal?: number
-          discount?: number | null
-          discount_type?: string | null
-          tax?: number | null
-          total?: number
-          status?: string
-          paid?: boolean
-          withdrawn?: boolean
-          payment_method?: string | null
-          deposit_date?: string
-          payment_date?: string | null
-          withdrawal_date?: string | null
-          estimated_ready_date?: string | null
-          created_by?: string
-          created_by_name?: string
-          modified_by?: string | null
-          modified_by_name?: string | null
-          modified_at?: string | null
-          cancellation_reason?: string | null
-          cancelled_by?: string | null
-          cancelled_at?: string | null
-          notes?: string | null
-          urgency?: string
-          tags?: string[] | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoices_pressing_id_fkey"
-            columns: ["pressing_id"]
-            isOneToOne: false
-            referencedRelation: "pressings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_modified_by_fkey"
-            columns: ["modified_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_cancelled_by_fkey"
-            columns: ["cancelled_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      offline_queue: {
-        Row: {
-          id: string
-          user_id: string
-          type: string
-          endpoint: string
-          data: Json
-          timestamp: string
-          retry_count: number
-          last_error: string | null
+          client_phone: string
           created_at: string
+          created_by: string | null
+          customer_id: string | null
+          delivered_by: string | null
+          delivery_address: string | null
+          delivery_fee: number
+          delivery_override_at: string | null
+          delivery_override_by: string | null
+          delivery_override_note: string | null
+          discount_amount: number
+          discount_reason: string | null
+          id: string
+          invoice_token: string | null
+          ip_hash: string | null
+          items_count_in: number | null
+          items_count_out: number | null
+          items_discrepancy: string | null
+          items_verified: boolean
+          mode: Database["public"]["Enums"]["order_mode"]
+          notes: string | null
+          organization_id: string
+          pickup_address: string | null
+          received_by: string | null
+          rejection_reason: string | null
+          request_code: string | null
+          requested_at: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          subtotal: number
+          ticket_number: string | null
+          total_amount: number
+          updated_at: string
+          validated_by: string | null
         }
         Insert: {
-          id?: string
-          user_id: string
-          type: string
-          endpoint: string
-          data: Json
-          timestamp: string
-          retry_count?: number
-          last_error?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
+          client_name: string
+          client_phone: string
           created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          delivered_by?: string | null
+          delivery_address?: string | null
+          delivery_fee?: number
+          delivery_override_at?: string | null
+          delivery_override_by?: string | null
+          delivery_override_note?: string | null
+          discount_amount?: number
+          discount_reason?: string | null
+          id?: string
+          invoice_token?: string | null
+          ip_hash?: string | null
+          items_count_in?: number | null
+          items_count_out?: number | null
+          items_discrepancy?: string | null
+          items_verified?: boolean
+          mode?: Database["public"]["Enums"]["order_mode"]
+          notes?: string | null
+          organization_id: string
+          pickup_address?: string | null
+          received_by?: string | null
+          rejection_reason?: string | null
+          request_code?: string | null
+          requested_at?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal?: number
+          ticket_number?: string | null
+          total_amount?: number
+          updated_at?: string
+          validated_by?: string | null
         }
         Update: {
-          id?: string
-          user_id?: string
-          type?: string
-          endpoint?: string
-          data?: Json
-          timestamp?: string
-          retry_count?: number
-          last_error?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
+          client_name?: string
+          client_phone?: string
           created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          delivered_by?: string | null
+          delivery_address?: string | null
+          delivery_fee?: number
+          delivery_override_at?: string | null
+          delivery_override_by?: string | null
+          delivery_override_note?: string | null
+          discount_amount?: number
+          discount_reason?: string | null
+          id?: string
+          invoice_token?: string | null
+          ip_hash?: string | null
+          items_count_in?: number | null
+          items_count_out?: number | null
+          items_discrepancy?: string | null
+          items_verified?: boolean
+          mode?: Database["public"]["Enums"]["order_mode"]
+          notes?: string | null
+          organization_id?: string
+          pickup_address?: string | null
+          received_by?: string | null
+          rejection_reason?: string | null
+          request_code?: string | null
+          requested_at?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal?: number
+          ticket_number?: string | null
+          total_amount?: number
+          updated_at?: string
+          validated_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "offline_queue_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "customers"
             referencedColumns: ["id"]
-          }
+          },
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
-      pressings: {
+      organizations: {
         Row: {
-          id: string
-          name: string
           address: string | null
-          phone: string | null
-          email: string | null
-          logo: string | null
-          settings: Json
+          country_code: string
           created_at: string
+          currency: string
+          email: string | null
+          footer_text: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          phone_1: string | null
+          phone_2: string | null
+          plan: string
+          settings: Json
+          slogan: string | null
+          slug: string
+          ticket_prefix: string
+          trial_until: string | null
           updated_at: string
         }
         Insert: {
-          id?: string
-          name: string
           address?: string | null
-          phone?: string | null
-          email?: string | null
-          logo?: string | null
-          settings?: Json
+          country_code?: string
           created_at?: string
+          currency?: string
+          email?: string | null
+          footer_text?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          phone_1?: string | null
+          phone_2?: string | null
+          plan?: string
+          settings?: Json
+          slogan?: string | null
+          slug: string
+          ticket_prefix?: string
+          trial_until?: string | null
           updated_at?: string
         }
         Update: {
-          id?: string
-          name?: string
           address?: string | null
-          phone?: string | null
-          email?: string | null
-          logo?: string | null
-          settings?: Json
+          country_code?: string
           created_at?: string
+          currency?: string
+          email?: string | null
+          footer_text?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          phone_1?: string | null
+          phone_2?: string | null
+          plan?: string
+          settings?: Json
+          slogan?: string | null
+          slug?: string
+          ticket_prefix?: string
+          trial_until?: string | null
           updated_at?: string
         }
         Relationships: []
       }
-      revenue_daily: {
+      payments: {
         Row: {
-          id: string
-          pressing_id: string
-          date: string
-          deposit_total: number
-          withdrawal_total: number
-          daily_total: number
-          total_transactions: number
-          average_ticket: number
-          payment_methods: Json
-          categories: Json
-          employees: Json
+          amount: number
+          collected_at: string
+          collected_by: string
           created_at: string
-          updated_at: string
+          id: string
+          is_reversal: boolean
+          method: Database["public"]["Enums"]["payment_method"]
+          notes: string | null
+          order_id: string
+          organization_id: string
+          reference: string | null
+          reversal_reason: string | null
         }
         Insert: {
-          id?: string
-          pressing_id: string
-          date: string
-          deposit_total: number
-          withdrawal_total: number
-          daily_total: number
-          total_transactions: number
-          average_ticket: number
-          payment_methods?: Json
-          categories?: Json
-          employees?: Json
+          amount: number
+          collected_at?: string
+          collected_by: string
           created_at?: string
-          updated_at?: string
+          id?: string
+          is_reversal?: boolean
+          method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          order_id: string
+          organization_id: string
+          reference?: string | null
+          reversal_reason?: string | null
         }
         Update: {
-          id?: string
-          pressing_id?: string
-          date?: string
-          deposit_total?: number
-          withdrawal_total?: number
-          daily_total?: number
-          total_transactions?: number
-          average_ticket?: number
-          payment_methods?: Json
-          categories?: Json
-          employees?: Json
+          amount?: number
+          collected_at?: string
+          collected_by?: string
           created_at?: string
-          updated_at?: string
+          id?: string
+          is_reversal?: boolean
+          method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          order_id?: string
+          organization_id?: string
+          reference?: string | null
+          reversal_reason?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "revenue_daily_pressing_id_fkey"
-            columns: ["pressing_id"]
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "pressings"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      user_preferences: {
-        Row: {
-          id: string
-          user_id: string
-          theme: string
-          language: string
-          currency: string
-          timezone: string
-          notifications: Json
-          dashboard: Json
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          theme?: string
-          language?: string
-          currency?: string
-          timezone?: string
-          notifications?: Json
-          dashboard?: Json
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          theme?: string
-          language?: string
-          currency?: string
-          timezone?: string
-          notifications?: Json
-          dashboard?: Json
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
+            referencedRelation: "order_payment_summary"
+            referencedColumns: ["order_id"]
+          },
           {
-            foreignKeyName: "user_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      users: {
-        Row: {
-          id: string
-          pressing_id: string
-          role: string
-          full_name: string
-          email: string
-          permissions: Json
-          is_active: boolean
-          last_login: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          pressing_id: string
-          role: string
-          full_name: string
-          email: string
-          permissions?: Json
-          is_active?: boolean
-          last_login?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          pressing_id?: string
-          role?: string
-          full_name?: string
-          email?: string
-          permissions?: Json
-          is_active?: boolean
-          last_login?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "users_pressing_id_fkey"
-            columns: ["pressing_id"]
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "pressings"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "users_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
+            foreignKeyName: "payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
-          }
+          },
+        ]
+      }
+      platform_admins: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          action: string
+          count: number
+          created_at: string
+          expires_at: string
+          id: string
+          key: string
+          window_start: string
+        }
+        Insert: {
+          action?: string
+          count?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          key: string
+          window_start?: string
+        }
+        Update: {
+          action?: string
+          count?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      request_sequences: {
+        Row: {
+          last_value: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_value?: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_value?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          category: string | null
+          cost_price: number | null
+          created_at: string
+          description: string | null
+          estimated_days: number
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          estimated_days?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cost_price?: number | null
+          created_at?: string
+          description?: string | null
+          estimated_days?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_sequences: {
+        Row: {
+          last_value: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_value?: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_value?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      invoice_stats_view: {
+      order_payment_summary: {
         Row: {
-          pressing_id: string | null
-          total_invoices: number | null
-          total_revenue: number | null
-          pending_invoices: number | null
-          paid_invoices: number | null
-          withdrawn_invoices: number | null
-          average_ticket: number | null
-          this_month_revenue: number | null
-          last_month_revenue: number | null
-          growth_rate: number | null
+          balance_due: number | null
+          order_id: string | null
+          organization_id: string | null
+          paid_amount: number | null
+          payment_count: number | null
+          total_amount: number | null
         }
-        Relationships: []
-      }
-      top_articles_view: {
-        Row: {
-          pressing_id: string | null
-          article_name: string | null
-          category: string | null
-          total_sold: number | null
-          total_revenue: number | null
-          average_price: number | null
-        }
-        Relationships: []
-      }
-      client_stats_view: {
-        Row: {
-          pressing_id: string | null
-          client_name: string | null
-          total_invoices: number | null
-          total_spent: number | null
-          last_visit: string | null
-          average_ticket: number | null
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
-      calculate_daily_revenue: {
+      assign_request_code: { Args: { p_org_id: string }; Returns: string }
+      create_order_request: {
         Args: {
-          pressing_id: string
-          target_date: string
+          p_address?: string
+          p_client_name: string
+          p_client_phone: string
+          p_honeypot?: string
+          p_ip_hash?: string
+          p_items: Json
+          p_mode?: string
+          p_notes?: string
+          p_org_id: string
         }
         Returns: Json
       }
-      get_invoice_stats: {
-        Args: {
-          pressing_id: string
-          start_date?: string
-          end_date?: string
-        }
+      get_order_tracking: {
+        Args: { p_org_id: string; p_phone: string; p_request_code: string }
         Returns: Json
       }
-      search_invoices: {
-        Args: {
-          pressing_id: string
-          search_term?: string
-          status_filter?: string[]
-          date_from?: string
-          date_to?: string
-          limit_count?: number
-          offset_count?: number
-        }
-        Returns: {
-          invoices: Json
-          total_count: number
-        }
+      get_user_org_id: { Args: never; Returns: string }
+      get_user_role_in_org: { Args: { p_org_id: string }; Returns: string }
+      has_role_in_org: {
+        Args: { p_org_id: string; p_roles: string[] }
+        Returns: boolean
       }
-      update_client_stats: {
+      is_member_of_org: { Args: { p_org_id: string }; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
+      receive_order_and_assign_ticket: {
         Args: {
-          client_name: string
-          pressing_id: string
-        }
-        Returns: void
-      }
-      generate_invoice_number: {
-        Args: {
-          pressing_id: string
+          p_items_count?: number
+          p_order_id: string
+          p_org_id: string
+          p_user_id: string
         }
         Returns: string
       }
     }
     Enums: {
-      user_role: 'owner' | 'employee'
-      invoice_status: 'active' | 'cancelled'
-      urgency_level: 'normal' | 'express' | 'urgent'
-      payment_method: 'cash' | 'card' | 'check' | 'transfer'
-      article_category: 'vetement' | 'accessoire' | 'special' | 'cuir' | 'retouche'
-      discount_type: 'amount' | 'percentage'
-      audit_action: 'create' | 'update' | 'delete' | 'cancel'
+      cash_register_status: "OPEN" | "CLOSED"
+      member_role: "OWNER" | "MANAGER" | "CASHIER" | "DELIVERY"
+      order_mode: "DROP_OFF" | "PICKUP" | "DELIVERY"
+      order_status:
+        | "REQUEST"
+        | "VALIDATED"
+        | "RECEIVED"
+        | "PROCESSING"
+        | "READY"
+        | "DELIVERED"
+        | "REJECTED"
+        | "CANCELLED"
+      payment_method: "CASH" | "MTN_MOMO" | "AIRTEL_MONEY" | "OTHER"
     }
     CompositeTypes: {
-      invoice_item: {
-        id: string
-        article_id: string
-        article_name: string
-        category: string
-        quantity: number
-        unit_price: number
-        total_price: number
-        special_instructions: string | null
-        completed: boolean
-        completed_at: string | null
-      }
+      [_ in never]: never
     }
   }
 }
 
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (Database["public"]["Tables"] & Database["public"]["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (Database["public"]["Tables"] &
-        Database["public"]["Views"])
-    ? (Database["public"]["Tables"] &
-        Database["public"]["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -680,20 +856,24 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof Database["public"]["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
-    ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -701,20 +881,24 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof Database["public"]["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof Database["public"]["Tables"]
-    ? Database["public"]["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -722,14 +906,57 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof Database["public"]["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof Database["public"]["Enums"]
-    ? Database["public"]["Enums"][PublicEnumNameOrOptions]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      cash_register_status: ["OPEN", "CLOSED"],
+      member_role: ["OWNER", "MANAGER", "CASHIER", "DELIVERY"],
+      order_mode: ["DROP_OFF", "PICKUP", "DELIVERY"],
+      order_status: [
+        "REQUEST",
+        "VALIDATED",
+        "RECEIVED",
+        "PROCESSING",
+        "READY",
+        "DELIVERED",
+        "REJECTED",
+        "CANCELLED",
+      ],
+      payment_method: ["CASH", "MTN_MOMO", "AIRTEL_MONEY", "OTHER"],
+    },
+  },
+} as const
+*/

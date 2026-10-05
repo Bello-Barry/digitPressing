@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase';
+import { clientSignInAction, clientSignUpAction, clientSignOutAction, clientRefreshSessionAction, sendPasswordResetWithRedirectAction, updatePasswordAction } from '@/actions/auth';
 import type { User, AuthSession, UserPreferences } from '@/types';
 
 interface AuthState {
@@ -65,21 +66,17 @@ export const useAuthStore = create<AuthState>()(
           try {
             set({ isLoading: true, error: null });
 
-            const { data, error } = await supabase.auth.signInWithPassword({
-              email: email.trim().toLowerCase(),
-              password,
-            });
-
-            if (error) {
-              throw error;
+            const authResult = await clientSignInAction(email, password);
+            if (!authResult.success || !authResult.userId) {
+              throw new Error(authResult.error || 'Connexion impossible.');
             }
-
-            if (!data.user) {
+            const { data, error } = await supabase.auth.getSession();
+            if (error || !data.session?.user) {
               throw new Error('Aucun utilisateur retourné après connexion');
             }
 
             // Récupérer le profil utilisateur complet
-            const profile = await getUserProfile(data.user.id);
+            const profile = await getUserProfile(authResult.userId);
             if (!profile) {
               throw new Error('Impossible de récupérer le profil utilisateur');
             }
@@ -91,25 +88,25 @@ export const useAuthStore = create<AuthState>()(
                 last_login: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               })
-              .eq('id', data.user.id);
+              .eq('id', authResult.userId);
 
             const user: User = {
               id: profile.id,
-              email: profile.email,
-              role: profile.role as 'owner' | 'employee',
-              pressingId: profile.pressing_id,
-              fullName: profile.full_name,
-              permissions: profile.permissions as any[] || [],
-              createdAt: profile.created_at,
+              email: profile.email ?? '',
+              role: (profile.role ?? 'owner') as 'owner' | 'employee',
+              pressingId: profile.pressing_id ?? profile.organization_id ?? '',
+              fullName: profile.full_name ?? 'Utilisateur',
+              permissions: (profile.permissions as any[]) || [],
+              createdAt: profile.created_at ?? new Date().toISOString(),
               lastLogin: new Date().toISOString(),
-              isActive: profile.is_active,
+              isActive: profile.is_active ?? true,
             };
 
-            const expiresAtVal = data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '';
+            const expiresAtVal = data.session.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '';
             const session: AuthSession = {
               user,
-              accessToken: data.session?.access_token || '',
-              refreshToken: data.session?.refresh_token || '',
+              accessToken: data.session.access_token,
+              refreshToken: data.session.refresh_token,
               expiresAt: expiresAtVal,
             };
 
@@ -135,31 +132,22 @@ export const useAuthStore = create<AuthState>()(
             set({ isLoading: true, error: null });
 
             // Créer le compte utilisateur
-            const { data, error } = await supabase.auth.signUp({
-              email: email.trim().toLowerCase(),
-              password,
-              options: {
-                data: {
-                  full_name: fullName.trim(),
-                  pressing_id: pressingId,
-                }
-              }
-            });
-
-            if (error) {
-              throw error;
+            const result = await clientSignUpAction({ email, password, fullName, pressingId });
+            if (!result.success || !result.userId) {
+              throw new Error(result.error || 'Inscription impossible.');
             }
-
-            if (!data.user) {
+            const { data, error } = await supabase.auth.getSession();
+            if (error) throw error;
+            if (!data.session?.user) {
               throw new Error('Aucun utilisateur créé');
             }
 
             // Si un pressingId est fourni, créer le profil utilisateur
-            if (pressingId && data.user.id) {
+            if (pressingId && result.userId) {
               const { error: profileError } = await supabase
                 .from('users')
                 .insert({
-                  id: data.user.id,
+                  id: result.userId,
                   email: email.trim().toLowerCase(),
                   full_name: fullName.trim(),
                   pressing_id: pressingId,
@@ -194,10 +182,8 @@ export const useAuthStore = create<AuthState>()(
           try {
             set({ isLoading: true, error: null });
 
-            const { error } = await supabase.auth.signOut();
-            if (error) {
-              throw error;
-            }
+            const result = await clientSignOutAction();
+            if (!result.success) throw new Error(result.error || 'Déconnexion impossible.');
 
             set({ 
               user: null, 
@@ -221,16 +207,8 @@ export const useAuthStore = create<AuthState>()(
           try {
             set({ isLoading: true, error: null });
 
-            const { error } = await supabase.auth.resetPasswordForEmail(
-              email.trim().toLowerCase(),
-              {
-                redirectTo: `${window.location.origin}/auth/reset-password`,
-              }
-            );
-
-            if (error) {
-              throw error;
-            }
+            const result = await sendPasswordResetWithRedirectAction(email, `${window.location.origin}/auth/callback?next=/auth/reset-password`);
+            if (!result.success) throw new Error(result.error || 'Envoi impossible.');
 
             set({ isLoading: false });
 
@@ -248,13 +226,8 @@ export const useAuthStore = create<AuthState>()(
           try {
             set({ isLoading: true, error: null });
 
-            const { error } = await supabase.auth.updateUser({
-              password: newPassword
-            });
-
-            if (error) {
-              throw error;
-            }
+            const result = await updatePasswordAction(newPassword);
+            if (!result.success) throw new Error(result.error || 'Mise à jour impossible.');
 
             set({ isLoading: false });
 
@@ -270,25 +243,22 @@ export const useAuthStore = create<AuthState>()(
 
         refreshSession: async () => {
           try {
-            const { data, error } = await supabase.auth.refreshSession();
-
-            if (error) {
-              throw error;
-            }
-
-            if (data.session && data.user) {
-              const profile = await getUserProfile(data.user.id);
+            const refreshed = await clientRefreshSessionAction();
+            if (!refreshed.success || !refreshed.userId) throw new Error(refreshed.error || 'Session expirée.');
+            const { data } = await supabase.auth.getSession();
+            if (data.session?.user) {
+              const profile = await getUserProfile(refreshed.userId);
               if (profile) {
                 const user: User = {
                   id: profile.id,
-                  email: profile.email,
-                  role: profile.role as 'owner' | 'employee',
-                  pressingId: profile.pressing_id,
-                  fullName: profile.full_name,
-                  permissions: profile.permissions as any[] || [],
-                  createdAt: profile.created_at,
-                  lastLogin: profile.last_login || null,
-                  isActive: profile.is_active,
+                  email: profile.email ?? '',
+                  role: (profile.role ?? 'owner') as 'owner' | 'employee',
+                  pressingId: profile.pressing_id ?? profile.organization_id ?? '',
+                  fullName: profile.full_name ?? 'Utilisateur',
+                  permissions: (profile.permissions as any[]) || [],
+                  createdAt: profile.created_at ?? new Date().toISOString(),
+                  lastLogin: (profile as any).last_login ?? null,
+                  isActive: profile.is_active ?? true,
                 };
 
                 const expiresAtVal = data.session.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : '';
@@ -316,23 +286,21 @@ export const useAuthStore = create<AuthState>()(
 
             const { data: { session }, error } = await supabase.auth.getSession();
 
-            if (error) {
-              throw error;
-            }
+            if (error) throw error;
 
             if (session?.user) {
               const profile = await getUserProfile(session.user.id);
               if (profile) {
                 const user: User = {
                   id: profile.id,
-                  email: profile.email,
-                  role: profile.role as 'owner' | 'employee',
-                  pressingId: profile.pressing_id,
-                  fullName: profile.full_name,
-                  permissions: profile.permissions as any[] || [],
-                  createdAt: profile.created_at,
-                  lastLogin: profile.last_login || null,
-                  isActive: profile.is_active,
+                  email: profile.email ?? '',
+                  role: (profile.role ?? 'owner') as 'owner' | 'employee',
+                  pressingId: profile.pressing_id ?? profile.organization_id ?? '',
+                  fullName: profile.full_name ?? 'Utilisateur',
+                  permissions: (profile.permissions as any[]) || [],
+                  createdAt: profile.created_at ?? new Date().toISOString(),
+                  lastLogin: (profile as any).last_login ?? null,
+                  isActive: profile.is_active ?? true,
                 };
 
                 const authSession: AuthSession = {

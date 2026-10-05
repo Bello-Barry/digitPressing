@@ -22,49 +22,6 @@ interface RecentInvoicesProps {
   className?: string;
 }
 
-const mockInvoices: RecentInvoiceItem[] = [
-  {
-    id: '1',
-    invoiceNumber: 'FAC-2024-001',
-    customerName: 'Marie Dubois',
-    totalAmount: 4250,
-    status: 'paid',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    invoiceNumber: 'FAC-2024-002',
-    customerName: 'Jean Martin',
-    totalAmount: 1875,
-    status: 'pending',
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '3',
-    invoiceNumber: 'FAC-2024-003',
-    customerName: 'Sophie Bernard',
-    totalAmount: 3200,
-    status: 'pending',
-    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '4',
-    invoiceNumber: 'FAC-2024-004',
-    customerName: 'Pierre Durand',
-    totalAmount: 5600,
-    status: 'overdue',
-    createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '5',
-    invoiceNumber: 'FAC-2024-005',
-    customerName: 'Claire Moreau',
-    totalAmount: 2100,
-    status: 'paid',
-    createdAt: new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 const statusConfig = {
   pending: {
     label: 'En attente',
@@ -91,7 +48,7 @@ const statusConfig = {
 export const RecentInvoices: React.FC<RecentInvoicesProps> = ({ 
   className 
 }) => {
-  const invoices = mockInvoices;
+  const invoices: RecentInvoiceItem[] = [];
   const isLoading = false;
 
   if (isLoading) {

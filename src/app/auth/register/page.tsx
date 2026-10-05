@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Mail, Lock, User, AlertCircle, Building2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { useAuthActions } from '@/store/auth';
+import { clientSignUpAction } from '@/actions/auth';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
@@ -27,7 +27,6 @@ type RegisterData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signUp } = useAuthActions();
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -44,15 +43,17 @@ export default function RegisterPage() {
       setIsLoading(true);
       setServerError(null);
 
-      await signUp(
-        data.email,
-        data.password,
-        data.fullName,
-        data.pressingId
-      );
+      const result = await clientSignUpAction({
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+        pressingId: data.pressingId,
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/login`,
+      });
+      if (!result.success) throw new Error(result.error || 'Inscription impossible.');
 
       // Redirection vers la page de confirmation
-      router.push('/auth/verify-email');
+      router.push(result.verificationRequired ? '/auth/verify-email' : '/auth/login');
 
     } catch (error: any) {
       console.error('Erreur inscription:', error);

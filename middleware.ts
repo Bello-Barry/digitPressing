@@ -3,38 +3,40 @@
 // =============================================================================
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient, type SetAllCookies } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
   const { pathname } = req.nextUrl;
+  let response = NextResponse.next({ request: req });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return response;
 
-  // Permettre l'accès aux pages publiques, assets et routes auth
-  if (
-    pathname.startsWith('/auth') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api/public') ||
-    pathname === '/' ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.ico') ||
-    pathname.endsWith('.json') ||
-    pathname.endsWith('.svg')
-  ) {
-    return res;
-  }
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => req.cookies.getAll(),
+      setAll: ((cookiesToSet) => {
+        cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+        response = NextResponse.next({ request: req });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      }) as SetAllCookies,
+    },
+  });
 
-  // Extraire les cookies d'authentification Supabase
-  const sbAccessToken = req.cookies.get('sb-access-token')?.value ||
-                        req.cookies.get('supabase-auth-token')?.value;
-
-  // Protection des routes /dashboard et /admin
-  if (!sbAccessToken && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin'))) {
-    const redirectUrl = new URL('/auth/login', req.url);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user && pathname !== '/admin/login') {
+    const redirectUrl = new URL(pathname.startsWith('/admin') ? '/admin/login' : '/auth/login', req.url);
     redirectUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
-
-  return res;
+  if (user && pathname === '/admin/login') {
+    const redirectResponse = NextResponse.redirect(new URL('/admin', req.url));
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
+  }
+  return response;
 }
 
 export const config = {

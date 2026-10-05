@@ -111,7 +111,7 @@ export const useRevenueStore = create<RevenueState>()(
         const start = startDate || filters.dateFrom || dateRange.startDate;
         const end = endDate || filters.dateTo || dateRange.endDate;
 
-        let query = supabase
+        let query: any = (supabase as any)
           .from('revenue_daily')
           .select('*')
           .eq('pressing_id', user.pressingId)
@@ -183,7 +183,7 @@ export const useRevenueStore = create<RevenueState>()(
             break;
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('revenue_daily')
           .select('*')
           .eq('pressing_id', user.pressingId)
@@ -192,15 +192,15 @@ export const useRevenueStore = create<RevenueState>()(
 
         if (error) throw error;
 
-        const revenues = data || [];
+        const revenues: any[] = data || [];
         
         const stats: RevenueStats = {
-          totalRevenue: revenues.reduce((sum, r) => sum + r.daily_total, 0),
-          depositTotal: revenues.reduce((sum, r) => sum + r.deposit_total, 0),
-          withdrawalTotal: revenues.reduce((sum, r) => sum + r.withdrawal_total, 0),
-          totalTransactions: revenues.reduce((sum, r) => sum + r.total_transactions, 0),
+          totalRevenue: revenues.reduce((sum: number, r: any) => sum + Number(r.daily_total || 0), 0),
+          depositTotal: revenues.reduce((sum: number, r: any) => sum + Number(r.deposit_total || 0), 0),
+          withdrawalTotal: revenues.reduce((sum: number, r: any) => sum + Number(r.withdrawal_total || 0), 0),
+          totalTransactions: revenues.reduce((sum: number, r: any) => sum + Number(r.total_transactions || 0), 0),
           averageTicket: revenues.length > 0 
-            ? revenues.reduce((sum, r) => sum + r.average_ticket, 0) / revenues.length 
+            ? revenues.reduce((sum: number, r: any) => sum + Number(r.average_ticket || 0), 0) / revenues.length
             : 0,
           growthRate: 0,
         };
@@ -223,7 +223,7 @@ export const useRevenueStore = create<RevenueState>()(
         const start = period || dateRange.startDate;
         const end = dateRange.endDate;
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('revenue_daily')
           .select('*')
           .eq('pressing_id', user.pressingId)
@@ -233,11 +233,11 @@ export const useRevenueStore = create<RevenueState>()(
 
         if (error) throw error;
 
-        const revenues = data || [];
+        const revenues: any[] = data || [];
 
         switch (type) {
           case 'daily':
-            const dailyData: RevenueChartData[] = revenues.map(r => ({
+            const dailyData: RevenueChartData[] = revenues.map((r: any) => ({
               date: r.date,
               amount: r.daily_total,
               deposits: r.deposit_total,
@@ -252,7 +252,7 @@ export const useRevenueStore = create<RevenueState>()(
 
           case 'weekly':
             const weeklyData: Record<string, number> = {};
-            revenues.forEach(r => {
+            revenues.forEach((r: any) => {
               const date = new Date(r.date);
               const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
               const weekKey = weekStart.toISOString().split('T')[0];
@@ -275,7 +275,7 @@ export const useRevenueStore = create<RevenueState>()(
 
           case 'monthly':
             const monthlyData: Record<string, number> = {};
-            revenues.forEach(r => {
+            revenues.forEach((r: any) => {
               const date = new Date(r.date);
               const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
               monthlyData[monthKey] = (monthlyData[monthKey] || 0) + r.daily_total;
@@ -297,7 +297,7 @@ export const useRevenueStore = create<RevenueState>()(
 
           case 'categories':
             const categoriesData: Record<string, number> = {};
-            revenues.forEach(r => {
+            revenues.forEach((r: any) => {
               Object.entries(r.categories || {}).forEach(([cat, amount]) => {
                 categoriesData[cat] = (categoriesData[cat] || 0) + (amount as number);
               });
@@ -319,7 +319,7 @@ export const useRevenueStore = create<RevenueState>()(
 
           case 'payment_methods':
             const paymentData: Record<string, number> = {};
-            revenues.forEach(r => {
+            revenues.forEach((r: any) => {
               Object.entries(r.payment_methods || {}).forEach(([method, amount]) => {
                 paymentData[method] = (paymentData[method] || 0) + (amount as number);
               });
@@ -353,7 +353,7 @@ export const useRevenueStore = create<RevenueState>()(
         const user = useAuthStore.getState().user;
         if (!user) throw new Error('Utilisateur non connecté');
 
-        const { data: invoices, error: invoicesError } = await supabase
+        const { data: invoices, error: invoicesError } = await (supabase as any)
           .from('invoices')
           .select('*')
           .eq('pressing_id', user.pressingId)
@@ -362,40 +362,40 @@ export const useRevenueStore = create<RevenueState>()(
 
         if (invoicesError) throw invoicesError;
 
-        const dailyInvoices = invoices || [];
+        const dailyInvoices: any[] = invoices || [];
 
-        const depositTotal = dailyInvoices.reduce((sum, inv) => sum + inv.total, 0);
+        const depositTotal = dailyInvoices.reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
         const withdrawalTotal = dailyInvoices
-          .filter(inv => inv.withdrawn && inv.withdrawal_date === date)
-          .reduce((sum, inv) => sum + inv.total, 0);
+          .filter((inv: any) => inv.withdrawn && inv.withdrawal_date === date)
+          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
         
         const totalTransactions = dailyInvoices.length;
         const averageTicket = totalTransactions > 0 ? depositTotal / totalTransactions : 0;
 
         const paymentMethods: Record<string, number> = {};
         dailyInvoices
-          .filter(inv => inv.paid)
-          .forEach(inv => {
+          .filter((inv: any) => inv.paid)
+          .forEach((inv: any) => {
             const method = inv.payment_method || 'cash';
-            paymentMethods[method] = (paymentMethods[method] || 0) + inv.total;
+            paymentMethods[method] = (paymentMethods[method] || 0) + Number(inv.total || 0);
           });
 
         const categories: Record<string, number> = {};
-        dailyInvoices.forEach(inv => {
-          (inv.items as any[]).forEach(item => {
+        dailyInvoices.forEach((inv: any) => {
+          (inv.items as any[] || []).forEach((item: any) => {
             const category = item.category || 'autres';
-            const itemTotal = item.quantity * item.unitPrice;
+            const itemTotal = Number(item.quantity || 0) * Number(item.unitPrice || 0);
             categories[category] = (categories[category] || 0) + itemTotal;
           });
         });
 
         const employees: Record<string, number> = {};
-        dailyInvoices.forEach(inv => {
+        dailyInvoices.forEach((inv: any) => {
           const employeeName = inv.created_by_name || 'Inconnu';
-          employees[employeeName] = (employees[employeeName] || 0) + inv.total;
+          employees[employeeName] = (employees[employeeName] || 0) + Number(inv.total || 0);
         });
 
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await (supabase as any)
           .from('revenue_daily')
           .upsert({
             pressing_id: user.pressingId,
