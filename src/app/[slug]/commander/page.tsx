@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getOrganizationBySlug, getActiveServices } from '@/lib/supabase';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { OrderForm } from '@/components/public/OrderForm';
 import { ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
@@ -10,13 +10,26 @@ interface PageProps {
 
 export default async function OrderPage({ params }: PageProps) {
   const { slug } = await params;
-  const org = await getOrganizationBySlug(slug);
+  const db = await createServerSupabaseClient();
+
+  const { data: org } = await db
+    .from('organizations')
+    .select('id, name, slug, ticket_prefix, phone_1, phone_2')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
 
   if (!org) {
     notFound();
   }
 
-  const services = await getActiveServices(org.id);
+  const { data: services } = await db
+    .from('services')
+    .select('id, name, category, price')
+    .eq('organization_id', org.id)
+    .eq('is_active', true)
+    .order('category')
+    .order('price');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -62,7 +75,7 @@ export default async function OrderPage({ params }: PageProps) {
             phone_1: org.phone_1,
             phone_2: org.phone_2,
           }}
-          services={services.map((s) => ({
+          services={(services || []).map((s) => ({
             id: s.id,
             name: s.name,
             category: s.category,

@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   Shield,
+  Settings,
 } from 'lucide-react';
 
 export function AdminNavbar() {
@@ -48,10 +49,10 @@ export function AdminNavbar() {
   const handleLogout = async () => {
     try {
       await adminSignOutAction();
-      router.push('/admin/login');
     } catch (e) {
       console.error('Erreur déconnexion:', e);
     }
+    window.location.href = '/admin/login';
   };
 
   // Ne pas afficher la navbar sur la page de login
@@ -59,13 +60,22 @@ export function AdminNavbar() {
     return null;
   }
 
-  const navLinks = [
+  const baseNavLinks = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/commandes', label: 'Commandes', icon: ShoppingBag },
     { href: '/admin/clients', label: 'Clients', icon: Users },
     { href: '/admin/services', label: 'Services', icon: Shirt },
     { href: '/admin/paiements', label: 'Caisse', icon: DollarSign },
   ];
+
+  const navLinks = profile?.role === 'OWNER'
+    ? [
+        ...baseNavLinks,
+        { href: '/users', label: 'Équipe', icon: Users },
+        { href: '/settings', label: 'Paramètres', icon: Settings },
+      ]
+    : baseNavLinks;
+
   const visibleNavLinks = profile?.role === 'DELIVERY'
     ? navLinks.filter((link) => link.href === '/admin' || link.href === '/admin/commandes')
     : navLinks;
@@ -123,6 +133,7 @@ export function AdminNavbar() {
           )}
 
           <button
+            type="button"
             onClick={handleLogout}
             title="Se déconnecter"
             className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 transition"
@@ -131,11 +142,23 @@ export function AdminNavbar() {
           </button>
         </div>
 
-        {/* Mobile menu toggle button */}
+        {/* Mobile quick actions & menu toggle button */}
         <div className="md:hidden flex items-center space-x-2">
           <button
+            type="button"
+            id="mobile-logout-btn"
+            onClick={handleLogout}
+            title="Se déconnecter"
+            aria-label="Se déconnecter"
+            className="p-2 rounded-lg bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-900/80 transition"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-slate-800 text-slate-300"
+            aria-label="Menu navigation"
+            className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 active:scale-95 transition flex items-center space-x-1"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>

@@ -388,14 +388,24 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
 
             <div className="divide-y divide-slate-800/80">
               {order.order_items?.map((item: any) => (
-                <div key={item.id} className="py-2.5 flex items-center justify-between text-xs">
+                <div key={item.id} className="py-2.5 flex items-start justify-between text-xs">
                   <div>
                     <p className="font-semibold text-white">{item.service_name}</p>
                     <p className="text-[11px] text-slate-400">
                       {item.quantity} x {Number(item.unit_price).toLocaleString('fr-FR')} FCFA
                     </p>
+                    {(item.color || item.pattern || item.brand || item.size || item.item_notes || item.notes) && (
+                      <div className="flex flex-wrap gap-1 mt-1 text-[10px] text-slate-300">
+                        {item.color && <span className="bg-slate-800 px-1.5 py-0.5 rounded">Couleur: {item.color}</span>}
+                        {item.pattern && <span className="bg-slate-800 px-1.5 py-0.5 rounded">Motif: {item.pattern}</span>}
+                        {item.brand && <span className="bg-slate-800 px-1.5 py-0.5 rounded">Marque: {item.brand}</span>}
+                        {item.size && <span className="bg-slate-800 px-1.5 py-0.5 rounded">Taille: {item.size}</span>}
+                        {item.item_notes && <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-medium">Remarque: {item.item_notes}</span>}
+                        {item.notes && !item.item_notes && <span className="bg-slate-800 px-1.5 py-0.5 rounded">{item.notes}</span>}
+                      </div>
+                    )}
                   </div>
-                  <p className="font-mono font-bold text-white">
+                  <p className="font-mono font-bold text-white whitespace-nowrap ml-2">
                     {Number(item.line_total).toLocaleString('fr-FR')} FCFA
                   </p>
                 </div>

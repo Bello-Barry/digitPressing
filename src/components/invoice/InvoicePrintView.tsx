@@ -55,6 +55,12 @@ interface InvoiceData {
     unit_price: number;
     line_total: number;
     notes: string | null;
+    item_type?: string | null;
+    color?: string | null;
+    pattern?: string | null;
+    brand?: string | null;
+    size?: string | null;
+    item_notes?: string | null;
   }>;
   payments: Array<{
     id: string;
@@ -251,8 +257,15 @@ Merci pour votre confiance !`;
                   <tr key={item.id} className="text-slate-200 print:text-black">
                     <td className="py-2.5 px-2">
                       <p className="font-semibold">{item.service_name}</p>
-                      {item.notes && (
-                        <p className="text-[11px] text-slate-400 print:text-neutral-500">{item.notes}</p>
+                      {(item.color || item.pattern || item.brand || item.size || item.item_notes || item.notes) && (
+                        <div className="text-[11px] text-slate-400 print:text-neutral-600 mt-0.5 flex flex-wrap gap-x-2">
+                          {item.color && <span>Couleur: {item.color}</span>}
+                          {item.pattern && <span>Motif: {item.pattern}</span>}
+                          {item.brand && <span>Marque: {item.brand}</span>}
+                          {item.size && <span>Taille: {item.size}</span>}
+                          {item.item_notes && <span className="text-amber-300 print:text-neutral-800 font-medium">Obs: {item.item_notes}</span>}
+                          {item.notes && !item.item_notes && <span>{item.notes}</span>}
+                        </div>
                       )}
                     </td>
                     <td className="py-2.5 px-2 text-center font-mono font-bold">

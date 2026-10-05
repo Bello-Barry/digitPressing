@@ -3,6 +3,7 @@
 // =============================================================================
 // COMPOSANT FORMULAIRE DE COMMANDE EN LIGNE (CLIENT SANS COMPTE)
 // Mobile-first, validation Zod, honeypot anti-spam, appel Server Action
+// Caractéristiques physiques par article (Type, Couleur, Motif, Marque, Taille, Remarques)
 // =============================================================================
 
 import React, { useState } from 'react';
@@ -17,14 +18,15 @@ import {
   Trash2,
   CheckCircle2,
   MessageCircle,
-  Clock,
   MapPin,
   AlertCircle,
   Truck,
   Building,
-  ArrowRight,
-  ShieldCheck,
   Search,
+  ChevronDown,
+  ChevronUp,
+  Tag,
+  Palette,
 } from 'lucide-react';
 
 interface ServiceItem {
@@ -32,6 +34,20 @@ interface ServiceItem {
   name: string;
   category: string | null;
   price: number;
+}
+
+interface SelectedOrderItem {
+  service_id: string;
+  service_name: string;
+  quantity: number;
+  unit_price: number;
+  item_type?: string;
+  color?: string;
+  pattern?: string;
+  brand?: string;
+  size?: string;
+  item_notes?: string;
+  showDetails?: boolean;
 }
 
 interface OrderFormProps {
@@ -49,9 +65,7 @@ interface OrderFormProps {
 export function OrderForm({ organization, services }: OrderFormProps) {
   const router = useRouter();
   // État des articles du panier
-  const [selectedItems, setSelectedItems] = useState<
-    Array<{ service_id: string; service_name: string; quantity: number; unit_price: number }>
-  >([]);
+  const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>([]);
 
   // Coordonnées client
   const [clientName, setClientName] = useState('');
@@ -95,6 +109,8 @@ export function OrderForm({ organization, services }: OrderFormProps) {
           service_name: service.name,
           quantity: 1,
           unit_price: Number(service.price),
+          item_type: service.name,
+          showDetails: false,
         },
       ];
     });
@@ -111,6 +127,24 @@ export function OrderForm({ organization, services }: OrderFormProps) {
           return item;
         })
         .filter(Boolean) as typeof prev
+    );
+  };
+
+  const handleUpdateItemAttribute = (
+    serviceId: string,
+    field: keyof SelectedOrderItem,
+    value: string
+  ) => {
+    setSelectedItems((prev) =>
+      prev.map((item) => (item.service_id === serviceId ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const toggleItemDetails = (serviceId: string) => {
+    setSelectedItems((prev) =>
+      prev.map((item) =>
+        item.service_id === serviceId ? { ...item, showDetails: !item.showDetails } : item
+      )
     );
   };
 
@@ -146,6 +180,19 @@ export function OrderForm({ organization, services }: OrderFormProps) {
     setIsSubmitting(true);
 
     try {
+      const itemsPayload = selectedItems.map((item) => ({
+        service_id: item.service_id,
+        service_name: item.service_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        item_type: item.item_type || item.service_name,
+        color: item.color || null,
+        pattern: item.pattern || null,
+        brand: item.brand || null,
+        size: item.size || null,
+        item_notes: item.item_notes || null,
+      }));
+
       const res = await submitOrderAction({
         org_id: organization.id,
         client_name: clientName,
@@ -154,7 +201,7 @@ export function OrderForm({ organization, services }: OrderFormProps) {
         address: address.trim() || null,
         notes: notes ? `Note : ${notes}` : null,
         requested_at: desiredDate ? new Date(desiredDate).toISOString() : null,
-        items: selectedItems,
+        items: itemsPayload,
         honeypot,
       });
 
@@ -420,14 +467,14 @@ Merci de me confirmer la prise en charge !`;
         </div>
       </div>
 
-      {/* Étape 3 : Choix des Vêtements & Quantités */}
+      {/* Étape 3 : Choix des Vêtements & Caractéristiques Physiques */}
       <div className="p-5 md:p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800 gap-2">
           <div className="flex items-center space-x-2">
             <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center">
               3
             </span>
-            <h2 className="font-bold text-white text-base">Sélection des Articles</h2>
+            <h2 className="font-bold text-white text-base">Sélection des Articles & Caractéristiques</h2>
           </div>
 
           <div className="relative">
@@ -478,60 +525,146 @@ Merci de me confirmer la prise en charge !`;
           })}
         </div>
 
-        {/* Panier des articles choisis */}
+        {/* Panier des articles choisis avec caractérisation physique */}
         {selectedItems.length > 0 && (
-          <div className="pt-3 border-t border-slate-800 space-y-2">
+          <div className="pt-3 border-t border-slate-800 space-y-3">
             <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
               Articles sélectionnés ({selectedItems.reduce((acc, i) => acc + i.quantity, 0)})
             </h3>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {selectedItems.map((item) => (
                 <div
                   key={item.service_id}
-                  className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
                 >
-                  <div className="flex-1 pr-2">
-                    <p className="text-xs font-semibold text-white">{item.service_name}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      {item.unit_price.toLocaleString('fr-FR')} FCFA / unité
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 pr-2">
+                      <p className="text-xs font-bold text-white">{item.service_name}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        {item.unit_price.toLocaleString('fr-FR')} FCFA / unité
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.service_id, -1)}
+                        className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+
+                      <span className="w-6 text-center text-xs font-bold font-mono text-white">
+                        {item.quantity}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.service_id, 1)}
+                        className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+
+                      <span className="w-20 text-right text-xs font-bold font-mono text-amber-400">
+                        {(item.quantity * item.unit_price).toLocaleString('fr-FR')} FCFA
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleItemDetails(item.service_id)}
+                        className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 text-[11px] font-medium flex items-center transition ml-1"
+                        title="Ajouter détails physiques (couleur, marque, etc.)"
+                      >
+                        {item.showDetails ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.service_id)}
+                        className="p-1 text-slate-500 hover:text-red-400 transition"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateQuantity(item.service_id, -1)}
-                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
+                  {/* Résumé rapide des attributs si saisis */}
+                  {(item.color || item.brand || item.size || item.pattern || item.item_notes) && !item.showDetails && (
+                    <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-300 pt-1">
+                      {item.color && <span className="bg-slate-800 px-2 py-0.5 rounded">Couleur: {item.color}</span>}
+                      {item.pattern && <span className="bg-slate-800 px-2 py-0.5 rounded">Motif: {item.pattern}</span>}
+                      {item.brand && <span className="bg-slate-800 px-2 py-0.5 rounded">Marque: {item.brand}</span>}
+                      {item.size && <span className="bg-slate-800 px-2 py-0.5 rounded">Taille: {item.size}</span>}
+                      {item.item_notes && <span className="bg-slate-800 px-2 py-0.5 rounded text-amber-300">Note: {item.item_notes}</span>}
+                    </div>
+                  )}
 
-                    <span className="w-6 text-center text-xs font-bold font-mono text-white">
-                      {item.quantity}
-                    </span>
+                  {/* Formulaire extensible des détails physiques */}
+                  {item.showDetails && (
+                    <div className="pt-2 border-t border-slate-900 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Couleur</label>
+                        <input
+                          type="text"
+                          placeholder="ex: Blanc, Bleu"
+                          value={item.color || ''}
+                          onChange={(e) => handleUpdateItemAttribute(item.service_id, 'color', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateQuantity(item.service_id, 1)}
-                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Motif</label>
+                        <input
+                          type="text"
+                          placeholder="ex: Uni, Rayé, Carreaux"
+                          value={item.pattern || ''}
+                          onChange={(e) => handleUpdateItemAttribute(item.service_id, 'pattern', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
 
-                    <span className="w-20 text-right text-xs font-bold font-mono text-amber-400">
-                      {(item.quantity * item.unit_price).toLocaleString('fr-FR')} FCFA
-                    </span>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Marque</label>
+                        <input
+                          type="text"
+                          placeholder="ex: Zara, Hugo Boss"
+                          value={item.brand || ''}
+                          onChange={(e) => handleUpdateItemAttribute(item.service_id, 'brand', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(item.service_id)}
-                      className="p-1 text-slate-500 hover:text-red-400 transition"
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Taille</label>
+                        <input
+                          type="text"
+                          placeholder="ex: M, L, 42"
+                          value={item.size || ''}
+                          onChange={(e) => handleUpdateItemAttribute(item.service_id, 'size', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-2">
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Remarques / Taches</label>
+                        <input
+                          type="text"
+                          placeholder="ex: Tache sur col, bouton manquant..."
+                          value={item.item_notes || ''}
+                          onChange={(e) => handleUpdateItemAttribute(item.service_id, 'item_notes', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

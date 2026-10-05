@@ -30,8 +30,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      router.push('/admin');
-      router.refresh();
+      window.location.href = '/admin';
     } catch (err: unknown) {
       setErrorMsg('Erreur de connexion.');
       setIsLoading(false);

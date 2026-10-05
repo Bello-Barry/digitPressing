@@ -242,26 +242,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </nav>
 
           {/* Status indicators */}
-          <div className="border-t p-4 space-y-2">
-            {/* Status de connexion */}
-            <div className={cn(
-              'flex items-center space-x-2 text-xs',
-              isOnline ? 'text-success' : 'text-warning'
-            )}>
-              <div className={cn(
-                'h-2 w-2 rounded-full',
-                isOnline ? 'bg-success' : 'bg-warning'
-              )} />
-              <span>{isOnline ? 'En ligne' : 'Hors ligne'}</span>
-              {pendingActions > 0 && (
-                <span className="text-muted-foreground">
-                  ({pendingActions} en attente)
-                </span>
-              )}
-            </div>
-
-            {/* Installation PWA */}
-            {canInstall && (
+          {canInstall && (
+            <div className="border-t p-4 space-y-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -270,8 +252,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               >
                 Installer l'application
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </aside>
 

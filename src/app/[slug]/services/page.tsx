@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getOrganizationBySlug, getActiveServices } from '@/lib/supabase';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { ArrowLeft, Clock, ShoppingCart, Sparkles } from 'lucide-react';
 
 interface PageProps {
@@ -9,13 +9,28 @@ interface PageProps {
 
 export default async function ServicesCatalogPage({ params }: PageProps) {
   const { slug } = await params;
-  const org = await getOrganizationBySlug(slug);
+  const db = await createServerSupabaseClient();
+
+  const { data: org } = await db
+    .from('organizations')
+    .select('id, name, slug')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
 
   if (!org) {
     notFound();
   }
 
-  const services = await getActiveServices(org.id);
+  const { data: rawServices } = await db
+    .from('services')
+    .select('id, name, description, category, price, estimated_days')
+    .eq('organization_id', org.id)
+    .eq('is_active', true)
+    .order('category')
+    .order('price');
+
+  const services = rawServices || [];
 
   // Regroupement par catégories
   const categoryLabels: Record<string, string> = {
