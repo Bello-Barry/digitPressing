@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getOrganizationBySlug, getActiveServices } from '@/lib/supabase';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { generateWhatsAppLink, formatPhoneDisplay } from '@/lib/whatsapp';
 import {
   Phone,
@@ -21,7 +21,8 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
-  const org = await getOrganizationBySlug(slug);
+  const db = await createServerSupabaseClient();
+  const { data: org } = await db.from('organizations').select('name, slogan').eq('slug', slug).eq('is_active', true).maybeSingle();
   if (!org) return { title: 'Pressing non trouvé' };
 
   return {
@@ -32,13 +33,29 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function PublicOrgHomePage({ params }: PageProps) {
   const { slug } = await params;
-  const org = await getOrganizationBySlug(slug);
+  const db = await createServerSupabaseClient();
+
+  const { data: org } = await db
+    .from('organizations')
+    .select('id, name, slug, ticket_prefix, phone_1, phone_2, slogan, address, footer_text')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle();
 
   if (!org) {
     notFound();
   }
 
-  const services = await getActiveServices(org.id);
+  const { data: rawServices } = await db
+    .from('services')
+    .select('id, name, description, category, price, estimated_days')
+    .eq('organization_id', org.id)
+    .eq('is_active', true)
+    .order('category')
+    .order('price');
+
+  const services = rawServices || [];
+
   const primaryPhone = org.phone_1 || '067311016';
   const whatsappUrl = generateWhatsAppLink(
     primaryPhone,

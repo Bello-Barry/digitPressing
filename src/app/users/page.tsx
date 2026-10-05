@@ -138,10 +138,9 @@ export default function UsersPage() {
         throw new Error(res.error || 'Erreur lors de la création');
       }
 
-      await loadMembershipAndUsers();
       setShowCreateModal(false);
       reset();
-      alert('Membre de l\'équipe créé avec succès.');
+      await loadMembershipAndUsers();
     } catch (error: any) {
       console.error('Erreur création utilisateur:', error);
       alert('Erreur lors de la création: ' + error.message);

@@ -270,6 +270,12 @@ export type Database = any; /*
           service_id: string | null
           service_name: string
           unit_price: number
+          item_type: string | null
+          color: string | null
+          pattern: string | null
+          brand: string | null
+          size: string | null
+          item_notes: string | null
         }
         Insert: {
           created_at?: string
@@ -282,6 +288,12 @@ export type Database = any; /*
           service_id?: string | null
           service_name: string
           unit_price: number
+          item_type?: string | null
+          color?: string | null
+          pattern?: string | null
+          brand?: string | null
+          size?: string | null
+          item_notes?: string | null
         }
         Update: {
           created_at?: string
@@ -294,6 +306,12 @@ export type Database = any; /*
           service_id?: string | null
           service_name?: string
           unit_price?: number
+          item_type?: string | null
+          color?: string | null
+          pattern?: string | null
+          brand?: string | null
+          size?: string | null
+          item_notes?: string | null
         }
         Relationships: [
           {

@@ -11,6 +11,12 @@ export const orderItemSchema = z.object({
   quantity: z.number().int().min(1, 'La quantité minimale est de 1'),
   unit_price: z.number().min(0, 'Le prix unitaire doit être positif ou nul'),
   notes: z.string().optional().nullable(),
+  item_type: z.string().optional().nullable(),
+  color: z.string().optional().nullable(),
+  pattern: z.string().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  size: z.string().optional().nullable(),
+  item_notes: z.string().optional().nullable(),
 });
 
 export const publicOrderRequestSchema = z.object({

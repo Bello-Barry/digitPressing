@@ -1,10 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
-import { Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { WifiOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface OfflineSyncContextType {
@@ -16,7 +16,6 @@ interface OfflineSyncContextType {
 
 const OfflineSyncContext = createContext<OfflineSyncContextType | undefined>(undefined);
 
-// EXPORT CORRIGÉ
 export const useOfflineSync = () => {
   const context = useContext(OfflineSyncContext);
   if (!context) {
@@ -39,44 +38,41 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingActions, setPendingActions] = useState(0);
   const user = useAuthStore(state => state.user);
+  const isMounted = useRef(false);
 
   useEffect(() => {
-    // Initialiser l'état de connexion
     setIsOnline(navigator.onLine);
 
-    // Écouter les changements de connectivité
     const handleOnline = () => {
       setIsOnline(true);
-      toast.success('Connexion rétablie', {
-        description: 'Synchronisation des données en cours...',
-      });
+      if (isMounted.current) {
+        toast.success('Connexion rétablie', {
+          description: 'Synchronisation des données en cours...',
+        });
+      }
       syncData();
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning('Hors ligne', {
-        description: 'Les modifications seront synchronisées à la reconnexion.',
-      });
+      if (isMounted.current) {
+        toast.warning('Hors ligne', {
+          description: 'Les modifications seront synchronisées à la reconnexion.',
+        });
+      }
     };
 
-    const handleAppOnline = () => handleOnline();
-    const handleAppOffline = () => handleOffline();
+    isMounted.current = true;
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('app-online', handleAppOnline);
-    window.addEventListener('app-offline', handleAppOffline);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('app-online', handleAppOnline);
-      window.removeEventListener('app-offline', handleAppOffline);
     };
   }, []);
 
-  // Charger le nombre d'actions en attente
   useEffect(() => {
     if (user) {
       loadPendingActionsCount();
@@ -99,53 +95,12 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const addToOfflineQueue = async (
-    type: 'create' | 'update' | 'delete',
-    endpoint: string,
-    data: any
-  ) => {
-    if (!user) return;
-
-    try {
-      const queueItem: Omit<OfflineQueueItem, 'id'> = {
-        type,
-        endpoint,
-        data,
-        timestamp: new Date().toISOString(),
-        retryCount: 0,
-      };
-
-      const { error } = await supabase
-        .from('offline_queue')
-        .insert({
-          user_id: user.id,
-          type: queueItem.type,
-          endpoint: queueItem.endpoint,
-          data: queueItem.data,
-          timestamp: queueItem.timestamp,
-          retry_count: queueItem.retryCount,
-        });
-
-      if (error) throw error;
-
-      setPendingActions(prev => prev + 1);
-
-      toast.info('Action mise en file d\'attente', {
-        description: 'Sera synchronisée à la reconnexion.',
-      });
-    } catch (error) {
-      console.error('Erreur lors de l\'ajout à la queue offline:', error);
-      toast.error('Erreur de sauvegarde hors ligne');
-    }
-  };
-
   const syncData = async () => {
     if (!user || !isOnline || isSyncing) return;
 
     setIsSyncing(true);
 
     try {
-      // Récupérer toutes les actions en attente
       const { data: queueItems, error } = await supabase
         .from('offline_queue')
         .select('*')
@@ -162,12 +117,9 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
       let successCount = 0;
       let errorCount = 0;
 
-      // Traiter chaque action
       for (const item of queueItems) {
         try {
           await processQueueItem(item);
-          
-          // Supprimer l'item de la queue après succès
           await supabase
             .from('offline_queue')
             .delete()
@@ -178,7 +130,6 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
           console.error(`Erreur lors du traitement de l'action ${item.id}:`, error);
           errorCount++;
 
-          // Incrémenter le compteur de retry
           await supabase
             .from('offline_queue')
             .update({
@@ -187,7 +138,6 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
             })
             .eq('id', item.id);
 
-          // Supprimer l'action si trop de tentatives échouées
           if (item.retry_count >= 3) {
             await supabase
               .from('offline_queue')
@@ -197,10 +147,8 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
 
-      // Mettre à jour le compteur d'actions en attente
       await loadPendingActionsCount();
 
-      // Afficher le résultat de la synchronisation
       if (successCount > 0) {
         toast.success(`${successCount} action(s) synchronisée(s)`);
       }
@@ -210,7 +158,6 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     } catch (error) {
       console.error('Erreur lors de la synchronisation:', error);
-      toast.error('Erreur de synchronisation');
     } finally {
       setIsSyncing(false);
     }
@@ -222,14 +169,11 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     switch (type) {
       case 'create':
         return await supabase.from(endpoint).insert(data);
-      
       case 'update':
         const { id, ...updateData } = data;
         return await supabase.from(endpoint).update(updateData).eq('id', id);
-      
       case 'delete':
         return await supabase.from(endpoint).delete().eq('id', data.id);
-      
       default:
         throw new Error(`Type d'action non supporté: ${type}`);
     }
@@ -246,20 +190,20 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <OfflineSyncContext.Provider value={value}>
       {children}
       
-      {/* Indicateur d'état de connexion */}
+      {/* Indicateur d'état hors ligne si déconnecté */}
       <AnimatePresence>
         {!isOnline && (
           <motion.div
             initial={{ y: -100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -100, opacity: 0 }}
-            className="fixed top-0 left-0 right-0 z-50 bg-warning text-warning-foreground px-4 py-2 text-center text-sm font-medium safe-top"
+            className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-slate-950 px-4 py-1.5 text-center text-xs font-bold safe-top shadow-md"
           >
             <div className="flex items-center justify-center gap-2">
-              <WifiOff className="h-4 w-4" />
+              <WifiOff className="h-3.5 w-3.5" />
               Mode hors ligne
               {pendingActions > 0 && (
-                <span className="ml-2 rounded-full bg-warning-foreground/20 px-2 py-0.5 text-xs">
+                <span className="ml-2 rounded-full bg-slate-950/20 px-2 py-0.5 text-[10px]">
                   {pendingActions} action{pendingActions > 1 ? 's' : ''} en attente
                 </span>
               )}
@@ -275,37 +219,16 @@ export const OfflineSyncProvider: React.FC<{ children: React.ReactNode }> = ({ c
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="fixed bottom-4 right-4 z-50 bg-primary text-primary-foreground rounded-lg px-4 py-2 shadow-lg"
+            className="fixed bottom-4 right-4 z-50 bg-slate-900 text-amber-400 border border-slate-800 rounded-xl px-3.5 py-2 shadow-xl text-xs font-semibold"
           >
             <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
               Synchronisation...
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Indicateur de connexion rétablie */}
-      <AnimatePresence>
-        {isOnline && pendingActions === 0 && (
-          <motion.div
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 100, opacity: 0 }}
-            className="fixed top-4 right-4 z-40 bg-success text-success-foreground rounded-lg px-3 py-2 shadow-lg"
-          >
-            <div className="flex items-center gap-2">
-              <Wifi className="h-4 w-4" />
-              <span className="text-sm font-medium">En ligne</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </OfflineSyncContext.Provider>
   );
-
-  // Exposer la fonction addToOfflineQueue globalement
-  if (typeof window !== 'undefined') {
-    (window as any).addToOfflineQueue = addToOfflineQueue;
-  }
 };
