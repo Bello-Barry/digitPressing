@@ -1,14 +1,13 @@
 import { chromium } from 'playwright';
 import { Client } from 'pg';
-
-const DB_URL = process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5432/postgres';
+import { requireE2EConfig } from './e2e-config';
 
 async function runE2EFullValidation() {
+  const config = requireE2EConfig({ requireDatabase: true });
+  const DB_URL = config.databaseUrl!;
   console.log('🚀 Starting Full E2E Validation Script...');
   const pg = new Client({ connectionString: DB_URL });
   await pg.connect();
-
-  await pg.query('DELETE FROM rate_limits;');
 
   const browser = await chromium.launch({ headless: true });
 
@@ -20,12 +19,12 @@ async function runE2EFullValidation() {
     const ctxClient = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageClient = await ctxClient.newPage();
 
-    await pageClient.goto('http://localhost:3000/lb-pressing/commander');
+    await pageClient.goto(`${config.baseUrl}/lb-pressing/commander`);
     await pageClient.waitForLoadState('networkidle');
 
     // Saisie des coordonnées client
     await pageClient.fill('input[placeholder="Ex: Jean Koumou"]', 'Jean Koumou');
-    await pageClient.fill('input[placeholder="Ex: 06 731 1016 ou +242 06..."]', '067311016');
+    await pageClient.fill('input[placeholder="Ex: 06 731 1016 ou +242 06..."]', config.customerPhone1);
 
     // Article 1 : Chemise
     console.log('Ajout Article 1: Chemise...');
@@ -101,15 +100,15 @@ async function runE2EFullValidation() {
     const ctxOwner = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageOwner = await ctxOwner.newPage();
 
-    await pageOwner.goto('http://localhost:3000/admin/login');
-    await pageOwner.fill('input[type="email"]', 'obusiness715@gmail.com');
-    await pageOwner.fill('input[type="password"]', 'barry@2014');
+    await pageOwner.goto(`${config.baseUrl}/admin/login`);
+    await pageOwner.fill('input[type="email"]', config.ownerEmail);
+    await pageOwner.fill('input[type="password"]', config.password);
     await pageOwner.click('button[type="submit"]');
     await pageOwner.waitForURL('**/admin');
     await pageOwner.waitForTimeout(1000);
 
     // Aller sur le détail de la commande
-    await pageOwner.goto(`http://localhost:3000/admin/commandes/${orderId}`, { waitUntil: 'domcontentloaded' });
+    await pageOwner.goto(`${config.baseUrl}/admin/commandes/${orderId}`, { waitUntil: 'domcontentloaded' });
     await pageOwner.waitForTimeout(1000);
 
     // Vérifier l'affichage des attributs physiques
@@ -162,7 +161,7 @@ async function runE2EFullValidation() {
     // -------------------------------------------------------------------------
     console.log('\n--- 4. TEST CATALOGUE & PERMISSIONS DES RÔLES ---');
     // OWNER teste création service
-    await pageOwner.goto('http://localhost:3000/admin/services', { waitUntil: 'domcontentloaded' });
+    await pageOwner.goto(`${config.baseUrl}/admin/services`, { waitUntil: 'domcontentloaded' });
     await pageOwner.waitForTimeout(1000);
     await pageOwner.click('button:has-text("Ajouter un service")');
     await pageOwner.fill('input[placeholder="ex: Chemise sur cintre, Costume 2 pièces"]', 'Service Test E2E');
@@ -176,14 +175,14 @@ async function runE2EFullValidation() {
     // MANAGER Test
     const ctxManager = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageManager = await ctxManager.newPage();
-    await pageManager.goto('http://localhost:3000/admin/login');
-    await pageManager.fill('input[type="email"]', 'manager@lb-pressing.cg');
-    await pageManager.fill('input[type="password"]', 'barry@2014');
+    await pageManager.goto(`${config.baseUrl}/admin/login`);
+    await pageManager.fill('input[type="email"]', config.managerEmail);
+    await pageManager.fill('input[type="password"]', config.password);
     await pageManager.click('button[type="submit"]');
     await pageManager.waitForURL('**/admin');
     await pageManager.waitForTimeout(1000);
 
-    await pageManager.goto('http://localhost:3000/admin/services', { waitUntil: 'domcontentloaded' });
+    await pageManager.goto(`${config.baseUrl}/admin/services`, { waitUntil: 'domcontentloaded' });
     await pageManager.waitForTimeout(1000);
     if ((await pageManager.locator('button:has-text("Ajouter un service")').count()) === 0) {
       throw new Error('Le Manager doit avoir le bouton d\'ajout de service !');
@@ -194,14 +193,14 @@ async function runE2EFullValidation() {
     // CASHIER Test (Lecture Seule sur Services + Interdiction /users)
     const ctxCashier = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageCashier = await ctxCashier.newPage();
-    await pageCashier.goto('http://localhost:3000/admin/login');
-    await pageCashier.fill('input[type="email"]', 'cashier@lb-pressing.cg');
-    await pageCashier.fill('input[type="password"]', 'barry@2014');
+    await pageCashier.goto(`${config.baseUrl}/admin/login`);
+    await pageCashier.fill('input[type="email"]', config.cashierEmail);
+    await pageCashier.fill('input[type="password"]', config.password);
     await pageCashier.click('button[type="submit"]');
     await pageCashier.waitForURL('**/admin');
     await pageCashier.waitForTimeout(1000);
 
-    await pageCashier.goto('http://localhost:3000/admin/services', { waitUntil: 'domcontentloaded' });
+    await pageCashier.goto(`${config.baseUrl}/admin/services`, { waitUntil: 'domcontentloaded' });
     await pageCashier.waitForTimeout(1000);
     if ((await pageCashier.locator('button:has-text("Ajouter un service")').count()) > 0) {
       throw new Error('CASHIER ne doit pas voir le bouton d\'ajout de service !');
@@ -209,7 +208,7 @@ async function runE2EFullValidation() {
     console.log('✅ CASHIER est en lecture seule sur le catalogue.');
 
     // Tentative d'accès direct à /users par CASHIER
-    await pageCashier.goto('http://localhost:3000/users', { waitUntil: 'domcontentloaded' });
+    await pageCashier.goto(`${config.baseUrl}/users`, { waitUntil: 'domcontentloaded' });
     await pageCashier.waitForTimeout(1000);
     const cashierUsersContent = await pageCashier.content();
     if (!cashierUsersContent.includes('Accès restreint')) {
@@ -221,14 +220,14 @@ async function runE2EFullValidation() {
     // DELIVERY Test
     const ctxDelivery = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageDelivery = await ctxDelivery.newPage();
-    await pageDelivery.goto('http://localhost:3000/admin/login');
-    await pageDelivery.fill('input[type="email"]', 'delivery@lb-pressing.cg');
-    await pageDelivery.fill('input[type="password"]', 'barry@2014');
+    await pageDelivery.goto(`${config.baseUrl}/admin/login`);
+    await pageDelivery.fill('input[type="email"]', config.deliveryEmail);
+    await pageDelivery.fill('input[type="password"]', config.password);
     await pageDelivery.click('button[type="submit"]');
     await pageDelivery.waitForURL('**/admin');
     await pageDelivery.waitForTimeout(1000);
 
-    await pageDelivery.goto('http://localhost:3000/admin/services', { waitUntil: 'domcontentloaded' });
+    await pageDelivery.goto(`${config.baseUrl}/admin/services`, { waitUntil: 'domcontentloaded' });
     await pageDelivery.waitForTimeout(1000);
     if ((await pageDelivery.locator('button:has-text("Ajouter un service")').count()) > 0) {
       throw new Error('DELIVERY ne doit pas voir le bouton d\'ajout de service !');
@@ -242,49 +241,41 @@ async function runE2EFullValidation() {
     console.log('\n--- 5. TEST DU PRIX HISTORIQUE FIGÉ ---');
     // 1. Obtenir le prix actuel de Chemise homme (5000 FCFA)
     const serviceDb = await pg.query("SELECT id, price FROM services WHERE name = 'Chemise homme' AND organization_id = '11111111-1111-1111-1111-111111111111'");
+    if (!serviceDb.rows[0]) throw new Error('Service Chemise homme introuvable dans le projet E2E.');
     const serviceId = serviceDb.rows[0].id;
-
-    // 2. Mettre à jour le catalogue : Chemise homme = 5500 FCFA
-    await pg.query("UPDATE services SET price = 5500.00 WHERE id = $1", [serviceId]);
-    console.log('Prix du catalogue mis à jour à 5,500 FCFA.');
-
-    // 3. Vérifier que la commande précédente conserve unit_price = 5000 FCFA
+    const originalPrice = Number(serviceDb.rows[0].price);
+    const testPrice = originalPrice + 500;
     const pastItemRes = await pg.query("SELECT unit_price FROM order_items WHERE order_id = $1 AND service_id = $2", [orderId, serviceId]);
-    const historicalPrice = Number(pastItemRes.rows[0].unit_price);
-    console.log(`📌 Prix dans la commande passée : ${historicalPrice} FCFA (Attendu: 5000 FCFA)`);
-
-    if (historicalPrice !== 5000) {
-      throw new Error(`ÉCHEC CRITIQUE : Le prix de la commande historique a été altéré (${historicalPrice} FCFA) !`);
+    const historicalPrice = Number(pastItemRes.rows[0]?.unit_price);
+    if (historicalPrice !== originalPrice) {
+      throw new Error(`Le tarif historique (${historicalPrice}) ne correspond pas au tarif d'origine (${originalPrice}).`);
     }
 
-    // 4. Passer une nouvelle commande et vérifier qu'elle utilise 5500 FCFA
-    const ctxNew = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    const pageNew = await ctxNew.newPage();
-    await pageNew.goto('http://localhost:3000/lb-pressing/commander');
-    await pageNew.waitForLoadState('networkidle');
-
-    await pageNew.fill('input[placeholder="Ex: Jean Koumou"]', 'Client Prix Neuf');
-    await pageNew.fill('input[placeholder="Ex: 06 731 1016 ou +242 06..."]', '067000099');
-    await pageNew.locator('button:has-text("Chemise homme")').first().click();
-
-    await pageNew.click('button[type="submit"]:has-text("Valider ma demande")');
-    await pageNew.waitForSelector('text=Demande enregistrée avec succès', { timeout: 10000 });
-    const newReqCode = await pageNew.locator('p.text-3xl.font-mono').innerText();
-
-    const newOrderRes = await pg.query('SELECT id FROM orders WHERE request_code = $1', [newReqCode]);
-    const newItemRes = await pg.query('SELECT unit_price FROM order_items WHERE order_id = $1', [newOrderRes.rows[0].id]);
-    const newPrice = Number(newItemRes.rows[0].unit_price);
-    console.log(`📌 Prix dans la nouvelle commande : ${newPrice} FCFA (Attendu: 5500 FCFA)`);
-
-    if (newPrice !== 5500) {
-      throw new Error(`La nouvelle commande aurait dû adopter 5500 FCFA, mais a pris ${newPrice} FCFA !`);
+    let priceChanged = false;
+    let ctxNew: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+    try {
+      await pg.query('UPDATE services SET price = $2 WHERE id = $1', [serviceId, testPrice]);
+      priceChanged = true;
+      ctxNew = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      const pageNew = await ctxNew.newPage();
+      await pageNew.goto(`${config.baseUrl}/lb-pressing/commander`);
+      await pageNew.waitForLoadState('networkidle');
+      await pageNew.fill('input[placeholder="Ex: Jean Koumou"]', 'Client E2E tarif');
+      await pageNew.fill('input[placeholder="Ex: 06 731 1016 ou +242 06..."]', config.customerPhone2);
+      await pageNew.locator('button:has-text("Chemise homme")').first().click();
+      await pageNew.click('button[type="submit"]:has-text("Valider ma demande")');
+      await pageNew.waitForSelector('text=Demande enregistrée avec succès', { timeout: 10000 });
+      const newReqCode = await pageNew.locator('p.text-3xl.font-mono').innerText();
+      const newOrderRes = await pg.query('SELECT id FROM orders WHERE request_code = $1', [newReqCode]);
+      if (!newOrderRes.rows[0]) throw new Error('Nouvelle commande E2E absente de la base de test.');
+      const newItemRes = await pg.query('SELECT unit_price FROM order_items WHERE order_id = $1', [newOrderRes.rows[0].id]);
+      const newPrice = Number(newItemRes.rows[0]?.unit_price);
+      if (newPrice !== testPrice) throw new Error(`Prix E2E incorrect : attendu ${testPrice}, reçu ${newPrice}.`);
+      console.log(`✅ Prix figé vérifié : ancienne commande ${originalPrice}, nouvelle commande ${testPrice} FCFA.`);
+    } finally {
+      if (priceChanged) await pg.query('UPDATE services SET price = $2 WHERE id = $1', [serviceId, originalPrice]);
+      await ctxNew?.close();
     }
-
-    // Restaurer le prix d'origine 5000 FCFA pour la propreté du test
-    await pg.query("UPDATE services SET price = 5000.00 WHERE id = $1", [serviceId]);
-
-    console.log('✅ TEST PRIX HISTORIQUE VALIDÉ À 100% (Ancienne commande=5000, Nouvelle=5500) !');
-    await ctxNew.close();
 
     // -------------------------------------------------------------------------
     // 6. TEST DE DÉCONNEXION & ACCÈS SÉCURISÉ
@@ -292,9 +283,9 @@ async function runE2EFullValidation() {
     console.log('\n--- 6. TEST DE DÉCONNEXION ---');
     const ctxSignout = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const pageSignout = await ctxSignout.newPage();
-    await pageSignout.goto('http://localhost:3000/admin/login');
-    await pageSignout.fill('input[type="email"]', 'obusiness715@gmail.com');
-    await pageSignout.fill('input[type="password"]', 'barry@2014');
+    await pageSignout.goto(`${config.baseUrl}/admin/login`);
+    await pageSignout.fill('input[type="email"]', config.ownerEmail);
+    await pageSignout.fill('input[type="password"]', config.password);
     await pageSignout.click('button[type="submit"]');
     await pageSignout.waitForURL('**/admin');
     await pageSignout.waitForTimeout(1000);
@@ -305,7 +296,7 @@ async function runE2EFullValidation() {
     await pageSignout.waitForTimeout(1000);
 
     // Tenter d'accéder à /admin sans session
-    await pageSignout.goto('http://localhost:3000/admin/services', { waitUntil: 'domcontentloaded' });
+    await pageSignout.goto(`${config.baseUrl}/admin/services`, { waitUntil: 'domcontentloaded' });
     await pageSignout.waitForTimeout(1000);
     if (!pageSignout.url().includes('/admin/login')) {
       throw new Error('L\'utilisateur déconnecté a pu accéder à une route protégée !');

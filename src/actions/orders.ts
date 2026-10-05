@@ -35,6 +35,11 @@ export async function submitOrderAction(
     const { org_id, client_name, client_phone, mode, address, notes, items, honeypot, requested_at } =
       validation.data;
 
+    // Protection anti-spam avant toute requête vers Supabase.
+    if (honeypot && honeypot.length > 0) {
+      return { success: false, error: 'Activité suspecte détectée.' };
+    }
+
     const client = await createServerSupabaseClient();
     const { data: organization, error: organizationError } = await client
       .from('organizations')
@@ -46,11 +51,6 @@ export async function submitOrderAction(
 
     if (organizationError || !organization) {
       return { success: false, error: 'Organisation indisponible.' };
-    }
-
-    // Protection anti-spam par champ invisible
-    if (honeypot && honeypot.length > 0) {
-      return { success: false, error: 'Activité suspecte détectée.' };
     }
 
     if ((mode === 'PICKUP' || mode === 'DELIVERY') && !address?.trim()) {
@@ -77,8 +77,7 @@ export async function submitOrderAction(
       return { success: false, error: 'Un ou plusieurs services ne sont plus disponibles.' };
     }
 
-    // 2. Appel de la RPC create_order_request dans Supabase
-    // Nous utilisons le client public (ou admin si configuré) pour exécuter la fonction SECURITY DEFINER
+    // 2. La RPC revalide prix et services côté Postgres avant toute insertion.
     const { data, error } = await client.rpc('create_order_request', {
       p_org_id: org_id,
       p_client_name: client_name.trim(),
@@ -98,9 +97,10 @@ export async function submitOrderAction(
       })),
       p_mode: mode,
       p_address: address || undefined,
-      p_notes: [notes, requested_at ? `Date souhaitée : ${requested_at}` : null].filter(Boolean).join(' | ') || undefined,
+      p_notes: notes || undefined,
       p_honeypot: honeypot || undefined,
       p_ip_hash: undefined,
+      p_requested_at: requested_at || undefined,
     });
 
     if (error) {

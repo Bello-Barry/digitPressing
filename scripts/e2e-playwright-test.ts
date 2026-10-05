@@ -1,6 +1,8 @@
 import { chromium } from 'playwright';
+import { requireE2EConfig } from './e2e-config';
 
 async function runE2ETests() {
+  const config = requireE2EConfig();
   console.log('=== STARTING PLAYWRIGHT E2E MOBILE (390px) VERIFICATION ===');
   const browser = await chromium.launch({ headless: true });
 
@@ -11,8 +13,8 @@ async function runE2ETests() {
 
   const page = await context.newPage();
 
-  async function login(email: string, pass: string = 'barry@2014') {
-    await page.goto('http://localhost:3000/admin/login');
+  async function login(email: string, pass: string = config.password) {
+    await page.goto(`${config.baseUrl}/admin/login`);
     await page.waitForLoadState('networkidle');
     await page.fill('input[type="email"]', email);
     await page.fill('input[type="password"]', pass);
@@ -27,11 +29,11 @@ async function runE2ETests() {
     await page.waitForTimeout(1000);
   }
 
-  const testEmail = `pwcashier_${Date.now()}@lb-pressing.cg`;
+  const testEmail = `pwcashier_${Date.now()}@example.invalid`;
 
   // 1. OWNER TEST
-  console.log('\n--- 1. TESTING OWNER ROLE (obusiness715@gmail.com) ---');
-  await login('obusiness715@gmail.com');
+  console.log('\n--- 1. TESTING OWNER ROLE ---');
+  await login(config.ownerEmail);
   console.log('Current URL after login:', page.url());
 
   await page.screenshot({ path: '/tmp/owner-dashboard-390px.png' });
@@ -48,7 +50,7 @@ async function runE2ETests() {
 
   // Navigate to /users
   console.log('Navigating to Équipe (/users)...');
-  await page.goto('http://localhost:3000/users');
+  await page.goto(`${config.baseUrl}/users`);
   await page.waitForTimeout(1000);
   console.log('Current URL on Équipe page:', page.url());
   await page.screenshot({ path: '/tmp/owner-users-page-390px.png' });
@@ -60,7 +62,7 @@ async function runE2ETests() {
   await page.waitForTimeout(500);
   await page.fill('input[name="fullName"]', 'Playwright Cashier Test');
   await page.fill('input[name="email"]', testEmail);
-  await page.fill('input[name="password"]', 'barry@2014');
+  await page.fill('input[name="password"]', config.password);
   await page.selectOption('select[name="role"]', 'CASHIER');
 
   await page.click('button[type="submit"]:has-text("Créer le membre")', { force: true });
@@ -76,15 +78,15 @@ async function runE2ETests() {
   await logout();
   console.log('URL after Sign Out:', page.url());
 
-  await page.goto('http://localhost:3000/admin');
+  await page.goto(`${config.baseUrl}/admin`);
   await page.waitForTimeout(1000);
   console.log('Attempting to re-enter /admin without session -> Redirected URL:', page.url());
   const ownerAccessDenied = page.url().includes('/admin/login');
   console.log('OWNER Sign Out & Access Restriction: ', ownerAccessDenied ? '✅ PASSED' : '❌ FAILED');
 
   // 2. MANAGER TEST
-  console.log('\n--- 2. TESTING MANAGER ROLE (manager@lb-pressing.cg) ---');
-  await login('manager@lb-pressing.cg');
+  console.log('\n--- 2. TESTING MANAGER ROLE ---');
+  await login(config.managerEmail);
   console.log('Current URL after MANAGER login:', page.url());
 
   await page.click('button[aria-label="Menu navigation"]', { force: true });
@@ -94,35 +96,35 @@ async function runE2ETests() {
   const managerHasUsersLink = managerMenuText.includes('Équipe');
   console.log('MANAGER sees Équipe link:', managerHasUsersLink ? '❌ YES (UNEXPECTED)' : '✅ NO (CORRECTLY HIDDEN)');
 
-  await page.goto('http://localhost:3000/users');
+  await page.goto(`${config.baseUrl}/users`);
   await page.waitForTimeout(1000);
   const managerUsersAccessText = await page.innerText('body');
   const managerUsersRestricted = managerUsersAccessText.includes('Accès restreint');
   console.log('MANAGER access to /users restricted:', managerUsersRestricted ? '✅ PASSED' : '❌ FAILED');
 
-  await page.goto('http://localhost:3000/admin');
+  await page.goto(`${config.baseUrl}/admin`);
   await logout();
 
   // 3. CASHIER TEST
-  console.log('\n--- 3. TESTING CASHIER ROLE (cashier@lb-pressing.cg) ---');
-  await login('cashier@lb-pressing.cg');
+  console.log('\n--- 3. TESTING CASHIER ROLE ---');
+  await login(config.cashierEmail);
   console.log('Current URL after CASHIER login:', page.url());
 
-  await page.goto('http://localhost:3000/admin/commandes');
+  await page.goto(`${config.baseUrl}/admin/commandes`);
   await page.waitForTimeout(800);
   console.log('CASHIER accessed Commandes:', page.url());
 
-  await page.goto('http://localhost:3000/users');
+  await page.goto(`${config.baseUrl}/users`);
   await page.waitForTimeout(800);
   const cashierUsersRestricted = (await page.innerText('body')).includes('Accès restreint');
   console.log('CASHIER access to /users restricted:', cashierUsersRestricted ? '✅ PASSED' : '❌ FAILED');
 
-  await page.goto('http://localhost:3000/admin');
+  await page.goto(`${config.baseUrl}/admin`);
   await logout();
 
   // 4. DELIVERY TEST
-  console.log('\n--- 4. TESTING DELIVERY ROLE (delivery@lb-pressing.cg) ---');
-  await login('delivery@lb-pressing.cg');
+  console.log('\n--- 4. TESTING DELIVERY ROLE ---');
+  await login(config.deliveryEmail);
   console.log('Current URL after DELIVERY login:', page.url());
 
   await page.click('button[aria-label="Menu navigation"]', { force: true });
@@ -130,11 +132,11 @@ async function runE2ETests() {
   const deliveryMenuText = await page.locator('header').innerText();
   console.log('DELIVERY Navigation Menu:', deliveryMenuText.replace(/\n/g, ' | '));
 
-  await page.goto('http://localhost:3000/admin/paiements');
+  await page.goto(`${config.baseUrl}/admin/paiements`);
   await page.waitForTimeout(800);
   console.log('DELIVERY route access check:', page.url());
 
-  await page.goto('http://localhost:3000/admin');
+  await page.goto(`${config.baseUrl}/admin`);
   await logout();
 
   // 5. NEWLY CREATED CASHIER LOGIN
