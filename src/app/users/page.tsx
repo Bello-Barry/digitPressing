@@ -1,78 +1,64 @@
 // =============================================================================
-// 1. GESTION UTILISATEURS - src/app/users/page.tsx
+// GESTION EQUIPE - STAFF MEMBERS (OWNER ONLY)
 // =============================================================================
 
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   Plus,
-  Edit,
-  Trash2,
   UserCheck,
   UserX,
   Mail,
   Shield,
-  Search,
-  Settings,
-  Eye,
-  CheckCircle,
   XCircle,
-  User as UserIcon
+  CheckCircle,
+  User as UserIcon,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
-import { formatDate, cn } from '@/lib/utils';
+import { getAdminMembershipAction } from '@/actions/auth';
+import { createStaffMemberAction } from '@/actions/admin';
 
 interface PageUser {
   id: string;
   fullName: string;
-  email: string;
-  role: 'owner' | 'employee';
+  email?: string;
+  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'DELIVERY';
   isActive: boolean;
-  lastLogin?: string;
   createdAt: string;
-  permissions: Array<{ action: string; granted: boolean }>;
 }
 
 interface CreateUserData {
   fullName: string;
   email: string;
   password: string;
-  role: 'owner' | 'employee';
+  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'DELIVERY';
 }
 
 const createUserSchema = z.object({
   fullName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
   email: z.string().email('Email invalide'),
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
-  role: z.enum(['owner', 'employee']),
+  role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DELIVERY']),
 });
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<PageUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [_editingUser, setEditingUser] = useState<PageUser | null>(null);
-  const [showPermissions, setShowPermissions] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-
-  // Vérifier les permissions
-  const canManageUsers = currentUser?.role === 'owner';
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   const {
     register,
@@ -81,91 +67,81 @@ export default function UsersPage() {
     formState: { errors },
   } = useForm<CreateUserData>({
     resolver: zodResolver(createUserSchema),
+    defaultValues: { role: 'CASHIER' },
   });
 
-  const loadUsers = async () => {
+  const loadMembershipAndUsers = async () => {
     try {
-      if (!currentUser?.pressingId) return;
       setIsLoading(true);
+      const membershipData = await getAdminMembershipAction();
+      if (!membershipData || !membershipData.membership) {
+        router.push('/admin/login');
+        return;
+      }
+
+      const role = membershipData.membership.role;
+      const organizationId = membershipData.membership.organization_id;
+      setCurrentRole(role);
+      setOrgId(organizationId);
+
+      if (role !== 'OWNER') {
+        setIsLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('pressing_id', currentUser.pressingId)
+        .from('memberships')
+        .select(`
+          id,
+          user_id,
+          role,
+          full_name,
+          is_active,
+          created_at
+        `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const mappedUsers: PageUser[] = (data || []).map((u: any) => ({
-        id: u.id,
-        fullName: u.full_name || u.email,
-        email: u.email,
-        role: u.role,
-        isActive: u.is_active,
-        lastLogin: u.last_login,
-        createdAt: u.created_at,
-        permissions: (u.permissions as any) || [],
+      const mappedUsers: PageUser[] = (data || []).map((m: any) => ({
+        id: m.id,
+        fullName: m.full_name || 'Utilisateur',
+        role: m.role,
+        isActive: m.is_active,
+        createdAt: m.created_at,
       }));
 
       setUsers(mappedUsers);
     } catch (error) {
-      console.error('Erreur chargement utilisateurs:', error);
+      console.error('Erreur chargement équipe:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!canManageUsers) {
-      router.push('/dashboard');
-      return;
-    }
-    loadUsers();
-  }, [canManageUsers, router]);
+    loadMembershipAndUsers();
+  }, []);
 
   const handleCreateUser = async (data: CreateUserData) => {
     try {
       setIsCreating(true);
-
-      // Créer l'utilisateur dans Supabase Auth
-      const { data: authUser, error: authError } = await supabase.auth.signUp({
+      const res = await createStaffMemberAction({
         email: data.email,
         password: data.password,
-        options: {
-          data: {
-            full_name: data.fullName,
-            pressing_id: currentUser?.pressingId,
-          },
-        },
+        fullName: data.fullName,
+        role: data.role,
       });
 
-      if (authError) throw authError;
-
-      if (authUser.user) {
-        // Créer le profil utilisateur
-        const { error: profileError } = await supabase.from('users').insert({
-          id: authUser.user.id,
-          email: data.email,
-          full_name: data.fullName,
-          pressing_id: currentUser?.pressingId || '',
-          role: data.role,
-          permissions: [
-            { action: 'create_invoice', granted: true },
-            { action: 'cancel_invoice', granted: data.role === 'owner' },
-            { action: 'view_revenue', granted: data.role === 'owner' },
-            { action: 'manage_users', granted: data.role === 'owner' },
-            { action: 'modify_prices', granted: data.role === 'owner' },
-            { action: 'export_data', granted: data.role === 'owner' },
-          ],
-          is_active: true,
-        });
-
-        if (profileError) throw profileError;
-
-        await loadUsers();
-        setShowCreateModal(false);
-        reset();
+      if (!res.success) {
+        throw new Error(res.error || 'Erreur lors de la création');
       }
+
+      await loadMembershipAndUsers();
+      setShowCreateModal(false);
+      reset();
+      alert('Membre de l\'équipe créé avec succès.');
     } catch (error: any) {
       console.error('Erreur création utilisateur:', error);
       alert('Erreur lors de la création: ' + error.message);
@@ -174,492 +150,203 @@ export default function UsersPage() {
     }
   };
 
-  const toggleUserStatus = async (userId: string, newStatus: boolean) => {
+  const toggleUserStatus = async (membershipId: string, currentActive: boolean) => {
     try {
       const { error } = await supabase
-        .from('users')
+        .from('memberships')
         .update({
-          is_active: newStatus,
+          is_active: !currentActive,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', userId);
+        .eq('id', membershipId);
 
       if (error) throw error;
 
-      setUsers(
-        users.map((u) => (u.id === userId ? { ...u, isActive: newStatus } : u))
-      );
+      setUsers(users.map((u) => (u.id === membershipId ? { ...u, isActive: !currentActive } : u)));
     } catch (error) {
       console.error('Erreur mise à jour statut:', error);
-      alert('Erreur lors de la mise à jour du statut');
+      alert('Erreur lors de la modification du statut.');
     }
   };
 
-  const deleteUser = async (userId: string) => {
-    if (
-      !confirm(
-        'Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.'
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-
-      if (error) throw error;
-
-      setUsers(users.filter((u) => u.id !== userId));
-    } catch (error) {
-      console.error('Erreur suppression utilisateur:', error);
-      alert('Erreur lors de la suppression');
-    }
-  };
-
-  const updatePermissions = async (userId: string, permissions: any[]) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          permissions,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      setUsers(
-        users.map((u) =>
-          u.id === userId ? { ...u, permissions } : u
-        )
-      );
-    } catch (error) {
-      console.error('Erreur mise à jour permissions:', error);
-      alert('Erreur lors de la mise à jour des permissions');
-    }
-  };
-
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesRole = filterRole === 'all' || u.role === filterRole;
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' ? u.isActive : !u.isActive);
-
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-
-  if (!canManageUsers) {
+  if (!isLoading && currentRole !== 'OWNER') {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Shield className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Accès non autorisé</h2>
-            <p className="text-muted-foreground">
-              Seuls les propriétaires peuvent gérer les utilisateurs.
-            </p>
-          </div>
-        </div>
-      </DashboardLayout>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+        <Shield className="h-12 w-12 text-amber-500 mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Accès restreint</h2>
+        <p className="text-slate-400 max-w-md mb-6">
+          Seul le propriétaire (OWNER) de LB Pressing est autorisé à gérer l'équipe.
+        </p>
+        <Button onClick={() => router.push('/admin')}>
+          Retour au Dashboard
+        </Button>
+      </div>
     );
   }
 
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch = u.fullName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || u.role === filterRole;
+    return matchesSearch && matchesRole;
+  });
+
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* En-tête */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Gestion de l'équipe</h1>
-            <p className="text-muted-foreground">
-              Gérez les utilisateurs et leurs permissions
-            </p>
-          </div>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter un utilisateur
-          </Button>
+    <div className="space-y-6 text-slate-100">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-white">Gestion de l'équipe — LB Pressing</h1>
+          <p className="text-slate-400 text-sm">
+            Créez des membres Staff, attribuez leurs rôles et contrôlez leurs accès.
+          </p>
         </div>
+        <Button onClick={() => setShowCreateModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
+          <Plus className="mr-2 h-4 w-4" />
+          Nouveau membre
+        </Button>
+      </div>
 
-        {/* Recherche et filtres */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <Input
-              placeholder="Rechercher un utilisateur..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="rounded-md border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="all">Tous les rôles</option>
-            <option value="owner">Propriétaires</option>
-            <option value="employee">Employés</option>
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-md border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="active">Actifs</option>
-            <option value="inactive">Inactifs</option>
-          </select>
+      {/* Recherche et filtres */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <Input
+            placeholder="Rechercher un membre..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-slate-900 border-slate-800 text-white"
+          />
         </div>
+        <select
+          value={filterRole}
+          onChange={(e) => setFilterRole(e.target.value)}
+          className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white"
+        >
+          <option value="all">Tous les rôles</option>
+          <option value="OWNER">Propriétaire (OWNER)</option>
+          <option value="MANAGER">Gestionnaire (MANAGER)</option>
+          <option value="CASHIER">Caissier (CASHIER)</option>
+          <option value="DELIVERY">Livreur (DELIVERY)</option>
+        </select>
+      </div>
 
-        {/* Statistiques rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg border p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                  <Shield className="h-4 w-4 text-primary" />
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="text-sm font-medium text-muted-foreground">Total</div>
-                <div className="text-2xl font-bold">{users.length}</div>
-              </div>
-            </div>
+      {/* Liste des membres */}
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-slate-400">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto"></div>
+            <p className="mt-2 text-sm">Chargement de l'équipe...</p>
           </div>
-
-          <div className="bg-white rounded-lg border p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success/10">
-                  <UserCheck className="h-4 w-4 text-success" />
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="text-sm font-medium text-muted-foreground">Actifs</div>
-                <div className="text-2xl font-bold">{users.filter((u) => u.isActive).length}</div>
-              </div>
-            </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">
+            Aucun membre d'équipe trouvé.
           </div>
-
-          <div className="bg-white rounded-lg border p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-                  <Settings className="h-4 w-4 text-blue-600" />
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="text-sm font-medium text-muted-foreground">Propriétaires</div>
-                <div className="text-2xl font-bold">
-                  {users.filter((u) => u.role === 'owner').length}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100">
-                  <Mail className="h-4 w-4 text-orange-600" />
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="text-sm font-medium text-muted-foreground">Employés</div>
-                <div className="text-2xl font-bold">
-                  {users.filter((u) => u.role === 'employee').length}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Liste des utilisateurs */}
-        <div className="bg-white rounded-lg border overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-2 text-muted-foreground">Chargement...</p>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-muted-foreground">
-                {searchTerm || filterRole !== 'all' || filterStatus !== 'all'
-                  ? 'Aucun utilisateur trouvé avec ces critères'
-                  : 'Aucun utilisateur trouvé'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-muted/30">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Utilisateur
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Rôle
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Dernière connexion
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Permissions
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-border">
-                  {filteredUsers.map((u, index) => (
-                    <motion.tr
-                      key={u.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="hover:bg-muted/10 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-                              <span className="text-sm font-medium text-white">
-                                {u.fullName.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-foreground">
-                              {u.fullName}
-                            </div>
-                            <div className="text-sm text-muted-foreground flex items-center">
-                              <Mail className="h-3 w-3 mr-1" />
-                              {u.email}
-                            </div>
-                          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-800">
+              <thead className="bg-slate-950/60">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Membre
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Rôle
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Statut
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 bg-slate-900">
+                {filteredUsers.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-sm">
+                          {u.fullName.charAt(0).toUpperCase()}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                            u.role === 'owner'
-                              ? 'bg-primary/10 text-primary'
-                              : 'bg-secondary/50 text-secondary-foreground'
-                          )}
-                        >
-                          {u.role === 'owner' ? (
-                            <>
-                              <Settings className="h-3 w-3 mr-1" />
-                              Propriétaire
-                            </>
-                          ) : (
-                            <>
-                              <UserIcon className="h-3 w-3 mr-1" />
-                              Employé
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                            u.isActive
-                              ? 'bg-success/10 text-success'
-                              : 'bg-destructive/10 text-destructive'
-                          )}
-                        >
-                          {u.isActive ? (
-                            <>
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Actif
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Inactif
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {u.lastLogin ? formatDate(u.lastLogin) : 'Jamais'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => 
-                            setShowPermissions(showPermissions === u.id ? null : u.id)
-                          }
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          {u.permissions.filter((p: any) => p.granted).length}/{u.permissions.length}
-                        </Button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="flex justify-end items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingUser(u)}
-                            className="text-primary hover:text-primary"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => toggleUserStatus(u.id, !u.isActive)}
-                            className={u.isActive ? 'text-orange-600' : 'text-green-600'}
-                          >
-                            {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                          </Button>
-                          {u.id !== currentUser?.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => deleteUser(u.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                        <div>
+                          <div className="text-sm font-semibold text-white">{u.fullName}</div>
                         </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Panneau des permissions */}
-        {showPermissions && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="bg-white rounded-lg border p-6"
-          >
-            {(() => {
-              const targetUser = users.find(u => u.id === showPermissions);
-              if (!targetUser) return null;
-              
-              return (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">
-                    Permissions de {targetUser.fullName}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {targetUser.permissions.map((perm, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <span className="text-sm font-medium">
-                          {perm.action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </span>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={perm.granted}
-                            onChange={(e) => {
-                              const newPermissions = [...targetUser.permissions];
-                              newPermissions[index] = { ...perm, granted: e.target.checked };
-                              updatePermissions(targetUser.id, newPermissions);
-                            }}
-                            className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                        </label>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </motion.div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        u.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                      }`}>
+                        {u.isActive ? <CheckCircle className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                        {u.isActive ? 'Actif' : 'Inactif'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleUserStatus(u.id, u.isActive)}
+                        className={u.isActive ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'}
+                      >
+                        {u.isActive ? <UserX className="h-4 w-4 mr-1" /> : <UserCheck className="h-4 w-4 mr-1" />}
+                        {u.isActive ? 'Désactiver' : 'Activer'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Modal création utilisateur */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-md"
-          >
-            <h3 className="text-lg font-semibold mb-4">Ajouter un utilisateur</h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-bold text-white">Ajouter un membre Staff</h3>
             <form onSubmit={handleSubmit(handleCreateUser)} className="space-y-4">
               <div>
-                <label className="text-sm font-medium block mb-1">Nom complet</label>
-                <Input
-                  {...register('fullName')}
-                  placeholder="Jean Dupont"
-                />
-                {errors.fullName && (
-                  <p className="text-sm text-destructive mt-1">{errors.fullName.message}</p>
-                )}
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Nom complet</label>
+                <Input {...register('fullName')} placeholder="Ex: Jean Dupont" className="bg-slate-950 border-slate-800 text-white" />
+                {errors.fullName && <p className="text-xs text-rose-400 mt-1">{errors.fullName.message}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium block mb-1">Email</label>
-                <Input
-                  {...register('email')}
-                  type="email"
-                  placeholder="jean@exemple.com"
-                />
-                {errors.email && (
-                  <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
-                )}
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Adresse Email</label>
+                <Input {...register('email')} type="email" placeholder="jean@lb-pressing.cg" className="bg-slate-950 border-slate-800 text-white" />
+                {errors.email && <p className="text-xs text-rose-400 mt-1">{errors.email.message}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium block mb-1">Mot de passe temporaire</label>
-                <Input
-                  {...register('password')}
-                  type="password"
-                />
-                {errors.password && (
-                  <p className="text-sm text-destructive mt-1">{errors.password.message}</p>
-                )}
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Mot de passe temporaire</label>
+                <Input {...register('password')} type="password" className="bg-slate-950 border-slate-800 text-white" />
+                {errors.password && <p className="text-xs text-rose-400 mt-1">{errors.password.message}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium block mb-2">Rôle</label>
-                <select
-                  {...register('role')}
-                  className="w-full rounded-md border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="employee">Employé</option>
-                  <option value="owner">Propriétaire</option>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Rôle</label>
+                <select {...register('role')} className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white">
+                  <option value="CASHIER">Caissier (CASHIER)</option>
+                  <option value="MANAGER">Gestionnaire (MANAGER)</option>
+                  <option value="DELIVERY">Livreur (DELIVERY)</option>
+                  <option value="OWNER">Propriétaire (OWNER)</option>
                 </select>
-                {errors.role && (
-                  <p className="text-sm text-destructive mt-1">{errors.role.message}</p>
-                )}
+                {errors.role && <p className="text-xs text-rose-400 mt-1">{errors.role.message}</p>}
               </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    reset();
-                  }}
-                >
+              <div className="flex justify-end space-x-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => { setShowCreateModal(false); reset(); }}>
                   Annuler
                 </Button>
-                <Button type="submit" disabled={isCreating}>
-                  {isCreating ? 'Création...' : 'Créer l\'utilisateur'}
+                <Button type="submit" disabled={isCreating} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
+                  {isCreating ? 'Création...' : 'Créer le membre'}
                 </Button>
               </div>
             </form>
-          </motion.div>
+          </div>
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 }

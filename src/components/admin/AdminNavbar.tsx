@@ -59,13 +59,18 @@ export function AdminNavbar() {
     return null;
   }
 
-  const navLinks = [
+  const baseNavLinks = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/commandes', label: 'Commandes', icon: ShoppingBag },
     { href: '/admin/clients', label: 'Clients', icon: Users },
     { href: '/admin/services', label: 'Services', icon: Shirt },
     { href: '/admin/paiements', label: 'Caisse', icon: DollarSign },
   ];
+
+  const navLinks = profile?.role === 'OWNER'
+    ? [...baseNavLinks, { href: '/users', label: 'Équipe', icon: Users }]
+    : baseNavLinks;
+
   const visibleNavLinks = profile?.role === 'DELIVERY'
     ? navLinks.filter((link) => link.href === '/admin' || link.href === '/admin/commandes')
     : navLinks;

@@ -5,7 +5,7 @@
 // Anti-détournement, vérification des rôles, journalisation d'audit
 // =============================================================================
 
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supabase-server';
 import type { Database } from '@/types/supabase';
 import { revalidatePath } from 'next/cache';
 
@@ -83,6 +83,72 @@ export async function validateOrderAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur lors de la validation.',
+    };
+  }
+}
+
+/**
+ * 8. Création d'un membre de l'équipe par l'OWNER (Supabase Auth Admin)
+ * Crée l'utilisateur Supabase Auth + identity + membership dans l'organisation du caller.
+ */
+export async function createStaffMemberAction(input: {
+  email: string;
+  password: string;
+  fullName: string;
+  role: Database['public']['Enums']['member_role'];
+}) {
+  try {
+    const callerMembership = await getServerUserMembership();
+    if (!callerMembership || !callerMembership.membership || callerMembership.membership.role !== 'OWNER') {
+      return { success: false, error: 'Seul le propriétaire (OWNER) peut créer un membre d\'équipe.' };
+    }
+
+    const orgId = callerMembership.membership.organization_id;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return { success: false, error: 'Configuration serveur Supabase incomplète.' };
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const adminSupabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // 1. Créer l'utilisateur Supabase Auth avec email_confirm = true
+    const { data: authUser, error: authError } = await adminSupabase.auth.admin.createUser({
+      email: input.email.trim().toLowerCase(),
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { full_name: input.fullName.trim() },
+    });
+
+    if (authError || !authUser.user) {
+      return { success: false, error: authError?.message || 'Erreur lors de la création Auth.' };
+    }
+
+    // 2. Créer le membership lié à l'organisation
+    const { error: memError } = await adminSupabase.from('memberships').insert({
+      user_id: authUser.user.id,
+      organization_id: orgId,
+      role: input.role,
+      full_name: input.fullName.trim(),
+      is_active: true,
+    });
+
+    if (memError) {
+      return { success: false, error: memError.message };
+    }
+
+    revalidatePath('/users');
+    revalidatePath('/admin');
+
+    return { success: true, userId: authUser.user.id };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur lors de la création du membre.',
     };
   }
 }
