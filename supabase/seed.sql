@@ -8,12 +8,12 @@ DECLARE
 BEGIN
 
   -- 1. INSERT LB PRESSING ORGANIZATION
-  INSERT INTO organizations (id, name, slug, country, phone, email, currency, settings)
+  INSERT INTO organizations (id, name, slug, country_code, phone_1, email, currency, settings)
   VALUES (
     v_lb_org_id,
     'LB Pressing',
     'lb-pressing',
-    'CG',
+    '242',
     '+242060000000',
     'contact@lb-pressing.cg',
     'XAF',
@@ -37,7 +37,7 @@ BEGIN
   ON CONFLICT (slug) DO NOTHING;
 
   -- 2. INSERT DEFAULT SERVICES CATALOG FOR LB PRESSING
-  INSERT INTO articles (organization_id, name, category, default_price, estimated_days) VALUES
+  INSERT INTO services (organization_id, name, category, price, estimated_days) VALUES
     (v_lb_org_id, 'Chemise homme', 'vetement', 5000, 2),
     (v_lb_org_id, 'Chemise femme', 'vetement', 5000, 2),
     (v_lb_org_id, 'Pantalon homme', 'vetement', 7000, 2),
