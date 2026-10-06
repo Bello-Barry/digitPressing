@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { getAdminMembershipAction, adminSignOutAction } from '@/actions/auth';
 import {
   LayoutDashboard,
@@ -24,7 +24,6 @@ import {
 
 export function AdminNavbar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profile, setProfile] = useState<{
     email?: string;
@@ -72,7 +71,7 @@ export function AdminNavbar() {
     ? [
         ...baseNavLinks,
         { href: '/users', label: 'Équipe', icon: Users },
-        { href: '/settings', label: 'Paramètres', icon: Settings },
+        { href: '/admin/parametres', label: 'Paramètres', icon: Settings },
       ]
     : baseNavLinks;
 

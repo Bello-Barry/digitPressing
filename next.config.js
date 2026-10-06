@@ -2,8 +2,31 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 });
 
+const withPWA = require('next-pwa');
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig = withPWA({
+  pwa: {
+    dest: 'public',
+    disable: process.env.NODE_ENV === 'development',
+    skipWaiting: true,
+    clientsClaim: true,
+    buildExcludes: [/middleware-manifest\.json$/],
+    runtimeCaching: [
+      {
+        urlPattern: /^\/admin(\/.*)?$/,
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'admin-pages-cache',
+          networkTimeoutSeconds: 10,
+          expiration: {
+            maxEntries: 32,
+            maxAgeSeconds: 24 * 60 * 60,
+          },
+        },
+      },
+    ],
+  },
   // Performance optimizations
   compress: true,
   productionBrowserSourceMaps: false,
@@ -84,6 +107,6 @@ const nextConfig = {
 
   // Nouvelle clé conforme à Next 15
   serverExternalPackages: ['@supabase/supabase-js']
-};
+});
 
 module.exports = withBundleAnalyzer(nextConfig);

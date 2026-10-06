@@ -16,6 +16,18 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const orgId = profile.membership.organization_id;
   const db = await createServerSupabaseClient();
 
+  // Compter le total général de commandes pour l'organisation
+  const { count: totalOrdersCount, error: countError } = await db
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId);
+
+  if (countError) {
+    console.error('Erreur lors du comptage total des commandes:', countError);
+  }
+
+  const effectiveStatus = status && status.trim() !== '' ? status : 'ALL';
+
   let query = db
     .from('orders')
     .select(`
@@ -32,20 +44,25 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       total_amount,
       items_count_in,
       created_at,
-      invoice_token,
-      order_payment_summary(paid_amount, balance_due)
+      invoice_token
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
-  if (status && status !== 'ALL') {
-    query = query.eq('status', status as any);
+  if (effectiveStatus !== 'ALL') {
+    query = query.eq('status', effectiveStatus as any);
   }
 
-  const { data: rawOrders } = await query;
+  const { data: rawOrders, error: queryError } = await query;
 
-  // Filtrage recherche en mémoire si spécifié
-  const orders = (rawOrders || []).filter((o: any) => {
+  let serverErrorMsg: string | null = null;
+  if (queryError) {
+    console.error('Erreur lors du chargement des commandes Supabase:', queryError);
+    serverErrorMsg = `Impossible de charger les commandes: ${queryError.message}`;
+  }
+
+  // Filtrer la recherche en mémoire avant de charger les resumés de paiement
+  const filteredRawOrders = (rawOrders || []).filter((o: any) => {
     if (!search) return true;
     const term = search.toLowerCase();
     return (
@@ -54,18 +71,40 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       o.request_code?.toLowerCase().includes(term) ||
       o.ticket_number?.toLowerCase().includes(term)
     );
-  }).map((o: any) => {
-    // Normaliser le payment summary (qui peut être un tableau ou un objet)
-    const summary = Array.isArray(o.order_payment_summary)
-      ? o.order_payment_summary[0]
-      : o.order_payment_summary;
+  });
 
+  // Récupération séparée de la vue order_payment_summary pour éviter les erreurs de relation PostgREST
+  const orderIds = filteredRawOrders.map((o: any) => o.id);
+  const summaryMap = new Map<string, { paid_amount: number; balance_due: number }>();
+
+  if (orderIds.length > 0) {
+    const { data: summaries, error: summaryErr } = await db
+      .from('order_payment_summary')
+      .select('order_id, paid_amount, balance_due')
+      .in('order_id', orderIds);
+
+    if (summaryErr) {
+      console.error('Erreur lors du chargement du résumé de paiement:', summaryErr);
+    } else if (summaries) {
+      summaries.forEach((s: any) => {
+        summaryMap.set(s.order_id, {
+          paid_amount: Number(s.paid_amount ?? 0),
+          balance_due: Number(s.balance_due ?? 0),
+        });
+      });
+    }
+  }
+
+  const orders = filteredRawOrders.map((o: any) => {
+    const summary = summaryMap.get(o.id);
     return {
       ...o,
-      paid_amount: summary?.paid_amount ?? 0,
-      balance_due: summary?.balance_due ?? o.total_amount,
+      paid_amount: summary ? summary.paid_amount : 0,
+      balance_due: summary ? summary.balance_due : Number(o.total_amount ?? 0),
     };
   });
+
+  const totalCount = totalOrdersCount ?? orders.length;
 
   return (
     <div className="space-y-6">
@@ -76,7 +115,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             Gestion des Commandes
           </h1>
           <p className="text-xs text-slate-400">
-            {orders.length} commande(s) trouvée(s) — Traitez les demandes et générez les tickets officiels.
+            {orders.length} commande(s) affichée(s) sur {totalCount} au total — Traitez les demandes et générez les tickets officiels.
           </p>
         </div>
 
@@ -90,9 +129,16 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
+      {serverErrorMsg && (
+        <div className="p-4 rounded-xl bg-red-950/80 border border-red-800 text-red-200 text-xs">
+          <p className="font-bold">Erreur de chargement</p>
+          <p>{serverErrorMsg}</p>
+        </div>
+      )}
+
       <OrdersListView
         initialOrders={orders}
-        currentStatus={status || 'ALL'}
+        currentStatus={effectiveStatus}
         currentSearch={search || ''}
       />
     </div>
