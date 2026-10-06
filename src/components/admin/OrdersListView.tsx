@@ -64,6 +64,7 @@ export function OrdersListView({
     { key: 'PROCESSING', label: 'En traitement' },
     { key: 'READY', label: 'Prêtes' },
     { key: 'DELIVERED', label: 'Livrées' },
+    { key: 'REJECTED', label: 'Rejetées' },
     { key: 'CANCELLED', label: 'Annulées' },
   ];
 
@@ -118,6 +119,12 @@ export function OrdersListView({
         return (
           <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
             Livrée
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            Rejetée
           </span>
         );
       case 'CANCELLED':

@@ -16,6 +16,18 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const orgId = profile.membership.organization_id;
   const db = await createServerSupabaseClient();
 
+  // Compter le total général de commandes pour l'organisation
+  const { count: totalOrdersCount, error: countError } = await db
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId);
+
+  if (countError) {
+    console.error('Erreur lors du comptage total des commandes:', countError);
+  }
+
+  const effectiveStatus = status && status.trim() !== '' ? status : 'ALL';
+
   let query = db
     .from('orders')
     .select(`
@@ -38,11 +50,17 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
-  if (status && status !== 'ALL') {
-    query = query.eq('status', status as any);
+  if (effectiveStatus !== 'ALL') {
+    query = query.eq('status', effectiveStatus as any);
   }
 
-  const { data: rawOrders } = await query;
+  const { data: rawOrders, error: queryError } = await query;
+
+  let serverErrorMsg: string | null = null;
+  if (queryError) {
+    console.error('Erreur lors du chargement des commandes Supabase:', queryError);
+    serverErrorMsg = `Impossible de charger les commandes: ${queryError.message}`;
+  }
 
   // Filtrage recherche en mémoire si spécifié
   const orders = (rawOrders || []).filter((o: any) => {
@@ -67,6 +85,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     };
   });
 
+  const totalCount = totalOrdersCount ?? orders.length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
@@ -76,7 +96,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             Gestion des Commandes
           </h1>
           <p className="text-xs text-slate-400">
-            {orders.length} commande(s) trouvée(s) — Traitez les demandes et générez les tickets officiels.
+            {orders.length} commande(s) affichée(s) sur {totalCount} au total — Traitez les demandes et générez les tickets officiels.
           </p>
         </div>
 
@@ -90,9 +110,16 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
+      {serverErrorMsg && (
+        <div className="p-4 rounded-xl bg-red-950/80 border border-red-800 text-red-200 text-xs">
+          <p className="font-bold">Erreur de chargement</p>
+          <p>{serverErrorMsg}</p>
+        </div>
+      )}
+
       <OrdersListView
         initialOrders={orders}
-        currentStatus={status || 'ALL'}
+        currentStatus={effectiveStatus}
         currentSearch={search || ''}
       />
     </div>

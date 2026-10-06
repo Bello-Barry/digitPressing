@@ -72,7 +72,7 @@ export function AdminNavbar() {
     ? [
         ...baseNavLinks,
         { href: '/users', label: 'Équipe', icon: Users },
-        { href: '/settings', label: 'Paramètres', icon: Settings },
+        { href: '/admin/parametres', label: 'Paramètres', icon: Settings },
       ]
     : baseNavLinks;
 
