@@ -104,7 +104,10 @@ export async function createStaffMemberAction(input: {
     }
 
     const orgId = callerMembership.membership.organization_id;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SECRET_KEY ||
+      process.env.SUPABASE_SERVICE_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (!supabaseUrl || !serviceRoleKey) {
@@ -484,6 +487,61 @@ export async function getAdminDashboardStats(orgId: string) {
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur stats.',
+    };
+  }
+}
+
+export async function updateOrganizationSettingsAction(input: {
+  orgId: string;
+  name: string;
+  slug: string;
+  phone_1: string;
+  phone_2?: string;
+  address?: string;
+  ticket_prefix: string;
+}) {
+  try {
+    const membershipProfile = await getServerUserMembership();
+    if (!membershipProfile?.membership?.is_active) {
+      return { success: false, error: 'Non autorisé.' };
+    }
+
+    if (membershipProfile.membership.role !== 'OWNER' && membershipProfile.membership.role !== 'MANAGER') {
+      return { success: false, error: 'Seuls les propriétaires et gestionnaires peuvent modifier la configuration.' };
+    }
+
+    if (membershipProfile.membership.organization_id !== input.orgId) {
+      return { success: false, error: 'Vous ne pouvez modifier que votre propre établissement.' };
+    }
+
+    const db = await createServerSupabaseClient();
+    const { error } = await db
+      .from('organizations')
+      .update({
+        name: input.name.trim(),
+        slug: input.slug.trim().toLowerCase(),
+        phone_1: input.phone_1.trim(),
+        phone_2: input.phone_2 ? input.phone_2.trim() : null,
+        address: input.address ? input.address.trim() : null,
+        ticket_prefix: input.ticket_prefix.trim().toUpperCase(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.orgId);
+
+    if (error) {
+      console.error('Erreur updateOrganizationSettingsAction:', error);
+      return { success: false, error: error.message || 'Erreur lors de la mise à jour.' };
+    }
+
+    revalidatePath('/admin');
+    revalidatePath('/admin/parametres');
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error('Exception updateOrganizationSettingsAction:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Une erreur est survenue.',
     };
   }
 }
