@@ -44,8 +44,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       total_amount,
       items_count_in,
       created_at,
-      invoice_token,
-      order_payment_summary(paid_amount, balance_due)
+      invoice_token
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
@@ -62,8 +61,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     serverErrorMsg = `Impossible de charger les commandes: ${queryError.message}`;
   }
 
-  // Filtrage recherche en mémoire si spécifié
-  const orders = (rawOrders || []).filter((o: any) => {
+  // Filtrer la recherche en mémoire avant de charger les resumés de paiement
+  const filteredRawOrders = (rawOrders || []).filter((o: any) => {
     if (!search) return true;
     const term = search.toLowerCase();
     return (
@@ -72,16 +71,36 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       o.request_code?.toLowerCase().includes(term) ||
       o.ticket_number?.toLowerCase().includes(term)
     );
-  }).map((o: any) => {
-    // Normaliser le payment summary (qui peut être un tableau ou un objet)
-    const summary = Array.isArray(o.order_payment_summary)
-      ? o.order_payment_summary[0]
-      : o.order_payment_summary;
+  });
 
+  // Récupération séparée de la vue order_payment_summary pour éviter les erreurs de relation PostgREST
+  const orderIds = filteredRawOrders.map((o: any) => o.id);
+  const summaryMap = new Map<string, { paid_amount: number; balance_due: number }>();
+
+  if (orderIds.length > 0) {
+    const { data: summaries, error: summaryErr } = await db
+      .from('order_payment_summary')
+      .select('order_id, paid_amount, balance_due')
+      .in('order_id', orderIds);
+
+    if (summaryErr) {
+      console.error('Erreur lors du chargement du résumé de paiement:', summaryErr);
+    } else if (summaries) {
+      summaries.forEach((s: any) => {
+        summaryMap.set(s.order_id, {
+          paid_amount: Number(s.paid_amount ?? 0),
+          balance_due: Number(s.balance_due ?? 0),
+        });
+      });
+    }
+  }
+
+  const orders = filteredRawOrders.map((o: any) => {
+    const summary = summaryMap.get(o.id);
     return {
       ...o,
-      paid_amount: summary?.paid_amount ?? 0,
-      balance_due: summary?.balance_due ?? o.total_amount,
+      paid_amount: summary ? summary.paid_amount : 0,
+      balance_due: summary ? summary.balance_due : Number(o.total_amount ?? 0),
     };
   });
 

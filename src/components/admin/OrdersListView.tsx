@@ -11,11 +11,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/whatsapp';
 import {
   Search,
-  Filter,
-  Eye,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   Truck,
   Building,
   ArrowRight,
