@@ -14,7 +14,7 @@ Document destiné à Jules. À placer à la racine du dépôt. Contexte : Next.j
 8. **Après chaque mutation**, l'interface doit se rafraîchir (`revalidatePath` ou `router.refresh()`).
 9. **Mobile-first** (360, 390, 430 px), aucun défilement horizontal de page, boutons faciles au doigt. Pas de dépendance lourde sans justification.
 10. **Pas de données mockées**, pas de commande de test dans l'organisation réelle LB Pressing.
-
+11. Une tâche n'est terminée que si elle inclut son interface utilisateur et son entrée dans le menu (selon le rôle).
 ---
 
 ## PHASE 3 : CONTRÔLE (anti-détournement) : PRIORITÉ
