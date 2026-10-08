@@ -3,7 +3,11 @@ import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supab
 import { redirect } from 'next/navigation';
 import { ServiceCatalogClient } from '@/components/admin/ServiceCatalogClient';
 import { can } from '@/lib/permissions';
-import { getServiceCostsMapAction } from '@/actions/services';
+import {
+  getServiceCostsMapAction,
+  getServiceCategoriesAction,
+  getGarmentTypesAction,
+} from '@/actions/services';
 
 export default async function AdminServicesPage() {
   const profile = await getServerUserMembership();
@@ -15,13 +19,17 @@ export default async function AdminServicesPage() {
   const canManageServices = can(role, 'manage_services') || Boolean(profile.isPlatformAdmin);
   const canViewCosts = can(role, 'view_margins_and_service_costs') || Boolean(profile.isPlatformAdmin);
 
-  // Sélectionner explicitement les colonnes publiques/métier sans sélectionner cost_price de services
+  // Charger les prestations
   const { data: servicesData } = await db
     .from('services')
-    .select('id, organization_id, name, description, category, price, estimated_days, is_active, created_at')
+    .select('id, organization_id, name, description, category, category_id, garment_type_id, treatment, needs_review, price, estimated_days, is_active, created_at')
     .eq('organization_id', orgId)
     .order('category')
     .order('price');
+
+  // Charger les catégories et articles
+  const categories = await getServiceCategoriesAction();
+  const garmentTypes = await getGarmentTypesAction();
 
   let costsMap: Record<string, number> = {};
   if (canViewCosts) {
@@ -36,6 +44,8 @@ export default async function AdminServicesPage() {
   return (
     <ServiceCatalogClient
       initialServices={initialServices}
+      initialCategories={categories}
+      initialGarmentTypes={garmentTypes}
       canManageServices={canManageServices}
       canViewCosts={canViewCosts}
       userRole={role}

@@ -32,10 +32,10 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
 
   const services = rawServices || [];
 
-  // Regroupement par catégories
-  const categoryLabels: Record<string, string> = {
-    vetement: 'Vêtements quotidiens',
-    ceremonie: 'Cérémonie & Soirée',
+  // Map des anciennes clés vers de beaux titres si besoin
+  const legacyCategoryLabels: Record<string, string> = {
+    vetement: 'Vêtements',
+    ceremonie: 'Costumes et cérémonie',
     traditionnel: 'Tenues Traditionnelles (Bazin / Pagne)',
     maison: 'Linge de maison',
     cuir: 'Cuir & Daim',
@@ -44,10 +44,12 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
     accessoire: 'Accessoires & Autres',
   };
 
+  // Regroupement dynamique par catégorie
   const servicesByCategory = services.reduce((acc, s) => {
-    const cat = s.category || 'vetement';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(s);
+    const rawCat = s.category || 'Vêtements';
+    const displayCat = legacyCategoryLabels[rawCat] || rawCat;
+    if (!acc[displayCat]) acc[displayCat] = [];
+    acc[displayCat].push(s);
     return acc;
   }, {} as Record<string, typeof services>);
 
@@ -90,11 +92,11 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
 
         {/* Grille par Catégorie */}
         <div className="space-y-8">
-          {Object.entries(servicesByCategory).map(([catKey, items]) => (
-            <div key={catKey} className="space-y-3">
+          {Object.entries(servicesByCategory).map(([catName, items]) => (
+            <div key={catName} className="space-y-3">
               <h2 className="text-base font-bold text-amber-400/90 flex items-center border-b border-slate-800 pb-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400 mr-2" />
-                {categoryLabels[catKey] || catKey.toUpperCase()}
+                {catName}
                 <span className="ml-2 text-xs font-normal text-slate-400">
                   ({items.length})
                 </span>

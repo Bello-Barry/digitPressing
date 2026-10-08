@@ -1,15 +1,28 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock } from 'lucide-react';
+import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock, AlertTriangle, Tag, Layers } from 'lucide-react';
 import { toast } from 'sonner';
-import { createServiceAction, updateServiceAction, toggleServiceStatusAction } from '@/actions/services';
+import {
+  createServiceAction,
+  updateServiceAction,
+  toggleServiceStatusAction,
+  createCategoryAction,
+  createGarmentTypeAction,
+  type ServiceCategory,
+  type GarmentType,
+} from '@/actions/services';
+import { TREATMENT_LABELS, type TreatmentType, formatServiceName } from '@/lib/catalog';
 
 interface Service {
   id: string;
   name: string;
   description: string | null;
   category: string | null;
+  category_id: string | null;
+  garment_type_id: string | null;
+  treatment: TreatmentType | string | null;
+  needs_review: boolean;
   price: number;
   cost_price: number | null;
   estimated_days: number;
@@ -19,6 +32,8 @@ interface Service {
 
 interface ServiceCatalogClientProps {
   initialServices: Service[];
+  initialCategories: ServiceCategory[];
+  initialGarmentTypes: GarmentType[];
   canManageServices: boolean;
   canViewCosts?: boolean;
   userRole: string;
@@ -26,64 +41,161 @@ interface ServiceCatalogClientProps {
 
 export function ServiceCatalogClient({
   initialServices,
+  initialCategories,
+  initialGarmentTypes,
   canManageServices,
   canViewCosts = false,
   userRole,
 }: ServiceCatalogClientProps) {
   const [services, setServices] = useState<Service[]>(initialServices);
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories);
+  const [garmentTypes, setGarmentTypes] = useState<GarmentType[]>(initialGarmentTypes);
 
-  // Modal states
+  const [search, setSearch] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
+
+  // Modal states pour la prestation
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Form states
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Vêtement');
+  // Form states pour la prestation
+  const [categoryId, setCategoryId] = useState<string>(
+    categories.length > 0 ? categories[0].id : ''
+  );
+  const [garmentTypeId, setGarmentTypeId] = useState<string>('');
+  const [treatment, setTreatment] = useState<TreatmentType>('WASH_IRON');
   const [price, setPrice] = useState<number | ''>('');
   const [costPrice, setCostPrice] = useState<number | ''>('');
   const [estimatedDays, setEstimatedDays] = useState<number>(2);
+  const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
 
-  // Categories list
-  const categories = Array.from(new Set(services.map(s => s.category || 'Vêtement')));
+  // Sub-modals pour la création de catégorie / article
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const [isAddGarmentOpen, setIsAddGarmentOpen] = useState(false);
+  const [newGarmentName, setNewGarmentName] = useState('');
+  const [creatingGarment, setCreatingGarment] = useState(false);
+
+  // Obtenir les articles filtrés selon la catégorie sélectionnée dans le formulaire
+  const filteredGarmentTypesInForm = garmentTypes.filter(
+    gt => !categoryId || gt.category_id === categoryId
+  );
 
   const openCreateModal = () => {
     setEditingService(null);
-    setName('');
-    setDescription('');
-    setCategory('Vêtement');
+    const defaultCat = categories.length > 0 ? categories[0].id : '';
+    setCategoryId(defaultCat);
+    const availableGarments = garmentTypes.filter(gt => !defaultCat || gt.category_id === defaultCat);
+    setGarmentTypeId(availableGarments.length > 0 ? availableGarments[0].id : '');
+    setTreatment('WASH_IRON');
     setPrice('');
     setCostPrice('');
     setEstimatedDays(2);
+    setDescription('');
     setIsActive(true);
     setIsModalOpen(true);
   };
 
   const openEditModal = (service: Service) => {
     setEditingService(service);
-    setName(service.name);
-    setDescription(service.description || '');
-    setCategory(service.category || 'Vêtement');
+    const catId = service.category_id || (categories.length > 0 ? categories[0].id : '');
+    setCategoryId(catId);
+    setGarmentTypeId(service.garment_type_id || '');
+    setTreatment((service.treatment as TreatmentType) || 'WASH_IRON');
     setPrice(service.price);
     setCostPrice(service.cost_price ?? '');
     setEstimatedDays(service.estimated_days || 2);
+    setDescription(service.description || '');
     setIsActive(service.is_active);
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCategoryChangeInForm = (newCatId: string) => {
+    setCategoryId(newCatId);
+    const available = garmentTypes.filter(gt => gt.category_id === newCatId);
+    if (available.length > 0) {
+      setGarmentTypeId(available[0].id);
+    } else {
+      setGarmentTypeId('');
+    }
+  };
+
+  const handleAddCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageServices) {
-      toast.error('Permission refusée. Vous n\'avez pas les droits de modification.');
+    if (!newCategoryName.trim()) return;
+
+    setCreatingCategory(true);
+    try {
+      const res = await createCategoryAction(newCategoryName);
+      if (!res.success) {
+        if (res.duplicate && res.category) {
+          toast.error(res.error || 'Cette catégorie existe déjà.');
+          setCategoryId(res.category.id);
+          setIsAddCategoryOpen(false);
+          setNewCategoryName('');
+        } else {
+          toast.error(res.error || 'Erreur lors de la création de la catégorie.');
+        }
+      } else if (res.category) {
+        toast.success(`Catégorie "${res.category.name}" ajoutée.`);
+        setCategories(prev => [...prev, res.category!]);
+        setCategoryId(res.category.id);
+        setIsAddCategoryOpen(false);
+        setNewCategoryName('');
+      }
+    } catch {
+      toast.error('Erreur inattendue.');
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
+
+  const handleAddGarmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGarmentName.trim() || !categoryId) {
+      toast.error('Veuillez d\'abord sélectionner une catégorie.');
       return;
     }
 
-    if (!name.trim()) {
-      toast.error('Veuillez saisir un nom de service.');
+    setCreatingGarment(true);
+    try {
+      const res = await createGarmentTypeAction(categoryId, newGarmentName);
+      if (!res.success) {
+        if (res.duplicate && res.garmentType) {
+          toast.error(res.error || 'Cet article existe déjà.');
+          setGarmentTypeId(res.garmentType.id);
+          setIsAddGarmentOpen(false);
+          setNewGarmentName('');
+        } else {
+          toast.error(res.error || 'Erreur lors de la création de l\'article.');
+        }
+      } else if (res.garmentType) {
+        toast.success(`Article "${res.garmentType.name}" ajouté.`);
+        setGarmentTypes(prev => [...prev, res.garmentType!]);
+        setGarmentTypeId(res.garmentType.id);
+        setIsAddGarmentOpen(false);
+        setNewGarmentName('');
+      }
+    } catch {
+      toast.error('Erreur inattendue.');
+    } finally {
+      setCreatingGarment(false);
+    }
+  };
+
+  const handleSubmitService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageServices) {
+      toast.error('Permission refusée.');
+      return;
+    }
+
+    if (!garmentTypeId) {
+      toast.error('Veuillez sélectionner ou ajouter un article.');
       return;
     }
 
@@ -95,15 +207,22 @@ export function ServiceCatalogClient({
     setLoading(true);
 
     try {
+      const selectedGarment = garmentTypes.find(gt => gt.id === garmentTypeId);
+      const selectedCat = categories.find(c => c.id === categoryId);
+
       if (editingService) {
         const res = await updateServiceAction(editingService.id, {
-          name,
-          description,
-          category,
+          category_id: categoryId,
+          garment_type_id: garmentTypeId,
+          treatment: treatment,
+          category: selectedCat?.name,
+          name: formatServiceName(selectedGarment?.name, treatment),
           price: Number(price),
           cost_price: canViewCosts && costPrice !== '' ? Number(costPrice) : undefined,
           estimated_days: Number(estimatedDays),
+          description: description,
           is_active: isActive,
+          needs_review: false,
         });
 
         if (!res.success) {
@@ -117,13 +236,17 @@ export function ServiceCatalogClient({
         }
       } else {
         const res = await createServiceAction({
-          name,
-          description,
-          category,
+          category_id: categoryId,
+          garment_type_id: garmentTypeId,
+          treatment: treatment,
+          category: selectedCat?.name,
+          name: formatServiceName(selectedGarment?.name, treatment),
           price: Number(price),
           cost_price: canViewCosts && costPrice !== '' ? Number(costPrice) : undefined,
           estimated_days: Number(estimatedDays),
+          description: description,
           is_active: isActive,
+          needs_review: false,
         });
 
         if (!res.success) {
@@ -136,7 +259,7 @@ export function ServiceCatalogClient({
           setIsModalOpen(false);
         }
       }
-    } catch (err) {
+    } catch {
       toast.error('Une erreur est survenue.');
     } finally {
       setLoading(false);
@@ -154,7 +277,7 @@ export function ServiceCatalogClient({
     if (!res.success) {
       toast.error(res.error || 'Impossible de changer le statut.');
     } else {
-      toast.success(newStatus ? 'Prestation activée' : 'Prestation désactivée (masquée du catalogue public)');
+      toast.success(newStatus ? 'Prestation activée' : 'Prestation désactivée');
       setServices(prev =>
         prev.map(s => (s.id === service.id ? { ...s, is_active: newStatus } : s))
       );
@@ -165,7 +288,10 @@ export function ServiceCatalogClient({
     const matchesSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       (s.description && s.description.toLowerCase().includes(search.toLowerCase()));
-    const matchesCategory = selectedCategory === 'ALL' || s.category === selectedCategory;
+    const matchesCategory =
+      selectedCategoryFilter === 'ALL' ||
+      s.category_id === selectedCategoryFilter ||
+      s.category === selectedCategoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -179,17 +305,17 @@ export function ServiceCatalogClient({
             Catalogue des Prestations ({filteredServices.length})
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Gérez la grille tarifaire de LB Pressing. Les modifications de prix s'appliquent aux nouvelles commandes sans modifier l'historique.
+            Gérez la grille tarifaire normalisée. Les articles et catégories sont choisis dans des listes standardisées.
           </p>
         </div>
 
         {canManageServices && (
           <button
             onClick={openCreateModal}
-            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs tracking-wide transition shadow-lg shadow-amber-500/10 active:scale-95"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs tracking-wide transition shadow-lg shadow-amber-500/10 active:scale-95 min-h-[44px]"
           >
             <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
-            Ajouter un service
+            Ajouter une prestation
           </button>
         )}
       </div>
@@ -203,25 +329,25 @@ export function ServiceCatalogClient({
             placeholder="Rechercher une prestation (ex: Chemise, Costume)..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+            className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition min-h-[44px]"
           />
         </div>
 
         <select
-          value={selectedCategory}
-          onChange={e => setSelectedCategory(e.target.value)}
-          className="bg-slate-900 border border-slate-800 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 transition"
+          value={selectedCategoryFilter}
+          onChange={e => setSelectedCategoryFilter(e.target.value)}
+          className="bg-slate-900 border border-slate-800 text-xs text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-amber-500 transition min-h-[44px]"
         >
           <option value="ALL">Toutes les catégories</option>
           {categories.map(cat => (
-            <option key={cat} value={cat}>
-              {cat}
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
             </option>
           ))}
         </select>
       </div>
 
-      {/* Services Cards / Mobile List */}
+      {/* Services Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {filteredServices.length > 0 ? (
           filteredServices.map(s => (
@@ -234,12 +360,20 @@ export function ServiceCatalogClient({
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-white text-sm truncate">{s.name}</h3>
-                    <span className="inline-block mt-0.5 text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                    <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                      <h3 className="font-bold text-white text-sm truncate">{s.name}</h3>
+                      {s.needs_review && canManageServices && (
+                        <span className="inline-flex items-center text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          À normaliser
+                        </span>
+                      )}
+                    </div>
+                    <span className="inline-block mt-1 text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
                       {s.category || 'Vêtement'}
                     </span>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <span className="font-mono font-bold text-amber-400 text-sm bg-amber-400/10 px-2 py-1 rounded-lg block whitespace-nowrap">
                       {Number(s.price).toLocaleString('fr-FR')} FCFA
                     </span>
@@ -270,7 +404,7 @@ export function ServiceCatalogClient({
                       <button
                         onClick={() => handleToggleActive(s)}
                         title={s.is_active ? 'Désactiver le service' : 'Activer le service'}
-                        className={`p-1.5 rounded-lg text-xs transition ${
+                        className={`p-2 rounded-lg text-xs transition min-h-[36px] min-w-[36px] flex items-center justify-center ${
                           s.is_active
                             ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
                             : 'text-red-400 bg-red-500/10 hover:bg-red-500/20'
@@ -286,7 +420,7 @@ export function ServiceCatalogClient({
                       <button
                         onClick={() => openEditModal(s)}
                         title="Modifier la prestation"
-                        className="p-1.5 rounded-lg text-slate-300 bg-slate-800 hover:bg-slate-700 transition"
+                        className="p-2 rounded-lg text-slate-300 bg-slate-800 hover:bg-slate-700 transition min-h-[36px] min-w-[36px] flex items-center justify-center"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -311,7 +445,7 @@ export function ServiceCatalogClient({
         )}
       </div>
 
-      {/* Edit / Add Modal */}
+      {/* Modal d'ajout / modification de prestation */}
       {isModalOpen && canManageServices && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -322,52 +456,101 @@ export function ServiceCatalogClient({
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white text-sm p-1"
+                className="text-slate-400 hover:text-white text-sm p-2 min-h-[44px] min-w-[44px]"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleSubmitService} className="space-y-4 text-xs">
+              {/* Catégorie */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">
-                  Nom de la prestation *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: Chemise sur cintre, Costume 2 pièces"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-medium flex items-center">
+                    <Layers className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                    Catégorie *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCategoryOpen(true)}
+                    className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center"
+                  >
+                    <Plus className="w-3 h-3 mr-0.5" /> Ajouter une catégorie
+                  </button>
+                </div>
+                <select
+                  value={categoryId}
+                  onChange={e => handleCategoryChangeInForm(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Catégorie</label>
-                  <input
-                    type="text"
-                    placeholder="ex: Vêtement, Maison"
-                    value={category}
-                    onChange={e => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  />
+              {/* Article (garment_type) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-medium flex items-center">
+                    <Tag className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                    Article / Vêtement *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddGarmentOpen(true)}
+                    className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center"
+                  >
+                    <Plus className="w-3 h-3 mr-0.5" /> Ajouter un article
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">Délai estimé (jours)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="30"
-                    value={estimatedDays}
-                    onChange={e => setEstimatedDays(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+                <select
+                  value={garmentTypeId}
+                  onChange={e => setGarmentTypeId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                >
+                  {filteredGarmentTypesInForm.length === 0 ? (
+                    <option value="">Aucun article dans cette catégorie</option>
+                  ) : (
+                    filteredGarmentTypesInForm.map(gt => (
+                      <option key={gt.id} value={gt.id}>
+                        {gt.name}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
 
+              {/* Traitement */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Traitement *</label>
+                <select
+                  value={treatment}
+                  onChange={e => setTreatment(e.target.value as TreatmentType)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                >
+                  {Object.entries(TREATMENT_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Nom généré aperçu */}
+              <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-medium">Nom affiché généré :</span>
+                <span className="text-xs font-bold text-amber-300">
+                  {formatServiceName(
+                    garmentTypes.find(gt => gt.id === garmentTypeId)?.name,
+                    treatment
+                  )}
+                </span>
+              </div>
+
+              {/* Prix et Coût */}
               <div className={`grid ${canViewCosts ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
@@ -381,7 +564,7 @@ export function ServiceCatalogClient({
                     placeholder="ex: 5000"
                     value={price}
                     onChange={e => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-amber-400 font-mono font-bold focus:outline-none focus:border-amber-500 min-h-[44px]"
                   />
                 </div>
 
@@ -397,49 +580,147 @@ export function ServiceCatalogClient({
                       placeholder="ex: 1500 (Optionnel)"
                       value={costPrice}
                       onChange={e => setCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-amber-500"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-300 font-mono focus:outline-none focus:border-amber-500 min-h-[44px]"
                     />
                   </div>
                 )}
               </div>
 
+              {/* Délai estimé */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Délai estimé (jours)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={estimatedDays}
+                  onChange={e => setEstimatedDays(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                />
+              </div>
+
+              {/* Description */}
               <div>
                 <label className="block text-slate-300 font-medium mb-1">Description</label>
                 <textarea
                   rows={2}
-                  placeholder="Détails complémentaires sur le traitement..."
+                  placeholder="Détails complémentaires..."
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
+              {/* Statut */}
               <div className="flex items-center justify-between pt-2">
                 <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isActive}
                     onChange={e => setIsActive(e.target.checked)}
-                    className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 bg-slate-950"
+                    className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 bg-slate-950 w-4 h-4"
                   />
                   <span>Prestation active et disponible au public</span>
                 </label>
               </div>
 
+              {/* Buttons */}
               <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold min-h-[44px]"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition disabled:opacity-50 min-h-[44px]"
                 >
                   {loading ? 'Enregistrement...' : editingService ? 'Mettre à jour' : 'Créer la prestation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-modal: Création de catégorie */}
+      {isAddCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center">
+              <Layers className="w-4 h-4 mr-2 text-amber-400" />
+              Nouvelle Catégorie
+            </h3>
+            <form onSubmit={handleAddCategorySubmit} className="space-y-3">
+              <div>
+                <label className="block text-slate-300 text-xs mb-1">Nom de la catégorie *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Linge de maison"
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCategoryOpen(false)}
+                  className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs min-h-[40px]"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingCategory}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs min-h-[40px]"
+                >
+                  {creatingCategory ? 'Ajout...' : 'Créer la catégorie'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sub-modal: Création d'article (garment_type) */}
+      {isAddGarmentOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center">
+              <Tag className="w-4 h-4 mr-2 text-amber-400" />
+              Nouveau Vêtement / Article
+            </h3>
+            <form onSubmit={handleAddGarmentSubmit} className="space-y-3">
+              <div>
+                <label className="block text-slate-300 text-xs mb-1">Nom de l'article *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Serviette, Bazin"
+                  value={newGarmentName}
+                  onChange={e => setNewGarmentName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddGarmentOpen(false)}
+                  className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs min-h-[40px]"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingGarment}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs min-h-[40px]"
+                >
+                  {creatingGarment ? 'Ajout...' : 'Créer l\'article'}
                 </button>
               </div>
             </form>
