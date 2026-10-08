@@ -1,8 +1,9 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  testEnvironment: 'jsdom',
+  testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
+    '^server-only$': '<rootDir>/scripts/noop.js',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   transform: {

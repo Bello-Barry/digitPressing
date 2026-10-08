@@ -5,7 +5,9 @@
 // Anti-détournement, vérification des rôles, journalisation d'audit
 // =============================================================================
 
-import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { requirePermission } from '@/lib/permissions-server';
+import { can, Permission } from '@/lib/permissions';
 import type { Database } from '@/types/supabase';
 import { revalidatePath } from 'next/cache';
 
@@ -13,30 +15,38 @@ type OrderStatus = Database['public']['Enums']['order_status'];
 type PaymentMethod = Database['public']['Enums']['payment_method'];
 
 /**
- * Récupère le client Supabase serveur avec privilèges sécurisés
+ * Récupère le client Supabase serveur avec privilèges sécurisés et vérification de la commande
  */
-async function authorizeOrder(orderId: string, allowedRoles: Database['public']['Enums']['member_role'][] = ['OWNER', 'MANAGER', 'CASHIER', 'DELIVERY']) {
+async function authorizeOrder(orderId: string, requiredPermission: Permission = 'view_orders_and_clients') {
+  const auth = await requirePermission(requiredPermission);
+  if (!auth.authorized || !auth.profile?.membership) {
+    return { error: auth.error || 'Accès refusé.' as const };
+  }
+  const { user, membership } = auth.profile;
   const db = await createServerSupabaseClient();
-  const { data: { user }, error: authError } = await db.auth.getUser();
-  if (authError || !user) return { error: 'Connexion requise.' as const };
-  const { data: membership } = await db.from('memberships')
-    .select('organization_id, role, is_active').eq('user_id', user.id).eq('is_active', true).maybeSingle();
-  if (!membership || !allowedRoles.includes(membership.role)) return { error: 'Accès refusé.' as const };
-  const { data: order } = await db.from('orders').select('id, organization_id, status').eq('id', orderId).single();
-  if (!order || order.organization_id !== membership.organization_id) return { error: 'Commande introuvable.' as const };
-  return { db, user, membership, order };
+
+  const { data: order } = await db
+    .from('orders')
+    .select('id, organization_id, status')
+    .eq('id', orderId)
+    .single();
+
+  if (!order || order.organization_id !== membership.organization_id) {
+    return { error: 'Commande introuvable.' as const };
+  }
+
+  return { db, user, membership, order, role: membership.role };
 }
 
 /**
  * 1. Valider une demande en ligne (passe de REQUEST à VALIDATED)
- * Possibilité d'ajuster ou d'ajouter des frais de livraison
  */
 export async function validateOrderAction(
   orderId: string,
   deliveryFee: number = 0
 ) {
   try {
-    const auth = await authorizeOrder(orderId, ['OWNER', 'MANAGER', 'CASHIER']);
+    const auth = await authorizeOrder(orderId, 'create_order');
     if ('error' in auth) return { success: false, error: auth.error };
     const { db, user } = auth;
 
@@ -88,8 +98,7 @@ export async function validateOrderAction(
 }
 
 /**
- * 8. Création d'un membre de l'équipe par l'OWNER (Supabase Auth Admin)
- * Crée l'utilisateur Supabase Auth + identity + membership dans l'organisation du caller.
+ * Création d'un membre de l'équipe par l'OWNER (Supabase Auth Admin)
  */
 export async function createStaffMemberAction(input: {
   email: string;
@@ -98,12 +107,12 @@ export async function createStaffMemberAction(input: {
   role: Database['public']['Enums']['member_role'];
 }) {
   try {
-    const callerMembership = await getServerUserMembership();
-    if (!callerMembership || !callerMembership.membership || callerMembership.membership.role !== 'OWNER') {
-      return { success: false, error: 'Seul le propriétaire (OWNER) peut créer un membre d\'équipe.' };
+    const auth = await requirePermission('manage_team_and_roles');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Seul le propriétaire (OWNER) peut gérer l\'équipe.' };
     }
 
-    const orgId = callerMembership.membership.organization_id;
+    const orgId = auth.profile.membership.organization_id;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -154,16 +163,14 @@ export async function createStaffMemberAction(input: {
 }
 
 /**
- * 2. Réception du linge et attribution du ticket officiel sans trou (statut RECEIVED)
- * Règle métier : « pas de ticket, pas de linge »
- * Exécute atomiquement la RPC PostgreSQL receive_order_and_assign_ticket()
+ * Réception du linge et attribution du ticket officiel sans trou (statut RECEIVED)
  */
 export async function receiveOrderAction(
   orderId: string,
   itemsCountIn: number
 ) {
   try {
-    const auth = await authorizeOrder(orderId, ['OWNER', 'MANAGER', 'CASHIER']);
+    const auth = await authorizeOrder(orderId, 'create_order');
     if ('error' in auth) return { success: false, error: auth.error };
     const { db, user, membership } = auth;
 
@@ -203,8 +210,7 @@ export async function receiveOrderAction(
 }
 
 /**
- * 3. Mise à jour du statut d'avancement (PROCESSING, READY, DELIVERED)
- * Anti-détournement : pas de livraison (DELIVERED) si commande non soldée sans dérogation
+ * Mise à jour du statut d'avancement (PROCESSING, READY, DELIVERED)
  */
 export async function updateOrderStatusAction(
   orderId: string,
@@ -225,9 +231,16 @@ export async function updateOrderStatusAction(
       REJECTED: [],
       CANCELLED: [],
     };
-    const auth = await authorizeOrder(orderId, newStatus === 'DELIVERED' ? ['OWNER', 'MANAGER', 'CASHIER', 'DELIVERY'] : ['OWNER', 'MANAGER', 'CASHIER']);
+
+    const auth = await authorizeOrder(orderId, 'change_order_status');
     if ('error' in auth) return { success: false, error: auth.error };
-    const { db, user } = auth;
+    const { db, user, role } = auth;
+
+    // Restriction spécifique DELIVERY : ne peut passer qu'au statut DELIVERED
+    if (role === 'DELIVERY' && newStatus !== 'DELIVERED') {
+      return { success: false, error: 'Un livreur ne peut que passer une commande au statut "Livrée".' };
+    }
+
     if (!transitions[auth.order.status].includes(newStatus)) {
       return { success: false, error: `Transition impossible de ${auth.order.status} à ${newStatus}.` };
     }
@@ -290,7 +303,7 @@ export async function updateOrderStatusAction(
 }
 
 /**
- * 4. Enregistrement d'un paiement (écriture immuable dans payments)
+ * Enregistrement d'un paiement (écriture immuable dans payments)
  */
 export async function recordPaymentAction(
   orderId: string,
@@ -304,7 +317,7 @@ export async function recordPaymentAction(
       return { success: false, error: 'Le montant du paiement doit être supérieur à 0.' };
     }
 
-    const auth = await authorizeOrder(orderId, ['OWNER', 'MANAGER', 'CASHIER']);
+    const auth = await authorizeOrder(orderId, 'record_payment');
     if ('error' in auth) return { success: false, error: auth.error };
     const { db, user, membership } = auth;
 
@@ -339,8 +352,7 @@ export async function recordPaymentAction(
 }
 
 /**
- * 5. Annulation d'une commande (motif obligatoire, audit automatique)
- * Aucune suppression physique
+ * Annulation d'une commande (motif obligatoire, audit automatique)
  */
 export async function cancelOrderAction(
   orderId: string,
@@ -354,9 +366,15 @@ export async function cancelOrderAction(
       };
     }
 
-    const auth = await authorizeOrder(orderId, ['OWNER', 'MANAGER']);
-    if ('error' in auth) return { success: false, error: auth.error };
-    const { db, user } = auth;
+    // Annulation réservée OWNER/MANAGER
+    const auth = await requirePermission('manage_services'); // or OWNER/MANAGER
+    if (!auth.authorized || !can(auth.role, 'manage_services')) {
+      return { success: false, error: 'L\'annulation de commande est réservée au Propriétaire et au Manager.' };
+    }
+
+    const orderAuth = await authorizeOrder(orderId, 'create_order');
+    if ('error' in orderAuth) return { success: false, error: orderAuth.error };
+    const { db, user } = orderAuth;
 
     const { error } = await db
       .from('orders')
@@ -382,14 +400,18 @@ export async function cancelOrderAction(
 }
 
 /**
- * 6. Récupérer le détail complet d'une commande pour l'admin
+ * Récupérer le détail complet d'une commande
  */
 export async function getOrderDetailsAction(orderId: string) {
   try {
-    const auth = await authorizeOrder(orderId);
-    if ('error' in auth) return { success: false, error: auth.error };
-    const { db } = auth;
+    const auth = await authorizeOrder(orderId, 'view_orders_and_clients');
+    if ('error' in auth && auth.error) {
+      // Cas DELIVERY qui accède à sa livraison
+      const deliveryAuth = await authorizeOrder(orderId, 'view_own_deliveries');
+      if ('error' in deliveryAuth) return { success: false, error: deliveryAuth.error };
+    }
 
+    const db = await createServerSupabaseClient();
     const { data: order, error: ordErr } = await db
       .from('orders')
       .select(`
@@ -429,10 +451,18 @@ export async function getOrderDetailsAction(orderId: string) {
 }
 
 /**
- * 7. Récupérer les statistiques du tableau de bord admin
+ * Récupérer les statistiques du tableau de bord admin
  */
 export async function getAdminDashboardStats(orgId: string) {
   try {
+    const auth = await requirePermission('view_stats_and_daily_summary');
+    if (!auth.authorized) {
+      return {
+        success: false,
+        error: 'Permission insuffisante pour consulter les statistiques.',
+      };
+    }
+
     const db = await createServerSupabaseClient();
     const today = new Date().toISOString().split('T')[0];
 

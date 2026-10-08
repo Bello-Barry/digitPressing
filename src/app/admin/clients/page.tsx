@@ -1,19 +1,32 @@
 import React from 'react';
-import Link from 'next/link';
-import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { requirePermission } from '@/lib/permissions-server';
 import { redirect } from 'next/navigation';
+import { AccessDenied } from '@/components/admin/AccessDenied';
 import { formatPhoneDisplay, generateWhatsAppLink } from '@/lib/whatsapp';
-import { Users, Search, Phone, ShoppingBag, MessageCircle, ExternalLink } from 'lucide-react';
+import { Users, Search, Phone, MessageCircle } from 'lucide-react';
 
 interface PageProps {
   searchParams: Promise<{ q?: string }>;
 }
 
 export default async function AdminClientsPage({ searchParams }: PageProps) {
+  const auth = await requirePermission('view_orders_and_clients');
+
+  if (!auth.authorized || !auth.profile?.membership?.is_active) {
+    if (!auth.profile) {
+      redirect('/admin/login');
+    }
+    return (
+      <AccessDenied
+        title="Accès restreint"
+        message="Vous n'avez pas la permission de consulter le répertoire des clients."
+      />
+    );
+  }
+
   const { q } = await searchParams;
-  const profile = await getServerUserMembership();
-  if (!profile?.membership?.is_active) redirect('/admin/login');
-  const orgId = profile.membership.organization_id;
+  const orgId = auth.profile.membership.organization_id;
   const db = await createServerSupabaseClient();
 
   let query = db
