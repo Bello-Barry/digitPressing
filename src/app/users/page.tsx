@@ -13,11 +13,8 @@ import {
   Plus,
   UserCheck,
   UserX,
-  Mail,
-  Shield,
   XCircle,
   CheckCircle,
-  User as UserIcon,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -25,6 +22,8 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { getAdminMembershipAction } from '@/actions/auth';
 import { createStaffMemberAction } from '@/actions/admin';
+import { can } from '@/lib/permissions';
+import { AccessDenied } from '@/components/admin/AccessDenied';
 
 interface PageUser {
   id: string;
@@ -58,7 +57,6 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
-  const [orgId, setOrgId] = useState<string | null>(null);
 
   const {
     register,
@@ -82,9 +80,8 @@ export default function UsersPage() {
       const role = membershipData.membership.role;
       const organizationId = membershipData.membership.organization_id;
       setCurrentRole(role);
-      setOrgId(organizationId);
 
-      if (role !== 'OWNER') {
+      if (!can(role, 'manage_team_and_roles') && !membershipData.isPlatformAdmin) {
         setIsLoading(false);
         return;
       }
@@ -168,18 +165,12 @@ export default function UsersPage() {
     }
   };
 
-  if (!isLoading && currentRole !== 'OWNER') {
+  if (!isLoading && !can(currentRole, 'manage_team_and_roles')) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
-        <Shield className="h-12 w-12 text-amber-500 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Accès restreint</h2>
-        <p className="text-slate-400 max-w-md mb-6">
-          Seul le propriétaire (OWNER) de LB Pressing est autorisé à gérer l'équipe.
-        </p>
-        <Button onClick={() => router.push('/admin')}>
-          Retour au Dashboard
-        </Button>
-      </div>
+      <AccessDenied
+        title="Accès restreint"
+        message="Seul le propriétaire (OWNER) est autorisé à gérer l'équipe et les rôles."
+      />
     );
   }
 

@@ -1,46 +1,27 @@
 import React from 'react';
 import Link from 'next/link';
-import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { requirePermission } from '@/lib/permissions-server';
 import { redirect } from 'next/navigation';
-import { Settings, ShieldAlert, Building2, MessageSquare, ArrowLeft } from 'lucide-react';
+import { AccessDenied } from '@/components/admin/AccessDenied';
+import { Settings, Building2, MessageSquare, ArrowLeft } from 'lucide-react';
 
 export default async function AdminSettingsPage() {
-  const profile = await getServerUserMembership();
+  const auth = await requirePermission('manage_organization_settings');
 
-  // Rediriger vers la page de login si non authentifié ou inactif
-  if (!profile?.membership?.is_active) {
-    redirect('/admin/login');
-  }
-
-  // Vérification stricte du rôle OWNER
-  const role = profile.membership.role;
-  const isOwner = role === 'OWNER' || profile.isPlatformAdmin;
-
-  if (!isOwner) {
+  if (!auth.authorized || !auth.profile?.membership?.is_active) {
+    if (!auth.profile) {
+      redirect('/admin/login');
+    }
     return (
-      <div className="max-w-xl mx-auto my-12 p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4 shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto">
-          <ShieldAlert className="w-6 h-6" />
-        </div>
-        <h1 className="text-xl font-bold text-white">Accès restreint</h1>
-        <p className="text-xs text-slate-400">
-          La gestion des paramètres du pressing est strictly réservée au propriétaire (OWNER).
-          Votre rôle actuel est <span className="font-semibold text-amber-400">{role}</span>.
-        </p>
-        <div className="pt-2">
-          <Link
-            href="/admin"
-            className="inline-flex items-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1.5" />
-            Retour au Tableau de Bord
-          </Link>
-        </div>
-      </div>
+      <AccessDenied
+        title="Accès restreint"
+        message="La gestion des paramètres du pressing est strictement réservée au propriétaire (OWNER)."
+      />
     );
   }
 
-  const orgId = profile.membership.organization_id;
+  const orgId = auth.profile.membership.organization_id;
   const db = await createServerSupabaseClient();
 
   // Charger les données de l'organisation et des modèles de messages

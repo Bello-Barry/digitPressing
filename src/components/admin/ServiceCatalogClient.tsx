@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock, Tag } from 'lucide-react';
+import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { createServiceAction, updateServiceAction, toggleServiceStatusAction } from '@/actions/services';
 
@@ -19,11 +19,17 @@ interface Service {
 
 interface ServiceCatalogClientProps {
   initialServices: Service[];
-  isManagement: boolean; // true if OWNER, MANAGER or PlatformAdmin
+  canManageServices: boolean;
+  canViewCosts?: boolean;
   userRole: string;
 }
 
-export function ServiceCatalogClient({ initialServices, isManagement, userRole }: ServiceCatalogClientProps) {
+export function ServiceCatalogClient({
+  initialServices,
+  canManageServices,
+  canViewCosts = false,
+  userRole,
+}: ServiceCatalogClientProps) {
   const [services, setServices] = useState<Service[]>(initialServices);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -71,7 +77,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isManagement) {
+    if (!canManageServices) {
       toast.error('Permission refusée. Vous n\'avez pas les droits de modification.');
       return;
     }
@@ -90,13 +96,12 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
 
     try {
       if (editingService) {
-        // Edit existing service
         const res = await updateServiceAction(editingService.id, {
           name,
           description,
           category,
           price: Number(price),
-          cost_price: costPrice !== '' ? Number(costPrice) : undefined,
+          cost_price: canViewCosts && costPrice !== '' ? Number(costPrice) : undefined,
           estimated_days: Number(estimatedDays),
           is_active: isActive,
         });
@@ -111,13 +116,12 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
           setIsModalOpen(false);
         }
       } else {
-        // Create new service
         const res = await createServiceAction({
           name,
           description,
           category,
           price: Number(price),
-          cost_price: costPrice !== '' ? Number(costPrice) : undefined,
+          cost_price: canViewCosts && costPrice !== '' ? Number(costPrice) : undefined,
           estimated_days: Number(estimatedDays),
           is_active: isActive,
         });
@@ -140,7 +144,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
   };
 
   const handleToggleActive = async (service: Service) => {
-    if (!isManagement) {
+    if (!canManageServices) {
       toast.error('Permission refusée.');
       return;
     }
@@ -179,7 +183,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
           </p>
         </div>
 
-        {isManagement && (
+        {canManageServices && (
           <button
             onClick={openCreateModal}
             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs tracking-wide transition shadow-lg shadow-amber-500/10 active:scale-95"
@@ -253,7 +257,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
                     <Clock className="w-3 h-3 mr-1 text-slate-500" />
                     ~{s.estimated_days || 2}j
                   </span>
-                  {isManagement && s.cost_price != null && (
+                  {canViewCosts && s.cost_price != null && (
                     <span className="text-[10px] text-slate-500 font-mono" title="Coût de revient">
                       Coût: {Number(s.cost_price).toLocaleString('fr-FR')} FCFA
                     </span>
@@ -261,7 +265,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
                 </div>
 
                 <div className="flex items-center space-x-1.5">
-                  {isManagement ? (
+                  {canManageServices ? (
                     <>
                       <button
                         onClick={() => handleToggleActive(s)}
@@ -308,7 +312,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
       </div>
 
       {/* Edit / Add Modal */}
-      {isModalOpen && (
+      {isModalOpen && canManageServices && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -364,7 +368,7 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid ${canViewCosts ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">
                     Prix de vente (FCFA) *
@@ -381,20 +385,22 @@ export function ServiceCatalogClient({ initialServices, isManagement, userRole }
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-medium mb-1">
-                    Coût de revient (FCFA)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    placeholder="ex: 1500 (Optionnel)"
-                    value={costPrice}
-                    onChange={e => setCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+                {canViewCosts && (
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1">
+                      Coût de revient (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="ex: 1500 (Optionnel)"
+                      value={costPrice}
+                      onChange={e => setCostPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
