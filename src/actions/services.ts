@@ -44,31 +44,76 @@ export interface ServiceInput {
   needs_review?: boolean;
 }
 
+export interface ActionResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  duplicate?: boolean;
+}
+
 /**
  * Récupérer toutes les catégories pour l'organisation de l'utilisateur connecté
+ * Avec auto-seeding si la liste est vide pour l'organisation
  */
-export async function getServiceCategoriesAction(): Promise<ServiceCategory[]> {
+export async function getServiceCategoriesAction(): Promise<{ data: ServiceCategory[]; error?: string }> {
   try {
     const db = await createServerSupabaseClient();
-    const { data: profile } = await db.auth.getUser();
-    if (!profile.user) return [];
+    const { data: userRes, error: userErr } = await db.auth.getUser();
+    if (userErr || !userRes.user) {
+      console.error('Erreur getServiceCategoriesAction (auth):', userErr);
+      return { data: [], error: 'Utilisateur non authentifié.' };
+    }
 
-    const { data } = await db
+    const { data, error } = await db
       .from('service_categories')
       .select('id, organization_id, name, sort_order, is_active, created_at')
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
-    return (data || []) as ServiceCategory[];
-  } catch {
-    return [];
+    if (error) {
+      console.error('Erreur SQL getServiceCategoriesAction:', error);
+      return { data: [], error: error.message };
+    }
+
+    // Si aucune catégorie n'existe encore pour l'organisation, tenter un auto-seed
+    if (!data || data.length === 0) {
+      const { data: membership } = await db
+        .from('memberships')
+        .select('organization_id')
+        .eq('user_id', userRes.user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (membership?.organization_id) {
+        console.log(`Auto-seeding du catalogue par défaut pour org: ${membership.organization_id}`);
+        await db.rpc('seed_default_catalog', { p_org_id: membership.organization_id });
+
+        const { data: seededCats, error: reQueryErr } = await db
+          .from('service_categories')
+          .select('id, organization_id, name, sort_order, is_active, created_at')
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (reQueryErr) {
+          console.error('Erreur SQL re-requête categories après seed:', reQueryErr);
+          return { data: [], error: reQueryErr.message };
+        }
+        return { data: (seededCats || []) as ServiceCategory[] };
+      }
+    }
+
+    return { data: (data || []) as ServiceCategory[] };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Erreur inattendue getServiceCategoriesAction';
+    console.error('Exception getServiceCategoriesAction:', err);
+    return { data: [], error: errorMsg };
   }
 }
 
 /**
  * Récupérer les articles (garment_types) pour l'organisation de l'utilisateur connecté
  */
-export async function getGarmentTypesAction(categoryId?: string): Promise<GarmentType[]> {
+export async function getGarmentTypesAction(categoryId?: string): Promise<{ data: GarmentType[]; error?: string }> {
   try {
     const db = await createServerSupabaseClient();
 
@@ -81,10 +126,17 @@ export async function getGarmentTypesAction(categoryId?: string): Promise<Garmen
       query = query.eq('category_id', categoryId);
     }
 
-    const { data } = await query;
-    return (data || []) as GarmentType[];
-  } catch {
-    return [];
+    const { data, error } = await query;
+    if (error) {
+      console.error('Erreur SQL getGarmentTypesAction:', error);
+      return { data: [], error: error.message };
+    }
+
+    return { data: (data || []) as GarmentType[] };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Erreur inattendue getGarmentTypesAction';
+    console.error('Exception getGarmentTypesAction:', err);
+    return { data: [], error: errorMsg };
   }
 }
 
@@ -109,10 +161,14 @@ export async function createCategoryAction(name: string, sortOrder: number = 10)
     const db = await createServerSupabaseClient();
 
     // Vérification préalable de doublon par nom normalisé
-    const { data: existingList } = await db
+    const { data: existingList, error: fetchErr } = await db
       .from('service_categories')
       .select('id, name, organization_id, sort_order, is_active, created_at')
       .eq('organization_id', organization_id);
+
+    if (fetchErr) {
+      console.error('Erreur SQL verification doublon categorie:', fetchErr);
+    }
 
     const duplicate = (existingList || []).find(
       cat => normalizeCatalogName(cat.name) === normalizedInput
@@ -139,12 +195,14 @@ export async function createCategoryAction(name: string, sortOrder: number = 10)
       .single();
 
     if (error || !newCategory) {
+      console.error('Erreur insertion categorie:', error);
       return { success: false, error: error?.message || 'Erreur lors de la création de la catégorie.' };
     }
 
     revalidatePath('/admin/services');
     return { success: true, category: newCategory as ServiceCategory };
   } catch (err: unknown) {
+    console.error('Exception createCategoryAction:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur inattendue.',
@@ -173,10 +231,14 @@ export async function createGarmentTypeAction(categoryId: string, name: string) 
     const db = await createServerSupabaseClient();
 
     // Vérification préalable de doublon par nom normalisé
-    const { data: existingList } = await db
+    const { data: existingList, error: fetchErr } = await db
       .from('garment_types')
       .select('id, name, category_id, organization_id, is_active, created_at')
       .eq('organization_id', organization_id);
+
+    if (fetchErr) {
+      console.error('Erreur SQL verification doublon garment_type:', fetchErr);
+    }
 
     const duplicate = (existingList || []).find(
       gt => normalizeCatalogName(gt.name) === normalizedInput
@@ -203,12 +265,14 @@ export async function createGarmentTypeAction(categoryId: string, name: string) 
       .single();
 
     if (error || !newGarmentType) {
+      console.error('Erreur insertion garment_type:', error);
       return { success: false, error: error?.message || 'Erreur lors de la création de l\'article.' };
     }
 
     revalidatePath('/admin/services');
     return { success: true, garmentType: newGarmentType as GarmentType };
   } catch (err: unknown) {
+    console.error('Exception createGarmentTypeAction:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur inattendue.',
@@ -293,6 +357,7 @@ export async function createServiceAction(input: ServiceInput) {
       .single();
 
     if (error || !service) {
+      console.error('Erreur insertion service:', error);
       return { success: false, error: error?.message || 'Erreur de création.' };
     }
 
@@ -310,6 +375,8 @@ export async function createServiceAction(input: ServiceInput) {
 
       if (!costErr) {
         cost_price = input.cost_price;
+      } else {
+        console.error('Erreur upsert service_costs:', costErr);
       }
     }
 
@@ -318,6 +385,7 @@ export async function createServiceAction(input: ServiceInput) {
 
     return { success: true, service: { ...service, cost_price } };
   } catch (err: unknown) {
+    console.error('Exception createServiceAction:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur lors de la création du service.',
@@ -393,6 +461,7 @@ export async function updateServiceAction(serviceId: string, input: Partial<Serv
       .single();
 
     if (error || !service) {
+      console.error('Erreur updateServiceAction:', error);
       return { success: false, error: error?.message || 'Erreur de mise à jour.' };
     }
 
@@ -417,6 +486,7 @@ export async function updateServiceAction(serviceId: string, input: Partial<Serv
 
     return { success: true, service: { ...service, cost_price } };
   } catch (err: unknown) {
+    console.error('Exception updateServiceAction:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur lors de la mise à jour du service.',
@@ -443,10 +513,15 @@ export async function getServiceCostsMapAction(): Promise<Record<string, number>
 
     const { organization_id } = auth.profile.membership;
     const db = await createServerSupabaseClient();
-    const { data } = await db
+    const { data, error } = await db
       .from('service_costs')
       .select('service_id, cost_price')
       .eq('organization_id', organization_id);
+
+    if (error) {
+      console.error('Erreur getServiceCostsMapAction:', error);
+      return {};
+    }
 
     const map: Record<string, number> = {};
     if (data) {
@@ -455,7 +530,8 @@ export async function getServiceCostsMapAction(): Promise<Record<string, number>
       }
     }
     return map;
-  } catch {
+  } catch (err: unknown) {
+    console.error('Exception getServiceCostsMapAction:', err);
     return {};
   }
 }

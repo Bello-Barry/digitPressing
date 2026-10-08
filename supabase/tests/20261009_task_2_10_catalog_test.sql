@@ -17,8 +17,9 @@ DECLARE
 
   v_cat_a_id UUID;
   v_garment_a_id UUID;
-  v_service_a_id UUID;
 
+  v_count_cats INTEGER;
+  v_count_garments INTEGER;
   v_count INTEGER;
   v_caught BOOLEAN := false;
   v_err_code TEXT;
@@ -58,11 +59,24 @@ BEGIN
 
 
   -- ---------------------------------------------------------------------------
-  -- TEST 1 : OWNER PEUT CRÉER UNE CATÉGORIE ET UN ARTICLE DANS SON ORG
+  -- TEST 1 : OWNER PEUT LIRE ET CRÉER DANS LE CATALOGUE DE SON ORG
   -- ---------------------------------------------------------------------------
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_a_id::text)::text, true);
   PERFORM set_config('role', 'authenticated', true);
 
+  -- 1a. OWNER voit au moins les 7 catégories et les articles du seed
+  SELECT COUNT(*) INTO v_count_cats FROM public.service_categories WHERE organization_id = v_org_a_id;
+  SELECT COUNT(*) INTO v_count_garments FROM public.garment_types WHERE organization_id = v_org_a_id;
+
+  IF v_count_cats < 7 THEN
+    RAISE EXCEPTION 'TEST 1a FAILED: OWNER A doit voir au moins 7 catégories du seed (vu: %)', v_count_cats;
+  END IF;
+
+  IF v_count_garments < 10 THEN
+    RAISE EXCEPTION 'TEST 1a FAILED: OWNER A doit voir les articles du seed (vu: %)', v_count_garments;
+  END IF;
+
+  -- 1b. OWNER crée une catégorie et un article spécifiques
   INSERT INTO public.service_categories (organization_id, name, sort_order)
   VALUES (v_org_a_id, 'Accessoires Spéciaux', 20)
   RETURNING id INTO v_cat_a_id;
@@ -71,11 +85,11 @@ BEGIN
   VALUES (v_org_a_id, v_cat_a_id, 'Chapeau')
   RETURNING id INTO v_garment_a_id;
 
-  RAISE NOTICE '✓ Test 1 OWNER OK : Catégorie et Article créés dans Org A';
+  RAISE NOTICE '✓ Test 1 OWNER OK : Seed verifié (% catégories, % articles) et création personnalisée', v_count_cats, v_count_garments;
 
 
   -- ---------------------------------------------------------------------------
-  -- TEST 2 : REFUS DU DOUBLON NORMALISÉ (Sensibilité casse / accents)
+  -- TEST 2 : REFUS DU DOUBLON NORMALISÉ (Casse & accents)
   -- ---------------------------------------------------------------------------
   v_caught := false;
   BEGIN
@@ -99,12 +113,18 @@ BEGIN
 
 
   -- ---------------------------------------------------------------------------
-  -- TEST 3 : CASHIER NE PEUT PAS CRÉER DE CATÉGORIE NI D'ARTICLE
+  -- TEST 3 : CASHIER LIT LE CATALOGUE MAIS NE PEUT NI CRÉER NI MODIFIER
   -- ---------------------------------------------------------------------------
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_cashier_a_id::text)::text, true);
   PERFORM set_config('role', 'authenticated', true);
 
-  -- 3a. Cashier tente de créer une catégorie
+  -- 3a. Cashier lit les catégories
+  SELECT COUNT(*) INTO v_count FROM public.service_categories WHERE organization_id = v_org_a_id;
+  IF v_count <> v_count_cats + 1 THEN
+    RAISE EXCEPTION 'TEST 3a FAILED: CASHIER doit pouvoir lire le catalogue (vu: %, attendu: %)', v_count, v_count_cats + 1;
+  END IF;
+
+  -- 3b. Cashier tente de créer une catégorie
   v_caught := false;
   BEGIN
     INSERT INTO public.service_categories (organization_id, name)
@@ -114,15 +134,15 @@ BEGIN
     IF v_err_code = '42501' THEN
       v_caught := true;
     ELSE
-      RAISE EXCEPTION 'TEST 3a FAILED: Code d''erreur inattendu pour création catégorie par cashier: SQLSTATE %', v_err_code;
+      RAISE EXCEPTION 'TEST 3b FAILED: Code d''erreur inattendu pour création catégorie par cashier: SQLSTATE %', v_err_code;
     END IF;
   END;
 
   IF NOT v_caught THEN
-    RAISE EXCEPTION 'TEST 3a FAILED: CASHIER a pu créer une catégorie !';
+    RAISE EXCEPTION 'TEST 3b FAILED: CASHIER a pu créer une catégorie !';
   END IF;
 
-  -- 3b. Cashier tente de créer un article
+  -- 3c. Cashier tente de créer un article
   v_caught := false;
   BEGIN
     INSERT INTO public.garment_types (organization_id, category_id, name)
@@ -132,19 +152,19 @@ BEGIN
     IF v_err_code = '42501' THEN
       v_caught := true;
     ELSE
-      RAISE EXCEPTION 'TEST 3b FAILED: Code d''erreur inattendu pour création article par cashier: SQLSTATE %', v_err_code;
+      RAISE EXCEPTION 'TEST 3c FAILED: Code d''erreur inattendu pour création article par cashier: SQLSTATE %', v_err_code;
     END IF;
   END;
 
   IF NOT v_caught THEN
-    RAISE EXCEPTION 'TEST 3b FAILED: CASHIER a pu créer un article !';
+    RAISE EXCEPTION 'TEST 3c FAILED: CASHIER a pu créer un article !';
   END IF;
 
-  RAISE NOTICE '✓ Test 3 CASHIER BLOQUÉ OK : Ni catégorie ni article créables par CASHIER';
+  RAISE NOTICE '✓ Test 3 CASHIER OK : Lecture autorisée, écriture bloquée';
 
 
   -- ---------------------------------------------------------------------------
-  -- TEST 4 : ÉTANCHÉITÉ MULTI-TENANT (Owner B ne voit pas le catalogue personnalisé de Org A)
+  -- TEST 4 : ÉTANCHÉITÉ MULTI-TENANT (Owner B ne voit pas le catalogue de Org A)
   -- ---------------------------------------------------------------------------
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_b_id::text)::text, true);
   PERFORM set_config('role', 'authenticated', true);

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock, AlertTriangle, Tag, Layers } from 'lucide-react';
+import { Shirt, Plus, Edit2, CheckCircle2, XCircle, Search, Clock, AlertTriangle, Tag, Layers, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createServiceAction,
@@ -37,6 +37,7 @@ interface ServiceCatalogClientProps {
   canManageServices: boolean;
   canViewCosts?: boolean;
   userRole: string;
+  errorMessage?: string | null;
 }
 
 export function ServiceCatalogClient({
@@ -46,6 +47,7 @@ export function ServiceCatalogClient({
   canManageServices,
   canViewCosts = false,
   userRole,
+  errorMessage,
 }: ServiceCatalogClientProps) {
   const [services, setServices] = useState<Service[]>(initialServices);
   const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories);
@@ -194,11 +196,6 @@ export function ServiceCatalogClient({
       return;
     }
 
-    if (!garmentTypeId) {
-      toast.error('Veuillez sélectionner ou ajouter un article.');
-      return;
-    }
-
     if (price === '' || Number(price) < 0) {
       toast.error('Veuillez saisir un tarif valide.');
       return;
@@ -212,11 +209,11 @@ export function ServiceCatalogClient({
 
       if (editingService) {
         const res = await updateServiceAction(editingService.id, {
-          category_id: categoryId,
-          garment_type_id: garmentTypeId,
+          category_id: categoryId || undefined,
+          garment_type_id: garmentTypeId || undefined,
           treatment: treatment,
           category: selectedCat?.name,
-          name: formatServiceName(selectedGarment?.name, treatment),
+          name: formatServiceName(selectedGarment?.name, treatment, editingService.name),
           price: Number(price),
           cost_price: canViewCosts && costPrice !== '' ? Number(costPrice) : undefined,
           estimated_days: Number(estimatedDays),
@@ -236,8 +233,8 @@ export function ServiceCatalogClient({
         }
       } else {
         const res = await createServiceAction({
-          category_id: categoryId,
-          garment_type_id: garmentTypeId,
+          category_id: categoryId || undefined,
+          garment_type_id: garmentTypeId || undefined,
           treatment: treatment,
           category: selectedCat?.name,
           name: formatServiceName(selectedGarment?.name, treatment),
@@ -284,9 +281,10 @@ export function ServiceCatalogClient({
     }
   };
 
+  // Filtrage des prestations dans la vue
   const filteredServices = services.filter(s => {
     const matchesSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.name && s.name.toLowerCase().includes(search.toLowerCase())) ||
       (s.description && s.description.toLowerCase().includes(search.toLowerCase()));
     const matchesCategory =
       selectedCategoryFilter === 'ALL' ||
@@ -297,6 +295,17 @@ export function ServiceCatalogClient({
 
   return (
     <div className="space-y-6">
+      {/* Alerte d'erreur de chargement si présente */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800 text-red-200 text-xs flex items-center space-x-3">
+          <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold block">Un problème est survenu lors du chargement :</span>
+            <span>{errorMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
@@ -361,7 +370,7 @@ export function ServiceCatalogClient({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                      <h3 className="font-bold text-white text-sm truncate">{s.name}</h3>
+                      <h3 className="font-bold text-white text-sm truncate">{s.name || 'Prestation sans nom'}</h3>
                       {s.needs_review && canManageServices && (
                         <span className="inline-flex items-center text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
                           <AlertTriangle className="w-3 h-3 mr-1" />
@@ -370,7 +379,7 @@ export function ServiceCatalogClient({
                       )}
                     </div>
                     <span className="inline-block mt-1 text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
-                      {s.category || 'Vêtement'}
+                      {s.category || 'Vêtements'}
                     </span>
                   </div>
                   <div className="text-right shrink-0">
@@ -512,7 +521,7 @@ export function ServiceCatalogClient({
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-amber-500 min-h-[44px]"
                 >
                   {filteredGarmentTypesInForm.length === 0 ? (
-                    <option value="">Aucun article dans cette catégorie</option>
+                    <option value="">Sélectionner ou ajouter un article</option>
                   ) : (
                     filteredGarmentTypesInForm.map(gt => (
                       <option key={gt.id} value={gt.id}>
@@ -545,7 +554,8 @@ export function ServiceCatalogClient({
                 <span className="text-xs font-bold text-amber-300">
                   {formatServiceName(
                     garmentTypes.find(gt => gt.id === garmentTypeId)?.name,
-                    treatment
+                    treatment,
+                    editingService?.name
                   )}
                 </span>
               </div>
