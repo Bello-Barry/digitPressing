@@ -264,12 +264,23 @@ BEGIN
       ORDER BY length(gt.name) DESC
     LOOP
       IF v_norm_service_name LIKE '%' || public.normalize_catalog_name(v_garment.name) || '%' THEN
-        UPDATE public.services
-        SET garment_type_id = v_garment.id,
-            treatment = v_treatment,
-            needs_review = false
-        WHERE id = v_service.id;
-        v_matched := true;
+        -- Vérification d'absence de collision avec une autre prestation de la même organisation
+        IF NOT EXISTS (
+          SELECT 1 FROM public.services
+          WHERE organization_id = v_service.organization_id
+            AND garment_type_id = v_garment.id
+            AND treatment = v_treatment
+            AND id <> v_service.id
+        ) THEN
+          UPDATE public.services
+          SET garment_type_id = v_garment.id,
+              treatment = v_treatment,
+              needs_review = false
+          WHERE id = v_service.id;
+          v_matched := true;
+        END IF;
+        -- En cas de match sur l'article le plus spécifique, stopper la recherche
+        -- (Si collision, la prestation n'est pas mise à jour et restera marquée needs_review = true)
         EXIT;
       END IF;
     END LOOP;
