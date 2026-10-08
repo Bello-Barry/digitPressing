@@ -67,11 +67,21 @@ export function AdminNavbar() {
     { href: '/admin/paiements', label: 'Caisse', icon: DollarSign },
   ];
 
+  const ownerManagerLinks = (profile?.role === 'OWNER' || profile?.role === 'MANAGER')
+    ? [{ href: '/admin/journal', label: 'Journal', icon: Shield }]
+    : [];
+
   const navLinks = profile?.role === 'OWNER'
     ? [
         ...baseNavLinks,
+        ...ownerManagerLinks,
         { href: '/users', label: 'Équipe', icon: Users },
         { href: '/admin/parametres', label: 'Paramètres', icon: Settings },
+      ]
+    : profile?.role === 'MANAGER'
+    ? [
+        ...baseNavLinks,
+        ...ownerManagerLinks,
       ]
     : baseNavLinks;
 
