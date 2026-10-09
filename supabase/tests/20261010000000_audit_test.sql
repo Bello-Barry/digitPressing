@@ -8,7 +8,6 @@ DECLARE
   v_org_a UUID := '11111111-1111-1111-1111-111111111111';
   v_org_b UUID := '22222222-2222-2222-2222-222222222222';
   v_test_service_id UUID;
-  v_test_cost_service_id UUID;
   v_log_count INT;
   v_exception_caught BOOLEAN := FALSE;
   v_diff_before JSONB;
@@ -21,15 +20,15 @@ BEGIN
   VALUES (v_org_a, 'Service Test Audit A', 'vetement', 5000, 2)
   RETURNING id INTO v_test_service_id;
 
-  -- Vérification que le trigger AFTER a inséré une ligne d'audit dans audit_logs pour ORG A
+  -- Vérification que le trigger AFTER a inséré UNE seule ligne d'audit dans audit_logs pour ORG A
   SELECT COUNT(*) INTO v_log_count
   FROM public.audit_logs
   WHERE organization_id = v_org_a AND object_type = 'services' AND object_id = v_test_service_id AND action = 'INSERT';
 
-  IF v_log_count < 1 THEN
-    RAISE EXCEPTION 'ÉCHEC TEST : Le trigger AFTER d''audit n''a pas créé de ligne d''audit sur création de service dans Org A.';
+  IF v_log_count <> 1 THEN
+    RAISE EXCEPTION 'ÉCHEC TEST : Le trigger AFTER d''audit n''a pas créé exactement 1 ligne d''audit (reçu %).', v_log_count;
   END IF;
-  RAISE NOTICE '[PASS] Trigger AFTER d''audit exécuté avec succès sur INSERT.';
+  RAISE NOTICE '[PASS] Trigger AFTER d''audit exécuté avec succès (1 seule ligne créée sur INSERT).';
 
   -- 2. MODIFICATION DE LA PRESTATION POUR TESTER LE COMPORTEMENT DES DIFFS SUR UPDATE
   UPDATE public.services
@@ -60,7 +59,7 @@ BEGIN
   END IF;
   RAISE NOTICE '[PASS] Trigger d''audit sur service_costs fonctionnel.';
 
-  -- 4. TEST D'IMMUABILITÉ STRICTE : TENTATIVE D'UPDATE SUR AUDIT_LOGS
+  -- 4. TEST D'IMMUABILITÉ STRICTE : TENTATIVE D'UPDATE SUR AUDIT_LOGS (REFUSÉ AVEC SQLSTATE 42501)
   BEGIN
     UPDATE public.audit_logs
     SET action = 'HACK'
@@ -76,7 +75,7 @@ BEGIN
     RAISE EXCEPTION 'ÉCHEC TEST : L''UPDATE sur audit_logs n''a pas été bloqué par le trigger d''immuabilité.';
   END IF;
 
-  -- 5. TEST D'IMMUABILITÉ STRICTE : TENTATIVE DE DELETE SUR AUDIT_LOGS
+  -- 5. TEST D'IMMUABILITÉ STRICTE : TENTATIVE DE DELETE SUR AUDIT_LOGS (REFUSÉ AVEC SQLSTATE 42501)
   v_exception_caught := FALSE;
   BEGIN
     DELETE FROM public.audit_logs
@@ -92,7 +91,22 @@ BEGIN
     RAISE EXCEPTION 'ÉCHEC TEST : Le DELETE sur audit_logs n''a pas été bloqué par le trigger d''immuabilité.';
   END IF;
 
-  RAISE NOTICE '=== TOUS LES TESTS D''AUDIT LOG ET DIFFS SONT REUSSIS (ROLLBACK EN COURS) ===';
+  -- 6. TEST D'IMMUABILITÉ STRICTE : TENTATIVE DE TRUNCATE SUR AUDIT_LOGS (REFUSÉ AVEC SQLSTATE 42501)
+  v_exception_caught := FALSE;
+  BEGIN
+    TRUNCATE TABLE public.audit_logs;
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_exception_caught := TRUE;
+    RAISE NOTICE '[PASS] Tentative de TRUNCATE sur audit_logs rejetée avec SQLSTATE 42501.';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'ÉCHEC TEST : Erreur inattendue lors de la tentative TRUNCATE sur audit_logs: %', SQLERRM;
+  END;
+
+  IF NOT v_exception_caught THEN
+    RAISE EXCEPTION 'ÉCHEC TEST : Le TRUNCATE sur audit_logs n''a pas été bloqué par le trigger d''immuabilité.';
+  END IF;
+
+  RAISE NOTICE '=== TOUS LES TESTS D''AUDIT LOG, ISOLATION ET DIFFS SONT REUSSIS (ROLLBACK EN COURS) ===';
   -- Annulation systématique des données de test
   RAISE EXCEPTION 'TEST_SUCCESS_ROLLBACK' USING ERRCODE = 'P0001';
 EXCEPTION WHEN OTHERS THEN

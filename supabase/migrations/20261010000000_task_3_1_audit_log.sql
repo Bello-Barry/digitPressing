@@ -38,7 +38,37 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_org_created
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org_object
   ON public.audit_logs (organization_id, object_type, object_id);
 
--- 3. FONCTION DE COMPARAISON ET DIFF MINIMAL DE DEUX JSONB
+-- 3. FONCTIONS UTILITAIRES DE SÉCURITÉ DE VÉRIFICATION DE RÔLE
+CREATE OR REPLACE FUNCTION public.catalog_is_member(p_org_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.memberships
+    WHERE organization_id = p_org_id
+      AND user_id = auth.uid()
+      AND is_active = true
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.catalog_has_role(p_org_id UUID, p_roles TEXT[])
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.memberships
+    WHERE organization_id = p_org_id
+      AND user_id = auth.uid()
+      AND is_active = true
+      AND role = ANY(p_roles)
+  );
+$$;
+
+-- 4. FONCTION DE COMPARAISON ET DIFF MINIMAL DE DEUX JSONB
 CREATE OR REPLACE FUNCTION public.jsonb_diff_minimal(p_old jsonb, p_new jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -74,7 +104,7 @@ BEGIN
 END;
 $$;
 
--- 4. FONCTION TRIGGER DE JOURNALISATION AUTOMATIQUE TOLÉRANTE AUX ERREURS
+-- 5. FONCTION TRIGGER DE JOURNALISATION AUTOMATIQUE TOLÉRANTE AUX ERREURS
 CREATE OR REPLACE FUNCTION public.trigger_generic_audit_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -191,7 +221,7 @@ BEGIN
 END;
 $$;
 
--- 5. ATTACHEMENT DES TRIGGERS AFTER SUR TOUTES LES TABLES
+-- 6. ATTACHEMENT DES TRIGGERS AFTER SUR TOUTES LES TABLES
 DROP TRIGGER IF EXISTS trg_audit_orders ON public.orders;
 CREATE TRIGGER trg_audit_orders
   AFTER INSERT OR UPDATE OR DELETE ON public.orders
@@ -237,7 +267,7 @@ CREATE TRIGGER trg_audit_organizations
   AFTER UPDATE OR DELETE ON public.organizations
   FOR EACH ROW EXECUTE FUNCTION public.trigger_generic_audit_log();
 
--- 6. DROITS ET POLITIQUES RLS SUR AUDIT_LOGS
+-- 7. DROITS ET POLITIQUES RLS SUR AUDIT_LOGS
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.audit_logs FROM anon, authenticated, PUBLIC;
@@ -259,7 +289,7 @@ CREATE POLICY "audit_logs_owner_manager_select"
     )
   );
 
--- 7. IMMUABILITÉ STRICTE D'AUDIT_LOGS EN TOUT DERNIER : INTERDICTION DES UPDATE, DELETE ET TRUNCATE
+-- 8. IMMUABILITÉ STRICTE D'AUDIT_LOGS EN TOUT DERNIER : INTERDICTION DES UPDATE, DELETE ET TRUNCATE
 CREATE OR REPLACE FUNCTION public.prevent_audit_logs_mutation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
