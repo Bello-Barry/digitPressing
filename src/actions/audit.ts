@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { requirePermission } from '@/lib/permissions-server';
 import { AuditLogEntry } from '@/lib/audit-formatter';
 
@@ -20,7 +20,7 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
     throw new Error("Accès refusé : Seuls le propriétaire (OWNER) et le gérant (MANAGER) ont accès au journal d'audit.");
   }
 
-  const supabase = await createServerClient();
+  const supabase = await createServerSupabaseClient();
   const limit = params.limit || 20;
 
   // 2. Construction de la requête SQL/Supabase
@@ -147,7 +147,7 @@ export async function getAuditAuthors() {
     return [];
   }
 
-  const supabase = await createServerClient();
+  const supabase = await createServerSupabaseClient();
   const { data: members } = await supabase
     .from('memberships')
     .select('user_id, full_name, email, role')
