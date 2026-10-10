@@ -189,7 +189,8 @@ export function OrdersListView({
       <div className="md:hidden space-y-3">
         {initialOrders.length > 0 ? (
           initialOrders.map((order) => {
-            const isSolded = Number(order.balance_due) <= 0;
+            const isCancelledOrRejected = order.status === 'CANCELLED' || order.status === 'REJECTED';
+            const isSolded = isCancelledOrRejected || Number(order.balance_due) <= 0;
             return (
               <div
                 key={order.id}
@@ -215,12 +216,14 @@ export function OrdersListView({
                     </p>
                     <span
                       className={`text-[10px] font-bold ${
-                        isSolded ? 'text-emerald-400' : 'text-red-400'
+                        isSolded ? 'text-slate-400' : 'text-red-400'
                       }`}
                     >
-                      {isSolded
-                        ? 'Soldé'
-                        : `Reste: ${Number(order.balance_due).toLocaleString('fr-FR')} FCFA`}
+                      {isCancelledOrRejected
+                        ? (order.status === 'CANCELLED' ? 'Annulée' : 'Rejetée')
+                        : (Number(order.balance_due) <= 0
+                          ? 'Soldé'
+                          : `Reste: ${Number(order.balance_due).toLocaleString('fr-FR')} FCFA`)}
                     </span>
                   </div>
                 </div>
@@ -283,7 +286,8 @@ export function OrdersListView({
           <tbody className="divide-y divide-slate-800/60">
             {initialOrders.length > 0 ? (
               initialOrders.map((order) => {
-                const isSolded = Number(order.balance_due) <= 0;
+                const isCancelledOrRejected = order.status === 'CANCELLED' || order.status === 'REJECTED';
+                const isSolded = isCancelledOrRejected || Number(order.balance_due) <= 0;
                 return (
                   <tr key={order.id} className="hover:bg-slate-800/40 transition">
                     <td className="py-3 px-4">
@@ -316,8 +320,8 @@ export function OrdersListView({
                     </td>
 
                     <td className="py-3 px-4 text-right font-mono font-bold">
-                      <span className={isSolded ? 'text-emerald-400' : 'text-red-400'}>
-                        {Number(order.balance_due).toLocaleString('fr-FR')} FCFA
+                      <span className={isCancelledOrRejected ? 'text-slate-400' : (Number(order.balance_due) <= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {isCancelledOrRejected ? '-' : `${Number(order.balance_due).toLocaleString('fr-FR')} FCFA`}
                       </span>
                     </td>
 

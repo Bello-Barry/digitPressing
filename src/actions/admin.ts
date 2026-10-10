@@ -137,8 +137,9 @@ export async function createStaffMemberAction(input: {
       return { success: false, error: authError?.message || 'Erreur lors de la création Auth.' };
     }
 
-    // 2. Créer le membership lié à l'organisation
-    const { error: memError } = await adminSupabase.from('memberships').insert({
+    // 2. Créer le membership lié à l'organisation avec la session de l'utilisateur connecté (pour capturer l'auteur dans l'audit)
+    const userDb = await createServerSupabaseClient();
+    const { error: memError } = await userDb.from('memberships').insert({
       user_id: authUser.user.id,
       organization_id: orgId,
       role: input.role,

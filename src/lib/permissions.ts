@@ -16,7 +16,8 @@ export type Permission =
   | 'manage_services'
   | 'export_client_data'
   | 'manage_team_and_roles'
-  | 'manage_organization_settings';
+  | 'manage_organization_settings'
+  | 'view_audit_logs';
 
 export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
   create_order: {
@@ -82,6 +83,12 @@ export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
   manage_organization_settings: {
     OWNER: true,
     MANAGER: false,
+    CASHIER: false,
+    DELIVERY: false,
+  },
+  view_audit_logs: {
+    OWNER: true,
+    MANAGER: true,
     CASHIER: false,
     DELIVERY: false,
   },
