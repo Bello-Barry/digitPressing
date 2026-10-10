@@ -1,30 +1,26 @@
 import { normalizeCatalogName, formatServiceName, TREATMENT_LABELS } from '@/lib/catalog';
 
-function assert(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(`Assertion Failed: ${message}`);
-  }
-}
+describe('Catalog Utils', () => {
+  it('normalizes names properly', () => {
+    expect(normalizeCatalogName('  Serviette  ')).toBe('serviette');
+    expect(normalizeCatalogName('serviete')).toBe('serviete');
+    expect(normalizeCatalogName(' SERVÎETTE ')).toBe('serviette');
+    expect(normalizeCatalogName('Chemise   sur   cintre')).toBe('chemise sur cintre');
+  });
 
-console.log('Running catalog unit tests...');
+  it('formats service names properly', () => {
+    expect(formatServiceName('Chemise', 'WASH')).toBe('Chemise · Lavage');
+    expect(formatServiceName('Pantalon', 'IRON')).toBe('Pantalon · Repassage');
+    expect(formatServiceName('Costume', 'WASH_IRON')).toBe('Costume · Lavage + repassage');
+  });
 
-// 1. Normalization
-assert(normalizeCatalogName('  Serviette  ') === 'serviette', 'Normalizes serviette spaces');
-assert(normalizeCatalogName('serviete') === 'serviete', 'Leaves serviete');
-assert(normalizeCatalogName(' SERVÎETTE ') === 'serviette', 'Removes accents and lowercases');
-assert(normalizeCatalogName('Chemise   sur   cintre') === 'chemise sur cintre', 'Cleans multi-spaces');
+  it('handles fallbacks properly', () => {
+    expect(formatServiceName('Chemise', null, 'Chemise Bazin')).toBe('Chemise');
+    expect(formatServiceName(null, null, 'Nom Libellé')).toBe('Nom Libellé');
+  });
 
-// 2. Format service name
-assert(formatServiceName('Chemise', 'WASH') === 'Chemise · Lavage', 'Formats Chemise WASH');
-assert(formatServiceName('Pantalon', 'IRON') === 'Pantalon · Repassage', 'Formats Pantalon IRON');
-assert(formatServiceName('Costume', 'WASH_IRON') === 'Costume · Lavage + repassage', 'Formats Costume WASH_IRON');
-
-// 3. Fallbacks
-assert(formatServiceName('Chemise', null, 'Chemise Bazin') === 'Chemise', 'Fallback to article name');
-assert(formatServiceName(null, null, 'Nom Libellé') === 'Nom Libellé', 'Fallback name');
-
-// 4. Treatment labels
-assert(TREATMENT_LABELS.WASH === 'Lavage', 'Treatment WASH');
-assert(TREATMENT_LABELS.IRON === 'Repassage', 'Treatment IRON');
-
-console.log('All catalog unit tests PASSED successfully!');
+  it('has correct treatment labels', () => {
+    expect(TREATMENT_LABELS.WASH).toBe('Lavage');
+    expect(TREATMENT_LABELS.IRON).toBe('Repassage');
+  });
+});

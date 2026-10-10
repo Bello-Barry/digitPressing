@@ -17,13 +17,26 @@ describe('Audit Formatter', () => {
       object_type: 'orders',
       action: 'UPDATE',
       before: { status: 'RECEIVED' },
-      after: { status: 'CANCELLED' },
-      item_label: 'LB-1001',
+      after: { status: 'CANCELLED', cancellation_reason: 'Client a changé d\'avis' },
+      order_code: 'LB-1001',
     });
 
-    expect(result.title).toContain('Statut commande changé');
-    expect(result.title).toContain('Annulée');
+    expect(result.title).toBe('Statut commande changé : Reçue → Annulée');
+    expect(result.description).toBe('Commande LB-1001');
     expect(result.badgeColor).toBe('rose');
+    expect(result.reason).toBe('Client a changé d\'avis');
+  });
+
+  it('formats order items insertion with ticket code correctly', () => {
+    const result = formatAuditAction({
+      object_type: 'order_items',
+      action: 'INSERT',
+      after: { service_name: 'Robe longue / soirée', quantity: 1, unit_price: 5000 },
+      order_code: 'D-0006',
+    });
+
+    expect(result.title).toBe('Article ajouté à la commande D-0006 : Robe longue / soirée × 1');
+    expect(result.badgeColor).toBe('emerald');
   });
 
   it('formats price update correctly', () => {
@@ -34,7 +47,7 @@ describe('Audit Formatter', () => {
       after: { name: 'Chemise', price: 3500 },
     });
 
-    expect(result.title).toBe('Prix modifié : 3 000 FCFA → 3 500 FCFA');
+    expect(result.title).toMatch(/Prix modifié : 3[\s\u202f]000 FCFA → 3[\s\u202f]500 FCFA/);
     expect(result.badgeColor).toBe('amber');
   });
 
