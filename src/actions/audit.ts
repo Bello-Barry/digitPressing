@@ -47,6 +47,7 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
       organization_id,
       user_id,
       changed_by,
+      changed_by_name,
       object_type,
       table_name,
       object_id,
@@ -143,24 +144,182 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
     return clone;
   };
 
+  // 3b. Enrichissement des données liées (commandes, services, catégories, vêtements, membres, organisation)
+  const orderIds = Array.from(
+    new Set(
+      logsList
+        .map((l: any) => {
+          const objType = l.object_type || l.table_name;
+          const after = l.after || l.new_values;
+          const before = l.before || l.old_values;
+          if (objType === 'orders') return l.object_id || l.record_id;
+          if (objType === 'order_items' || objType === 'payments') {
+            return after?.order_id || before?.order_id;
+          }
+          return null;
+        })
+        .filter(Boolean)
+    )
+  );
+
+  let orderCodeMap: Record<string, string> = {};
+  if (orderIds.length > 0) {
+    const { data: ordersData } = await supabase
+      .from('orders')
+      .select('id, ticket_number, request_code')
+      .in('id', orderIds);
+
+    if (ordersData) {
+      ordersData.forEach((o: any) => {
+        orderCodeMap[o.id] = o.ticket_number || o.request_code || 'sans réf.';
+      });
+    }
+  }
+
+  const categoryIds = Array.from(
+    new Set(
+      logsList
+        .filter((l: any) => (l.object_type || l.table_name) === 'service_categories')
+        .map((l: any) => l.object_id || l.record_id)
+        .filter(Boolean)
+    )
+  );
+  let categoryMap: Record<string, string> = {};
+  if (categoryIds.length > 0) {
+    const { data: cats } = await supabase
+      .from('service_categories')
+      .select('id, name')
+      .in('id', categoryIds);
+    if (cats) {
+      cats.forEach((c: any) => {
+        categoryMap[c.id] = c.name;
+      });
+    }
+  }
+
+  const garmentIds = Array.from(
+    new Set(
+      logsList
+        .filter((l: any) => (l.object_type || l.table_name) === 'garment_types')
+        .map((l: any) => l.object_id || l.record_id)
+        .filter(Boolean)
+    )
+  );
+  let garmentMap: Record<string, string> = {};
+  if (garmentIds.length > 0) {
+    const { data: garments } = await supabase
+      .from('garment_types')
+      .select('id, name')
+      .in('id', garmentIds);
+    if (garments) {
+      garments.forEach((g: any) => {
+        garmentMap[g.id] = g.name;
+      });
+    }
+  }
+
+  const membershipIds = Array.from(
+    new Set(
+      logsList
+        .filter((l: any) => (l.object_type || l.table_name) === 'memberships')
+        .map((l: any) => l.object_id || l.record_id)
+        .filter(Boolean)
+    )
+  );
+  let membershipMap: Record<string, { name: string; role: string }> = {};
+  if (membershipIds.length > 0) {
+    const { data: mems } = await supabase
+      .from('memberships')
+      .select('id, user_id, full_name, email, role')
+      .in('id', membershipIds);
+    if (mems) {
+      mems.forEach((m: any) => {
+        const name = m.full_name || m.email || 'Membre';
+        membershipMap[m.id] = { name, role: m.role || '' };
+        if (m.user_id) membershipMap[m.user_id] = { name, role: m.role || '' };
+      });
+    }
+  }
+
+  let orgName: string | null = null;
+  if (logsList.some((l: any) => (l.object_type || l.table_name) === 'organizations')) {
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (orgData) orgName = orgData.name;
+  }
+
   // 4. Mappage et normalisation des entrées
   const formattedLogs: AuditLogEntry[] = logsList.map((log: any) => {
     const authorId = log.user_id || log.changed_by;
     const author = authorId ? userMap[authorId] : null;
 
+    // Defect 1 : Résolution de l'auteur
+    // 1. changed_by_name si présent
+    // 2. Nom retrouvé via user_id / changed_by dans userMap
+    // 3. "Système" si pas d'utilisateur lié
+    // 4. "Auteur inconnu" pour anciennes lignes avec authorId mais sans nom retrouvé
+    let userName: string;
+    if (log.changed_by_name && String(log.changed_by_name).trim() !== '') {
+      userName = String(log.changed_by_name).trim();
+    } else if (author?.name) {
+      userName = author.name;
+    } else if (!authorId) {
+      userName = 'Système';
+    } else {
+      userName = 'Auteur inconnu';
+    }
+
+    const beforeObj = stripSecrets(log.before || log.old_values);
+    const afterObj = stripSecrets(log.after || log.new_values);
+    const objType = log.object_type || log.table_name || 'inconnu';
+    const objId = log.object_id || log.record_id;
+
+    // Extraction du code commande associé
+    let orderCode: string | null = null;
+    if (objType === 'orders') {
+      orderCode = afterObj?.ticket_number || afterObj?.request_code || beforeObj?.ticket_number || beforeObj?.request_code || orderCodeMap[objId] || null;
+    } else if (objType === 'order_items' || objType === 'payments') {
+      const relOrderId = afterObj?.order_id || beforeObj?.order_id;
+      if (relOrderId) {
+        orderCode = orderCodeMap[relOrderId] || null;
+      }
+    }
+
+    // Extraction du libellé d'élément pour Defect 2
+    let itemLabel: string | null = null;
+    if (objType === 'order_items') {
+      itemLabel = afterObj?.service_name || beforeObj?.service_name || null;
+    } else if (objType === 'services') {
+      itemLabel = afterObj?.name || beforeObj?.name || null;
+    } else if (objType === 'service_categories') {
+      itemLabel = afterObj?.name || beforeObj?.name || categoryMap[objId] || null;
+    } else if (objType === 'garment_types') {
+      itemLabel = afterObj?.name || beforeObj?.name || garmentMap[objId] || null;
+    } else if (objType === 'memberships') {
+      itemLabel = afterObj?.full_name || beforeObj?.full_name || afterObj?.email || beforeObj?.email || membershipMap[objId]?.name || null;
+    } else if (objType === 'organizations') {
+      itemLabel = afterObj?.name || beforeObj?.name || orgName || null;
+    }
+
     return {
       id: log.id,
       organization_id: log.organization_id,
       user_id: authorId,
-      object_type: log.object_type || log.table_name || 'inconnu',
-      object_id: log.object_id || log.record_id,
+      changed_by_name: log.changed_by_name || null,
+      object_type: objType,
+      object_id: objId,
       action: log.action,
-      before: stripSecrets(log.before || log.old_values),
-      after: stripSecrets(log.after || log.new_values),
+      before: beforeObj,
+      after: afterObj,
       created_at: log.created_at,
-      user_name: author?.name || (authorId ? 'Auteur inconnu' : 'Système'),
+      user_name: userName,
       user_email: author?.email || null,
       user_role: author?.role || null,
+      item_label: itemLabel,
+      order_code: orderCode,
     };
   });
 

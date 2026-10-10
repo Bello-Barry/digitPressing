@@ -367,13 +367,13 @@ export async function cancelOrderAction(
       };
     }
 
-    // Annulation réservée OWNER/MANAGER
-    const auth = await requirePermission('manage_services'); // or OWNER/MANAGER
-    if (!auth.authorized || !can(auth.role, 'manage_services')) {
+    // Annulation strictement réservée OWNER / MANAGER
+    const auth = await requirePermission('view_audit_logs');
+    if (!auth.authorized || (auth.role !== 'OWNER' && auth.role !== 'MANAGER')) {
       return { success: false, error: 'L\'annulation de commande est réservée au Propriétaire et au Manager.' };
     }
 
-    const orderAuth = await authorizeOrder(orderId, 'create_order');
+    const orderAuth = await authorizeOrder(orderId, 'view_orders_and_clients');
     if ('error' in orderAuth) return { success: false, error: orderAuth.error };
     const { db, user } = orderAuth;
 
@@ -390,6 +390,10 @@ export async function cancelOrderAction(
     if (error) {
       return { success: false, error: error.message };
     }
+
+    revalidatePath(`/admin/commandes/${orderId}`);
+    revalidatePath('/admin/commandes');
+    revalidatePath('/admin/journal');
 
     return { success: true };
   } catch (err: unknown) {
