@@ -14,10 +14,26 @@ export interface GetAuditLogsParams {
 
 export async function getAuditLogs(params: GetAuditLogsParams = {}) {
   // 1. Contrôle d'accès : OWNER ou MANAGER uniquement
-  const { user, orgId, role } = await requirePermission('view_audit_logs');
+  const auth = await requirePermission('view_audit_logs');
+  if (!auth.authorized || !auth.profile?.membership) {
+    return {
+      logs: [],
+      nextCursor: null,
+      hasNextPage: false,
+      error: auth.error || "Accès refusé : Seuls le propriétaire (OWNER) et le gérant (MANAGER) ont accès au journal d'audit.",
+    };
+  }
+
+  const role = auth.role;
+  const orgId = auth.profile.membership.organization_id;
 
   if (role !== 'OWNER' && role !== 'MANAGER') {
-    throw new Error("Accès refusé : Seuls le propriétaire (OWNER) et le gérant (MANAGER) ont accès au journal d'audit.");
+    return {
+      logs: [],
+      nextCursor: null,
+      hasNextPage: false,
+      error: "Accès refusé : Seuls le propriétaire (OWNER) et le gérant (MANAGER) ont accès au journal d'audit.",
+    };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -84,7 +100,12 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
 
   if (error) {
     console.error('Erreur lors de la récupération du journal d\'audit:', error);
-    throw new Error('Impossible de charger le journal d\'audit.');
+    return {
+      logs: [],
+      nextCursor: null,
+      hasNextPage: false,
+      error: 'Impossible de charger le journal d\'audit.',
+    };
   }
 
   const hasNextPage = rawLogs && rawLogs.length > limit;
@@ -92,7 +113,7 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
   const nextCursor = hasNextPage ? logsList[logsList.length - 1].created_at : null;
 
   // 3. Récupération des informations sur les auteurs (memberships / user details)
-  const userIds = Array.from(new Set(logsList.map((l) => l.user_id || l.changed_by).filter(Boolean)));
+  const userIds = Array.from(new Set(logsList.map((l: any) => l.user_id || l.changed_by).filter(Boolean)));
   let userMap: Record<string, { name: string; email: string; role: string }> = {};
 
   if (userIds.length > 0) {
@@ -103,7 +124,7 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
       .in('user_id', userIds);
 
     if (members) {
-      members.forEach((m) => {
+      members.forEach((m: any) => {
         userMap[m.user_id] = {
           name: m.full_name || m.email || 'Utilisateur',
           email: m.email || '',
@@ -123,10 +144,9 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
   };
 
   // 4. Mappage et normalisation des entrées
-  const formattedLogs: AuditLogEntry[] = logsList.map((log) => {
+  const formattedLogs: AuditLogEntry[] = logsList.map((log: any) => {
     const authorId = log.user_id || log.changed_by;
     const author = authorId ? userMap[authorId] : null;
-    const rawName = log.changed_by_name || author?.name;
 
     return {
       id: log.id,
@@ -138,7 +158,7 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
       before: stripSecrets(log.before || log.old_values),
       after: stripSecrets(log.after || log.new_values),
       created_at: log.created_at,
-      user_name: rawName || (authorId ? 'Auteur inconnu' : 'Système'),
+      user_name: author?.name || (authorId ? 'Auteur inconnu' : 'Système'),
       user_email: author?.email || null,
       user_role: author?.role || null,
     };
@@ -148,11 +168,19 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
     logs: formattedLogs,
     nextCursor,
     hasNextPage,
+    error: null,
   };
 }
 
 export async function getAuditAuthors() {
-  const { orgId, role } = await requirePermission('view_audit_logs');
+  const auth = await requirePermission('view_audit_logs');
+  if (!auth.authorized || !auth.profile?.membership) {
+    return [];
+  }
+
+  const role = auth.role;
+  const orgId = auth.profile.membership.organization_id;
+
   if (role !== 'OWNER' && role !== 'MANAGER') {
     return [];
   }
@@ -163,7 +191,7 @@ export async function getAuditAuthors() {
     .select('user_id, full_name, email, role')
     .eq('organization_id', orgId);
 
-  return (members || []).map((m) => ({
+  return (members || []).map((m: any) => ({
     id: m.user_id,
     name: m.full_name || m.email || 'Membre',
     role: m.role,
