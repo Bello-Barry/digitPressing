@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { submitOrderAction } from '@/actions/orders';
-import { generateWhatsAppLink } from '@/lib/whatsapp';
+import { generateWhatsAppLink, isValidCongoMobile, normalizePhoneNumber } from '@/lib/whatsapp';
 import {
   ShoppingBag,
   Plus,
@@ -167,8 +167,8 @@ export function OrderForm({ organization, services }: OrderFormProps) {
       return;
     }
 
-    if (!clientPhone.trim() || clientPhone.trim().length < 6) {
-      setErrorMsg('Veuillez renseigner un numéro de téléphone valide.');
+    if (!clientPhone.trim() || !isValidCongoMobile(normalizePhoneNumber(clientPhone))) {
+      setErrorMsg('Numéro invalide : exemple 06 731 1016');
       return;
     }
 

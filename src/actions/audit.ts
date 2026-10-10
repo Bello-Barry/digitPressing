@@ -113,10 +113,20 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
     }
   }
 
+  // Fonction utilitaire pour retirer les secrets d'un objet JSON
+  const stripSecrets = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return null;
+    const clone = { ...obj };
+    delete clone.invoice_token;
+    delete clone.ip_hash;
+    return clone;
+  };
+
   // 4. Mappage et normalisation des entrées
   const formattedLogs: AuditLogEntry[] = logsList.map((log) => {
     const authorId = log.user_id || log.changed_by;
     const author = authorId ? userMap[authorId] : null;
+    const rawName = log.changed_by_name || author?.name;
 
     return {
       id: log.id,
@@ -125,10 +135,10 @@ export async function getAuditLogs(params: GetAuditLogsParams = {}) {
       object_type: log.object_type || log.table_name || 'inconnu',
       object_id: log.object_id || log.record_id,
       action: log.action,
-      before: log.before || log.old_values || null,
-      after: log.after || log.new_values || null,
+      before: stripSecrets(log.before || log.old_values),
+      after: stripSecrets(log.after || log.new_values),
       created_at: log.created_at,
-      user_name: author?.name || (authorId ? 'Auteur inconnu' : 'Système / Clé de service'),
+      user_name: rawName || (authorId ? 'Auteur inconnu' : 'Système'),
       user_email: author?.email || null,
       user_role: author?.role || null,
     };

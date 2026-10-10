@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { z } from 'zod';
-import { normalizePhoneNumber } from '@/lib/whatsapp';
+import { normalizePhoneNumber, isValidCongoMobile } from '@/lib/whatsapp';
 
 export const orderItemSchema = z.object({
   service_id: z.string().uuid('Service invalide'),
@@ -26,7 +26,10 @@ export const publicOrderRequestSchema = z.object({
     .string()
     .min(6, 'Numéro de téléphone trop court')
     .max(20, 'Numéro de téléphone trop long')
-    .transform((val) => normalizePhoneNumber(val)),
+    .transform((val) => normalizePhoneNumber(val))
+    .refine((val) => isValidCongoMobile(val), {
+      message: 'Numéro invalide : exemple 06 731 1016',
+    }),
   mode: z.enum(['DROP_OFF', 'PICKUP', 'DELIVERY']).default('DROP_OFF'),
   address: z.string().max(255).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
