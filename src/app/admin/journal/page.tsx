@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAuditLogs, getAuditAuthors } from '@/actions/audit';
-import { formatAuditAction, AuditLogEntry } from '@/lib/audit-formatter';
+import { formatAuditAction, AuditLogEntry, ACTION_LABELS } from '@/lib/audit-formatter';
 import {
   ShieldAlert,
   Clock,
@@ -238,13 +238,19 @@ export default function AuditJournalClient() {
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyles}`}>
-                        {log.action}
+                        {ACTION_LABELS[log.action] || log.action}
                       </span>
                       <h3 className="text-xs sm:text-sm font-bold text-slate-100">
                         {formatted.title}
                       </h3>
                     </div>
                     <p className="text-xs text-slate-400">{formatted.description}</p>
+                    {formatted.reason && (
+                      <div className="mt-1.5 text-xs text-rose-300 bg-rose-950/40 border border-rose-900/60 px-2.5 py-1 rounded-lg flex items-center space-x-1.5">
+                        <span className="font-bold text-rose-400">Motif :</span>
+                        <span className="italic">{formatted.reason}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end space-x-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60 text-xs text-slate-400">

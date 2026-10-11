@@ -16,6 +16,7 @@ import {
   cancelOrderAction,
 } from '@/actions/admin';
 import { generateWhatsAppLink, formatPhoneDisplay } from '@/lib/whatsapp';
+import { ORDER_STATUS_LABELS } from '@/lib/audit-formatter';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -215,8 +216,12 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
               <h1 className="text-xl sm:text-2xl font-black font-mono text-white">
                 {order.ticket_number || order.request_code}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                {order.status}
+              <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold border ${
+                order.status === 'CANCELLED'
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+              }`}>
+                {ORDER_STATUS_LABELS[order.status] || order.status}
               </span>
             </div>
             <p className="text-xs text-slate-400">
@@ -253,6 +258,23 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
           </a>
         </div>
       </div>
+
+      {order.status === 'CANCELLED' && (
+        <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-900 text-rose-200 space-y-1">
+          <div className="flex items-center space-x-2 font-bold text-rose-400 text-sm">
+            <XCircle className="w-5 h-5 shrink-0 text-rose-400" />
+            <span>Commande Annulée</span>
+          </div>
+          {order.cancellation_reason ? (
+            <p className="text-xs text-rose-300 pl-7">
+              <span className="font-semibold text-rose-400">Motif d'annulation : </span>
+              <span className="italic">{order.cancellation_reason}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-rose-300 pl-7 italic">Aucun motif d'annulation renseigné.</p>
+          )}
+        </div>
+      )}
 
       {msg && (
         <div
