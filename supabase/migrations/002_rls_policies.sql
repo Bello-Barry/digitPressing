@@ -1,5 +1,5 @@
 -- =============================================================================
--- POLITIQUES DE SÉCURITÉ RLS - ZUA PRESSING
+-- POLITIQUES DE SÉCURITÉ RLS - DIGIT PRESSING
 -- =============================================================================
 
 -- Activer RLS sur toutes les tables

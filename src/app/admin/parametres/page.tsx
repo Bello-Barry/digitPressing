@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/permissions-server';
 import { redirect } from 'next/navigation';
 import { AccessDenied } from '@/components/admin/AccessDenied';
 import { Settings, Building2, MessageSquare, ArrowLeft } from 'lucide-react';
+import { PickupReminderSettings } from '@/components/admin/PickupReminderSettings';
 
 export default async function AdminSettingsPage() {
   const auth = await requirePermission('manage_organization_settings');
@@ -39,6 +40,7 @@ export default async function AdminSettingsPage() {
 
   const org = orgRes.data;
   const templates = templatesRes.data || [];
+  const pickupDays = org?.pickup_reminder_days ?? 3;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -61,6 +63,9 @@ export default async function AdminSettingsPage() {
           Retour au dashboard
         </Link>
       </div>
+
+      {/* Configuration du délai de relance */}
+      <PickupReminderSettings initialDays={pickupDays} />
 
       {/* Identité de l'Établissement */}
       <section className="p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">

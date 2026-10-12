@@ -351,6 +351,16 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
+  // 10. CUSTOMER_REMINDERS / RAPPELS CLIENTS
+  if (objectType === 'customer_reminders') {
+    return {
+      title: `Rappel client enregistré : ${orderCode}`,
+      description: `Rappel WhatsApp (${after.kind || 'READY_PICKUP'})`,
+      badgeColor: 'blue',
+      reason,
+    };
+  }
+
   // DEFAUT
   const actionText = ACTION_LABELS[action] || action;
   return {

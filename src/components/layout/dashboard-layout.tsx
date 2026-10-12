@@ -200,7 +200,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
                 <Shirt className="h-4 w-4" />
               </div>
-              <span className="text-lg font-semibold">ZUA Pressing</span>
+              <span className="text-lg font-semibold">LB Pressing</span>
             </Link>
             
             <Button

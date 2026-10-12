@@ -153,7 +153,7 @@ services:
         crond -f
       "
     networks:
-      - zua-pressing-network
+      - digit-pressing-network
     profiles:
       - backup
 
@@ -178,7 +178,7 @@ volumes:
 # RÉSEAU PERSONNALISÉ
 # =============================================================================
 networks:
-  zua-pressing-network:
+  digit-pressing-network:
     driver: bridge
     ipam:
       config:
@@ -198,7 +198,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: zua-pressing-dev
+    container_name: digit-pressing-dev
     ports:
       - "3000:3000"
     environment:
@@ -212,26 +212,26 @@ services:
       - /app/node_modules
       - /app/.next
     networks:
-      - zua-pressing-network
+      - digit-pressing-network
     command: npm run dev
 
   # Base de données PostgreSQL pour développement local
   postgres-dev:
     image: postgres:15
-    container_name: zua-pressing-postgres-dev
+    container_name: digit-pressing-postgres-dev
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-zua_pressing_dev}
+      - POSTGRES_DB=${POSTGRES_DB:-digit_pressing_dev}
       - TZ=Europe/Paris
     volumes:
       - postgres-dev-data:/var/lib/postgresql/data
       - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
     networks:
-      - zua-pressing-network
+      - digit-pressing-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -241,7 +241,7 @@ services:
   # Supabase local (optionnel)
   supabase-dev:
     image: supabase/supabase:latest
-    container_name: zua-pressing-supabase-dev
+    container_name: digit-pressing-supabase-dev
     ports:
       - "8000:8000"
     environment:
@@ -249,7 +249,7 @@ services:
     depends_on:
       - postgres-dev
     networks:
-      - zua-pressing-network
+      - digit-pressing-network
     profiles:
       - supabase-local
 

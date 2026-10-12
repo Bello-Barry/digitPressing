@@ -20,6 +20,7 @@ import {
   X,
   Shield,
   Settings,
+  BellRing,
 } from 'lucide-react';
 
 export function AdminNavbar() {
@@ -62,6 +63,7 @@ export function AdminNavbar() {
   const baseNavLinks = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/commandes', label: 'Commandes', icon: ShoppingBag },
+    { href: '/admin/relances', label: 'Relances', icon: BellRing },
     { href: '/admin/clients', label: 'Clients', icon: Users },
     { href: '/admin/services', label: 'Services', icon: Shirt },
     { href: '/admin/paiements', label: 'Caisse', icon: DollarSign },

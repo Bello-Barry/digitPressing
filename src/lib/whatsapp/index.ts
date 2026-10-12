@@ -173,6 +173,10 @@ Bonne nouvelle ! Vos articles pour le ticket *{ticket}* sont lavés, repassés e
 💳 Reste à régler : *{reste_a_payer} FCFA*.
 À très bientôt !`,
 
+  // Rappel de commande prête non récupérée (Tâche 4.3)
+  PICKUP_REMINDER:
+`Bonjour {nom}, votre commande {ticket} est prête depuis {jours} jours chez {pressing_nom}. Reste à régler : {reste_a_payer} FCFA. Merci de passer la récupérer.`,
+
   // Ramassage prévu à domicile
   PICKUP_SCHEDULED:
 `Bonjour {nom} 👋

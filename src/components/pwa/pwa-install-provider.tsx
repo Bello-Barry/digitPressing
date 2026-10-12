@@ -154,7 +154,7 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground">
-                    Installer ZUA Pressing
+                    Installer LB Pressing
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
                     Installez l'application pour un accès rapide et une meilleure expérience

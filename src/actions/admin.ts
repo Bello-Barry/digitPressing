@@ -98,6 +98,79 @@ export async function validateOrderAction(
 }
 
 /**
+ * Enregistrer un rappel client via la RPC log_reminder (Tâche 4.3)
+ */
+export async function logReminderAction(orderId: string, kind: string = 'READY_PICKUP') {
+  try {
+    const auth = await requirePermission('send_reminders');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Accès refusé.' };
+    }
+
+    const db = await createServerSupabaseClient();
+
+    const { data, error } = await db.rpc('log_reminder', {
+      p_order_id: orderId,
+      p_kind: kind,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/relances');
+    revalidatePath('/admin');
+    revalidatePath('/admin/journal');
+
+    return { success: true, reminderId: data };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur d\'enregistrement du rappel.',
+    };
+  }
+}
+
+/**
+ * Mettre à jour le délai de relance pickup_reminder_days (OWNER uniquement)
+ */
+export async function updatePickupReminderDaysAction(days: number) {
+  try {
+    const auth = await requirePermission('manage_organization_settings');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Accès réservé au propriétaire (OWNER).' };
+    }
+
+    if (!Number.isInteger(days) || days < 1 || days > 60) {
+      return { success: false, error: 'Le délai de relance doit être compris entre 1 et 60 jours.' };
+    }
+
+    const orgId = auth.profile.membership.organization_id;
+    const db = await createServerSupabaseClient();
+
+    const { error } = await db
+      .from('organizations')
+      .update({ pickup_reminder_days: days, updated_at: new Date().toISOString() })
+      .eq('id', orgId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/parametres');
+    revalidatePath('/admin/relances');
+    revalidatePath('/admin');
+
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de mise à jour.',
+    };
+  }
+}
+
+/**
  * Création d'un membre de l'équipe par l'OWNER (Supabase Auth Admin)
  */
 export async function createStaffMemberAction(input: {

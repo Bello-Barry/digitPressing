@@ -13,6 +13,7 @@ import {
   ArrowRight,
   MessageCircle,
   Truck,
+  BellRing,
 } from 'lucide-react';
 
 export default async function AdminDashboardPage() {
@@ -51,6 +52,23 @@ export default async function AdminDashboardPage() {
     stats.inProcessCount = inProcess.count || 0;
     stats.readyCount = ready.count || 0;
   }
+
+  // Nombre de commandes prêtes depuis plus de N jours (pour la carte À récupérer)
+  const { data: orgConfig } = await db
+    .from('organizations')
+    .select('pickup_reminder_days')
+    .eq('id', orgId)
+    .maybeSingle();
+
+  const pickupDays = orgConfig?.pickup_reminder_days ?? 3;
+  const thresholdIso = new Date(Date.now() - pickupDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { count: pendingPickupCount } = await db
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .eq('status', 'READY')
+    .lte('ready_at', thresholdIso);
 
   // Récupérer les 5 dernières commandes réelles (ou livraisons du jour si livreur)
   let recentOrdersQuery = db
@@ -171,6 +189,23 @@ Généré via Digit Pressing.`;
           </p>
           <p className="text-[11px] text-emerald-400/80 font-medium">À retirer ou livrer</p>
         </Link>
+
+        {/* Linge prêt non récupéré (Relances) - Visible OWNER, MANAGER, CASHIER */}
+        {!isDelivery && (
+          <Link
+            href="/admin/relances"
+            className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition group space-y-1"
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>À récupérer ({pickupDays}j+)</span>
+              <BellRing className="w-4 h-4 text-amber-400" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-black font-mono text-white group-hover:text-amber-400 transition">
+              {pendingPickupCount || 0}
+            </p>
+            <p className="text-[11px] text-amber-400/80 font-medium">Linge prêt non récupéré</p>
+          </Link>
+        )}
 
         {/* Carte Chiffre d'Affaires - Affichée UNIQUEMENT pour OWNER et MANAGER */}
         {canViewStats && (
