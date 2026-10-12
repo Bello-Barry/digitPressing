@@ -9,6 +9,7 @@ export type Permission =
   | 'create_order'
   | 'change_order_status'
   | 'record_payment'
+  | 'send_reminders'
   | 'view_orders_and_clients'
   | 'view_own_deliveries'
   | 'view_stats_and_daily_summary'
@@ -20,6 +21,12 @@ export type Permission =
   | 'view_audit_logs';
 
 export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
+  send_reminders: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: true,
+    DELIVERY: false,
+  },
   create_order: {
     OWNER: true,
     MANAGER: true,

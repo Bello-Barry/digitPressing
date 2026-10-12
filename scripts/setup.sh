@@ -188,7 +188,7 @@ generate_pwa_icons() {
 
 # Fonction principale
 main() {
-    print_message "Bienvenue dans le script de configuration ZUA Pressing !"
+    print_message "Bienvenue dans le script de configuration Digit Pressing !"
     echo
     
     check_prerequisites

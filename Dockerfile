@@ -1,5 +1,5 @@
 # =============================================================================
-# DOCKERFILE OPTIMISÉ - ZUA PRESSING PWA
+# DOCKERFILE OPTIMISÉ - DIGIT PRESSING PWA
 # =============================================================================
 
 # Utiliser Node.js 18 Alpine pour un build léger
@@ -100,7 +100,7 @@ CMD ["node", "server.js"]
 # =============================================================================
 
 # Labels pour la documentation
-LABEL maintainer="Digit Pressing Team <support@zua-pressing.com>"
+LABEL maintainer="Digit Pressing Team <support@digit-pressing.com>"
 LABEL description="Digit Pressing - Application PWA de gestion digitale pour pressings"
 LABEL version="1.0.0"
 LABEL vendor="Digit Pressing"

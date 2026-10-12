@@ -452,7 +452,7 @@ export const useAuthStore = create<AuthState>()(
 
       }),
       {
-        name: 'zua-pressing-auth',
+        name: 'digit-pressing-auth',
         partialize: (state) => ({
           user: state.user,
           session: state.session,

@@ -51,6 +51,18 @@ describe('Audit Formatter', () => {
     expect(result.badgeColor).toBe('amber');
   });
 
+  it('formats customer reminder insertion correctly', () => {
+    const result = formatAuditAction({
+      object_type: 'customer_reminders',
+      action: 'INSERT',
+      after: { kind: 'READY_PICKUP' },
+      order_code: 'LB-1001',
+    });
+
+    expect(result.title).toBe('Rappel client enregistré : LB-1001');
+    expect(result.badgeColor).toBe('blue');
+  });
+
   it('formats role update correctly', () => {
     const result = formatAuditAction({
       object_type: 'memberships',

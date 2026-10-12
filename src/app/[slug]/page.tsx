@@ -25,9 +25,35 @@ export async function generateMetadata({ params }: PageProps) {
   const { data: org } = await db.from('organizations').select('name, slogan').eq('slug', slug).eq('is_active', true).maybeSingle();
   if (!org) return { title: 'Pressing non trouvé' };
 
+  const isLb = slug === 'lb-pressing';
+  const title = isLb ? 'LB Pressing | Pressing à Brazzaville' : `${org.name} | Pressing & Blanchisserie Haute Qualité`;
+  const description = isLb
+    ? 'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.'
+    : org.slogan || `Commandez votre pressing en ligne chez ${org.name}. Service rapide, soigné et livraison à domicile à Brazzaville.`;
+
   return {
-    title: `${org.name} | Pressing & Blanchisserie Haute Qualité`,
-    description: org.slogan || `Commandez votre pressing en ligne chez ${org.name}. Service rapide, soigné et livraison à domicile à Brazzaville.`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      siteName: isLb ? 'LB Pressing' : org.name,
+      url: `https://digit-pressing.vercel.app/${slug}`,
+      images: [
+        {
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/og-image.png'],
+    },
   };
 }
 

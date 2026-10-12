@@ -25,6 +25,11 @@ describe('Matrice des permissions can(role, permission)', () => {
     expect(can('CASHIER', 'record_payment')).toBe(true);
     expect(can('DELIVERY', 'record_payment')).toBe(true);
 
+    expect(can('OWNER', 'send_reminders')).toBe(true);
+    expect(can('MANAGER', 'send_reminders')).toBe(true);
+    expect(can('CASHIER', 'send_reminders')).toBe(true);
+    expect(can('DELIVERY', 'send_reminders')).toBe(false);
+
     expect(can('OWNER', 'view_orders_and_clients')).toBe(true);
     expect(can('MANAGER', 'view_orders_and_clients')).toBe(true);
     expect(can('CASHIER', 'view_orders_and_clients')).toBe(true);

@@ -12,32 +12,39 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://zua-pressing.vercel.app'), // ✅ ajouté
+  metadataBase: new URL('https://digit-pressing.vercel.app'),
   title: {
-    default: 'Digit Pressing - Gestion Digitale',
-    template: '%s | Digit Pressing',
+    default: 'LB Pressing | Pressing à Brazzaville',
+    template: '%s | LB Pressing',
   },
   description:
-    "Application PWA professionnelle pour la gestion digitale des pressings. Remplace le système papier traditionnel par une solution numérique complète.",
+    'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
   authors: [{ name: 'Digit Pressing Team' }],
-  creator: 'Barry Bello',
-  publisher: 'Barry Bello',
+  creator: 'LB Pressing',
+  publisher: 'LB Pressing',
   openGraph: {
     type: 'website',
     locale: 'fr_FR',
-    url: 'https://zua-pressing.vercel.app',
-    title: 'Digit Pressing - Gestion Digitale',
+    url: 'https://digit-pressing.vercel.app',
+    title: 'LB Pressing | Pressing à Brazzaville',
     description:
-      "Application PWA professionnelle pour la gestion digitale des pressings.",
-    siteName: 'ZUA Pressing',
+      'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
+    siteName: 'LB Pressing',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Digit Pressing - Gestion Digitale',
+        alt: 'LB Pressing | Pressing à Brazzaville',
       },
     ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'LB Pressing | Pressing à Brazzaville',
+    description:
+      'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
+    images: ['/og-image.png'],
   },
   manifest: '/manifest.json',
 };
