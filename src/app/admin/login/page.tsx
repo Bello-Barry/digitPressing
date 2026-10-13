@@ -5,8 +5,10 @@
 // =============================================================================
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { adminSignInAction } from '@/actions/auth';
+import { BRAND_CONFIG } from '@/config/brand';
 import { Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function AdminLoginPage() {
@@ -40,12 +42,19 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 font-sans text-slate-100">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 font-black flex items-center justify-center mx-auto text-xl shadow-xl shadow-amber-500/20">
-            LB
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <Image
+              src={BRAND_CONFIG.assets.logos.horizontalDark}
+              alt={BRAND_CONFIG.name}
+              width={180}
+              height={48}
+              priority
+              className="h-12 w-auto object-contain mx-auto"
+            />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">
-            LB Pressing — Administration
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            Espace d'Administration
           </h1>
           <p className="text-xs text-slate-400">
             Connectez-vous pour gérer les réceptions, commandes et la caisse.

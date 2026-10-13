@@ -7,8 +7,10 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { getAdminMembershipAction, adminSignOutAction } from '@/actions/auth';
+import { BRAND_CONFIG } from '@/config/brand';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -48,6 +50,9 @@ export function AdminNavbar() {
 
   const handleLogout = async () => {
     try {
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_DYNAMIC_CACHE' });
+      }
       await adminSignOutAction();
     } catch (e) {
       console.error('Erreur déconnexion:', e);
@@ -97,12 +102,14 @@ export function AdminNavbar() {
         {/* Logo & Org Badge */}
         <div className="flex items-center space-x-3">
           <Link href="/admin" className="flex items-center space-x-2">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md shadow-amber-500/20">
-              LB
-            </span>
-            <span className="font-extrabold text-white text-base tracking-tight">
-              {profile?.orgName || 'LB Pressing'}
-            </span>
+            <Image
+              src={BRAND_CONFIG.assets.logos.horizontalDark}
+              alt={BRAND_CONFIG.name}
+              width={140}
+              height={36}
+              priority
+              className="h-8 w-auto object-contain"
+            />
           </Link>
 
           {profile?.role && (

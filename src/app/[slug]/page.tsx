@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { generateWhatsAppLink, formatPhoneDisplay } from '@/lib/whatsapp';
+import { BRAND_CONFIG } from '@/config/brand';
 import {
   Phone,
   MessageCircle,
@@ -41,7 +43,7 @@ export async function generateMetadata({ params }: PageProps) {
       url: `https://digit-pressing.vercel.app/${slug}`,
       images: [
         {
-          url: '/og-image.png',
+          url: `${BRAND_CONFIG.siteUrl}${BRAND_CONFIG.assets.ogImage}`,
           width: 1200,
           height: 630,
           alt: title,
@@ -52,7 +54,7 @@ export async function generateMetadata({ params }: PageProps) {
       card: 'summary_large_image',
       title,
       description,
-      images: ['/og-image.png'],
+      images: [`${BRAND_CONFIG.siteUrl}${BRAND_CONFIG.assets.ogImage}`],
     },
   };
 }
@@ -92,17 +94,30 @@ export default async function PublicOrgHomePage({ params }: PageProps) {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Header Mobile & Desktop */}
       <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
-              {org.ticket_prefix}
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-tight tracking-tight text-white">
-                {org.name}
-              </h1>
-              <p className="text-xs text-amber-400/90 font-medium">Brazzaville, Congo</p>
-            </div>
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            {slug === 'lb-pressing' ? (
+              <Image
+                src={BRAND_CONFIG.assets.logos.horizontalDark}
+                alt={BRAND_CONFIG.name}
+                width={140}
+                height={36}
+                priority
+                className="h-8 w-auto object-contain"
+              />
+            ) : (
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
+                  {org.ticket_prefix}
+                </div>
+                <div>
+                  <h1 className="font-bold text-lg leading-tight tracking-tight text-white">
+                    {org.name}
+                  </h1>
+                  <p className="text-xs text-amber-400/90 font-medium">Brazzaville, Congo</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
