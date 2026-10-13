@@ -17,6 +17,7 @@ import {
   Users,
   Shirt,
   DollarSign,
+  Receipt,
   LogOut,
   Menu,
   X,
@@ -72,6 +73,7 @@ export function AdminNavbar() {
     { href: '/admin/clients', label: 'Clients', icon: Users },
     { href: '/admin/services', label: 'Services', icon: Shirt },
     { href: '/admin/paiements', label: 'Caisse', icon: DollarSign },
+    { href: '/admin/depenses', label: 'Dépenses', icon: Receipt },
   ];
 
   const ownerManagerLinks = (profile?.role === 'OWNER' || profile?.role === 'MANAGER')

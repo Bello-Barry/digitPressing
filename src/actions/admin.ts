@@ -440,7 +440,7 @@ export async function cancelOrderAction(
       };
     }
 
-    // Annulation strictement réservée OWNER / MANAGER
+    // Annulation strictly réservée OWNER / MANAGER
     const auth = await requirePermission('view_audit_logs');
     if (!auth.authorized || (auth.role !== 'OWNER' && auth.role !== 'MANAGER')) {
       return { success: false, error: 'L\'annulation de commande est réservée au Propriétaire et au Manager.' };
@@ -542,7 +542,9 @@ export async function getAdminDashboardStats(orgId: string) {
     }
 
     const db = await createServerSupabaseClient();
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
 
     // Commandes en attente de validation
     const { count: toValidateCount } = await db
@@ -577,6 +579,45 @@ export async function getAdminDashboardStats(orgId: string) {
     const cashToday = todayPayments?.filter((p: any) => p.method === 'CASH').reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0;
     const momoToday = todayPayments?.filter((p: any) => p.method !== 'CASH').reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0;
 
+    // Dépenses du jour (non annulées)
+    const { data: todayExpenses } = await db
+      .from('expenses')
+      .select('amount, from_till, method')
+      .eq('organization_id', orgId)
+      .eq('expense_date', today)
+      .is('voided_at', null);
+
+    const expensesToday = todayExpenses?.reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
+    const expensesCashToday = todayExpenses?.filter((e: any) => e.from_till && e.method === 'CASH').reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
+
+    // Métriques mensuelles (Résultat du mois)
+    const { data: monthPayments } = await db
+      .from('payments')
+      .select('amount')
+      .eq('organization_id', orgId)
+      .gte('collected_at', `${firstDayOfMonth}T00:00:00.000Z`);
+
+    const caMonth = monthPayments?.reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0;
+
+    const { data: monthExpenses } = await db
+      .from('expenses')
+      .select(`
+        amount,
+        category:expense_categories(counts_in_result)
+      `)
+      .eq('organization_id', orgId)
+      .gte('expense_date', firstDayOfMonth)
+      .is('voided_at', null);
+
+    const expensesMonth = monthExpenses
+      ?.filter((e: any) => {
+        const cat = Array.isArray(e.category) ? e.category[0] : e.category;
+        return cat?.counts_in_result !== false;
+      })
+      .reduce((sum: number, e: any) => sum + Number(e.amount), 0) || 0;
+
+    const resultMonth = caMonth - expensesMonth;
+
     return {
       success: true,
       stats: {
@@ -586,6 +627,11 @@ export async function getAdminDashboardStats(orgId: string) {
         caToday,
         cashToday,
         momoToday,
+        expensesToday,
+        expensesCashToday,
+        caMonth,
+        expensesMonth,
+        resultMonth,
       },
     };
   } catch (err: unknown) {

@@ -18,7 +18,11 @@ export type Permission =
   | 'export_client_data'
   | 'manage_team_and_roles'
   | 'manage_organization_settings'
-  | 'view_audit_logs';
+  | 'view_audit_logs'
+  | 'record_expense'
+  | 'manage_expense_categories'
+  | 'void_expense'
+  | 'view_results';
 
 export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
   send_reminders: {
@@ -96,6 +100,30 @@ export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
   view_audit_logs: {
     OWNER: true,
     MANAGER: true,
+    CASHIER: false,
+    DELIVERY: false,
+  },
+  record_expense: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: true,
+    DELIVERY: false,
+  },
+  manage_expense_categories: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: false,
+    DELIVERY: false,
+  },
+  void_expense: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: false,
+    DELIVERY: false,
+  },
+  view_results: {
+    OWNER: true,
+    MANAGER: false,
     CASHIER: false,
     DELIVERY: false,
   },
