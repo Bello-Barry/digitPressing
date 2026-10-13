@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import Image from 'next/image';
+import { BRAND_CONFIG } from '@/config/brand';
 import { Shirt, ShoppingBag, ShieldCheck, ArrowRight, Search, Lock, MapPin, Phone } from 'lucide-react';
 
 export const metadata = {
-  title: 'LB Pressing | Blanchisserie & Pressing Haute Qualité Brazzaville',
-  description: 'Application de pressing et commande en ligne à Brazzaville. Suivi en direct et livraison à domicile.',
+  title: `${BRAND_CONFIG.name} | Blanchisserie & Pressing Haute Qualité Brazzaville`,
+  description: BRAND_CONFIG.description,
 };
 
 export default function HomePage() {
@@ -11,15 +13,19 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-md shadow-amber-500/20">
-              LB
-            </div>
-            <div>
-              <span className="font-extrabold text-base text-white tracking-tight">LB Pressing</span>
-              <span className="block text-[10px] text-amber-400 font-medium">Brazzaville, Congo</span>
-            </div>
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Image
+              src={BRAND_CONFIG.assets.logos.horizontalDark}
+              alt={BRAND_CONFIG.name}
+              width={140}
+              height={36}
+              priority
+              className="h-8 w-auto object-contain"
+            />
+            <span className="hidden sm:inline-block text-[10px] text-amber-400 font-medium border-l border-slate-800 pl-2">
+              Brazzaville, Congo
+            </span>
           </div>
 
           <div className="flex items-center space-x-2">

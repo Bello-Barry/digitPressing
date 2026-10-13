@@ -7,7 +7,9 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { generateWhatsAppLink, formatPhoneDisplay } from '@/lib/whatsapp';
+import { BRAND_CONFIG } from '@/config/brand';
 import {
   Printer,
   MessageCircle,
@@ -161,13 +163,36 @@ Merci pour votre confiance !`;
       <div className="rounded-3xl bg-slate-900/90 border border-slate-800 p-6 md:p-8 space-y-6 shadow-2xl print:bg-white print:border-none print:shadow-none print:p-4 print:text-black">
         {/* Entête du pressing */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-6 border-b border-slate-800 print:border-neutral-300 gap-4">
-          <div className="space-y-1">
-            <div className="inline-block px-3 py-1 rounded-lg bg-amber-500/10 print:bg-neutral-100 text-amber-400 print:text-neutral-900 font-black text-sm tracking-wider">
-              {organization.ticket_prefix} PRESSING
-            </div>
-            <h1 className="text-2xl font-black text-white print:text-black tracking-tight">
-              {organization.name}
-            </h1>
+          <div className="space-y-2">
+            {organization.slug === 'lb-pressing' ? (
+              <div className="space-y-2">
+                <Image
+                  src={BRAND_CONFIG.assets.logos.horizontalDark}
+                  alt={BRAND_CONFIG.name}
+                  width={180}
+                  height={48}
+                  priority
+                  className="h-10 w-auto object-contain print:hidden"
+                />
+                <Image
+                  src={BRAND_CONFIG.assets.logos.horizontalLight}
+                  alt={BRAND_CONFIG.name}
+                  width={180}
+                  height={48}
+                  priority
+                  className="h-10 w-auto object-contain hidden print:block"
+                />
+              </div>
+            ) : (
+              <div>
+                <div className="inline-block px-3 py-1 rounded-lg bg-amber-500/10 print:bg-neutral-100 text-amber-400 print:text-neutral-900 font-black text-sm tracking-wider">
+                  {organization.ticket_prefix} PRESSING
+                </div>
+                <h1 className="text-2xl font-black text-white print:text-black tracking-tight">
+                  {organization.name}
+                </h1>
+              </div>
+            )}
             <p className="text-xs text-slate-400 print:text-neutral-600 flex items-center">
               <MapPin className="w-3.5 h-3.5 mr-1 text-amber-400 print:text-black shrink-0" />
               {organization.address || 'Brazzaville, Congo'}

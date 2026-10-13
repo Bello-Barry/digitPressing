@@ -1,64 +1,64 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { BRAND_CONFIG } from '@/config/brand';
 import { cn } from '@/lib/utils';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
 import './globals.css';
 
 const inter = Inter({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-sans',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://digit-pressing.vercel.app'),
+  metadataBase: new URL(BRAND_CONFIG.siteUrl),
   title: {
-    default: 'LB Pressing | Pressing à Brazzaville',
-    template: '%s | LB Pressing',
+    default: `${BRAND_CONFIG.name} | Pressing & Blanchisserie à Brazzaville`,
+    template: `%s | ${BRAND_CONFIG.name}`,
   },
-  description:
-    'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
+  description: BRAND_CONFIG.description,
   authors: [{ name: 'Digit Pressing Team' }],
-  creator: 'LB Pressing',
-  publisher: 'LB Pressing',
+  creator: BRAND_CONFIG.name,
+  publisher: BRAND_CONFIG.name,
+  icons: {
+    icon: [
+      { url: BRAND_CONFIG.assets.icons.faviconIco },
+      { url: BRAND_CONFIG.assets.icons.favicon32, sizes: '32x32', type: 'image/png' },
+    ],
+    apple: [{ url: BRAND_CONFIG.assets.icons.appleTouch }],
+  },
   openGraph: {
     type: 'website',
     locale: 'fr_FR',
-    url: 'https://digit-pressing.vercel.app',
-    title: 'LB Pressing | Pressing à Brazzaville',
-    description:
-      'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
-    siteName: 'LB Pressing',
+    url: BRAND_CONFIG.siteUrl,
+    title: `${BRAND_CONFIG.name} | Pressing & Blanchisserie à Brazzaville`,
+    description: BRAND_CONFIG.description,
+    siteName: BRAND_CONFIG.name,
     images: [
       {
-        url: '/og-image.png',
+        url: `${BRAND_CONFIG.siteUrl}${BRAND_CONFIG.assets.ogImage}`,
         width: 1200,
         height: 630,
-        alt: 'LB Pressing | Pressing à Brazzaville',
+        alt: BRAND_CONFIG.name,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'LB Pressing | Pressing à Brazzaville',
-    description:
-      'Service de pressing et blanchisserie haut de gamme à Brazzaville. Nettoyage à sec, soin du linge et livraison à domicile.',
-    images: ['/og-image.png'],
+    title: `${BRAND_CONFIG.name} | Pressing & Blanchisserie à Brazzaville`,
+    description: BRAND_CONFIG.description,
+    images: [`${BRAND_CONFIG.siteUrl}${BRAND_CONFIG.assets.ogImage}`],
   },
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
-  ],
+  themeColor: BRAND_CONFIG.colors.nightBlue,
 };
 
 export default function RootLayout({
