@@ -70,14 +70,14 @@ describe('Matrice des permissions can(role, permission)', () => {
     expect(can('CASHIER', 'manage_organization_settings')).toBe(false);
     expect(can('DELIVERY', 'manage_organization_settings')).toBe(false);
 
-    // Nouvelles permissions pour les dépenses (Tâche 4.8)
+    // Permissions relatives aux dépenses (Tâche 4.8)
     expect(can('OWNER', 'record_expense')).toBe(true);
     expect(can('MANAGER', 'record_expense')).toBe(true);
     expect(can('CASHIER', 'record_expense')).toBe(true);
     expect(can('DELIVERY', 'record_expense')).toBe(false);
 
     expect(can('OWNER', 'manage_expense_categories')).toBe(true);
-    expect(can('MANAGER', 'manage_expense_categories')).toBe(true);
+    expect(can('MANAGER', 'manage_expense_categories')).toBe(false);
     expect(can('CASHIER', 'manage_expense_categories')).toBe(false);
     expect(can('DELIVERY', 'manage_expense_categories')).toBe(false);
 

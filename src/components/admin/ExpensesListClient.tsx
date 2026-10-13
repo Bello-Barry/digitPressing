@@ -1,23 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { recordExpenseAction, voidExpenseAction, getExpensesAction, getExpenseSummaryAction } from '@/actions/expenses';
+import { recordExpenseAction, voidExpenseAction, getExpensesAction, getExpenseSummaryAction, getBrazzavilleToday } from '@/actions/expenses';
 import {
   Receipt,
   Plus,
-  Filter,
-  DollarSign,
-  Calendar,
   X,
   Loader2,
   AlertTriangle,
-  Check,
   Ban,
   TrendingUp,
   PieChart,
-  Shield,
-  FileText,
-  Building,
 } from 'lucide-react';
 
 interface Category {
@@ -67,6 +60,7 @@ interface ExpensesListClientProps {
   cashierLimit: number;
   userRole: string;
   initialSummary?: ExpenseSummary | null;
+  initialTodayBrazza?: string;
 }
 
 const KIND_GROUP_LABELS: Record<string, string> = {
@@ -83,6 +77,7 @@ export function ExpensesListClient({
   cashierLimit,
   userRole,
   initialSummary,
+  initialTodayBrazza = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' }),
 }: ExpensesListClientProps) {
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [loading, setLoading] = useState(false);
@@ -97,9 +92,9 @@ export function ExpensesListClient({
   const [showAddModal, setShowAddModal] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [amount, setAmount] = useState<number | ''>('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState(initialTodayBrazza);
   const [method, setMethod] = useState<'CASH' | 'MTN_MOMO' | 'AIRTEL_MONEY' | 'BANK' | 'OTHER'>('CASH');
-  const [fromTill, setFromTill] = useState(userRole === 'CASHIER');
+  const [fromTill, setFromTill] = useState(true);
   const [payee, setPayee] = useState('');
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
@@ -160,6 +155,8 @@ export function ExpensesListClient({
   // Saisie nouvelle dépense
   const handleRecordExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingExpense) return; // Sécurité anti-double clic
+
     setFormError(null);
 
     const numAmount = Number(amount);
@@ -173,13 +170,17 @@ export function ExpensesListClient({
       return;
     }
 
+    // Le caissier enregistre STRICTEMENT en espèces depuis la caisse
+    const effectiveMethod = isCashier ? 'CASH' : method;
+    const effectiveTill = isCashier ? true : (effectiveMethod === 'CASH' ? fromTill : false);
+
     if (isCashier && numAmount > cashierLimit) {
-      setFormError(`Au-delà de ton plafond (${cashierLimit.toLocaleString('fr-FR')} FCFA) : demande au gérant.`);
+      setFormError(`Montant supérieur à votre plafond (${cashierLimit.toLocaleString('fr-FR')} FCFA) : demandez au gérant.`);
       return;
     }
 
     if (selectedCategoryObj?.note_required && (!note || note.trim().length < 5)) {
-      setFormError('Une note/explication de 5 caractères minimum est requise pour cette catégorie.');
+      setFormError('Une note explicative (au moins 5 caractères) est obligatoire pour cette catégorie.');
       return;
     }
 
@@ -189,8 +190,8 @@ export function ExpensesListClient({
       categoryId,
       amount: Math.round(numAmount),
       expenseDate,
-      method,
-      fromTill: method === 'CASH' ? (isCashier ? true : fromTill) : false,
+      method: effectiveMethod,
+      fromTill: effectiveTill,
       payee: payee.trim() || undefined,
       reference: reference.trim() || undefined,
       note: note.trim() || undefined,
@@ -208,12 +209,13 @@ export function ExpensesListClient({
       setNote('');
       setPeriodStart('');
       setPeriodEnd('');
-      setExpenseDate(new Date().toISOString().split('T')[0]);
+      const todayBrazza = await getBrazzavilleToday();
+      setExpenseDate(todayBrazza);
       // Rafraîchir la liste
       handleApplyFilters();
       if (isOwner) handleLoadSummary(summaryPeriod);
     } else {
-      setFormError(res.error || 'Erreur lors de l\'enregistrement.');
+      setFormError(res.error || 'Erreur lors de l\'enregistrement de la dépense.');
     }
 
     setSavingExpense(false);
@@ -221,7 +223,7 @@ export function ExpensesListClient({
 
   // Annulation dépense
   const handleConfirmVoid = async () => {
-    if (!voidingExpenseId) return;
+    if (!voidingExpenseId || submittingVoid) return;
     setVoidError(null);
 
     if (!voidReason || voidReason.trim().length < 5) {
@@ -288,8 +290,10 @@ export function ExpensesListClient({
           )}
 
           <button
-            onClick={() => {
+            onClick={async () => {
               setFormError(null);
+              const todayBrazza = await getBrazzavilleToday();
+              setExpenseDate(todayBrazza);
               setShowAddModal(true);
             }}
             className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center space-x-1.5"
@@ -303,7 +307,7 @@ export function ExpensesListClient({
       {/* RAPPEL DU PLAFOND CAISSIER */}
       {isCashier && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-center justify-between font-mono">
-          <span>Plafond autorisé par dépense :</span>
+          <span>Plafond autorisé par dépense (Espèces / Caisse) :</span>
           <span className="font-bold text-white text-sm">{cashierLimit.toLocaleString('fr-FR')} FCFA</span>
         </div>
       )}
@@ -704,6 +708,7 @@ export function ExpensesListClient({
                 Enregistrer une Dépense
               </h3>
               <button
+                type="button"
                 onClick={() => setShowAddModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white"
               >
@@ -783,8 +788,8 @@ export function ExpensesListClient({
                   <input
                     type="date"
                     required
-                    max={new Date().toISOString().split('T')[0]}
-                    min={isCashier ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined}
+                    max={initialTodayBrazza}
+                    min={isCashier ? new Date(Date.now() - 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' }) : undefined}
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
@@ -795,26 +800,35 @@ export function ExpensesListClient({
                   <label className="block text-slate-400 mb-1 font-semibold">
                     Mode de paiement <span className="text-rose-400">*</span>
                   </label>
-                  <select
-                    value={method}
-                    onChange={(e) => {
-                      const m = e.target.value as any;
-                      setMethod(m);
-                      if (m !== 'CASH') setFromTill(false);
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="CASH">Espèces (CASH)</option>
-                    <option value="MTN_MOMO">MTN Mobile Money</option>
-                    <option value="AIRTEL_MONEY">Airtel Money</option>
-                    <option value="BANK">Virement / Banque</option>
-                    <option value="OTHER">Autre</option>
-                  </select>
+                  {isCashier ? (
+                    <input
+                      type="text"
+                      readOnly
+                      value="Espèces (CASH)"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-amber-400 font-bold focus:outline-none cursor-not-allowed opacity-90"
+                    />
+                  ) : (
+                    <select
+                      value={method}
+                      onChange={(e) => {
+                        const m = e.target.value as any;
+                        setMethod(m);
+                        if (m !== 'CASH') setFromTill(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="CASH">Espèces (CASH)</option>
+                      <option value="MTN_MOMO">MTN Mobile Money</option>
+                      <option value="AIRTEL_MONEY">Airtel Money</option>
+                      <option value="BANK">Virement / Banque</option>
+                      <option value="OTHER">Autre</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
               {/* Interrupteur Payé depuis la caisse */}
-              {method === 'CASH' && (
+              {(isCashier || method === 'CASH') && (
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                   <div>
                     <span className="font-semibold text-white block">Payé avec l'argent de la caisse</span>
@@ -874,7 +888,7 @@ export function ExpensesListClient({
               </div>
 
               {/* Période Début / Fin pour FIXED et TAX */}
-              {(selectedCategoryObj?.kind === 'FIXED' || selectedCategoryObj?.kind === 'TAX') && (
+              {(selectedCategoryObj?.kind === 'FIXED' || selectedCategoryObj?.kind === 'TAX') && !isCashier && (
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                   <span className="font-semibold text-amber-400 block text-[11px]">
                     Période couverte par cette charge (ex: Facture électricité bimestrielle)
@@ -914,10 +928,10 @@ export function ExpensesListClient({
                 <button
                   type="submit"
                   disabled={savingExpense}
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center space-x-1.5"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {savingExpense && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Valider la dépense</span>
+                  <span>{savingExpense ? 'Validation...' : 'Valider la dépense'}</span>
                 </button>
               </div>
             </form>
@@ -971,10 +985,10 @@ export function ExpensesListClient({
                   type="button"
                   disabled={submittingVoid}
                   onClick={handleConfirmVoid}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center space-x-1.5"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submittingVoid && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Confirmer l'annulation</span>
+                  <span>{submittingVoid ? 'Annulation...' : 'Confirmer l\'annulation'}</span>
                 </button>
               </div>
             </div>

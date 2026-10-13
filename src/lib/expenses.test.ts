@@ -14,9 +14,9 @@ describe('Logique métier & Validations des Dépenses (Tâche 4.8)', () => {
       expect(can('DELIVERY', 'record_expense')).toBe(false);
     });
 
-    test('Gestion des catégories de dépenses (manage_expense_categories)', () => {
+    test('Gestion des catégories de dépenses réservée à l\'OWNER (manage_expense_categories)', () => {
       expect(can('OWNER', 'manage_expense_categories')).toBe(true);
-      expect(can('MANAGER', 'manage_expense_categories')).toBe(true);
+      expect(can('MANAGER', 'manage_expense_categories')).toBe(false);
       expect(can('CASHIER', 'manage_expense_categories')).toBe(false);
       expect(can('DELIVERY', 'manage_expense_categories')).toBe(false);
     });

@@ -111,7 +111,7 @@ export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
   },
   manage_expense_categories: {
     OWNER: true,
-    MANAGER: true,
+    MANAGER: false,
     CASHIER: false,
     DELIVERY: false,
   },

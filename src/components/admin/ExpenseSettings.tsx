@@ -26,7 +26,7 @@ const KIND_LABELS: Record<string, string> = {
   FIXED: 'Charges Fixes (Loyer, Salaires, Électricité)',
   TAX: 'Impôts et Taxes (Patente, Mairie)',
   TRANSFER: 'Mouvements de Trésorerie (Retraits, Banque)',
-  OTHER: 'Autres Charges Excepcionnelles',
+  OTHER: 'Autres Charges Exceptionnelles',
 };
 
 export function ExpenseSettings({ initialLimit, categories: initialCategories, userRole }: ExpenseSettingsProps) {
@@ -90,6 +90,7 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
   };
 
   const handleToggleActive = async (cat: Category) => {
+    if (!isOwner) return;
     const updatedStatus = !cat.is_active;
     // Optimistic UI
     setCategories((prev) =>
@@ -106,6 +107,7 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
   };
 
   const handleToggleCashierAllowed = async (cat: Category) => {
+    if (!isOwner) return;
     const updated = !cat.cashier_allowed;
     setCategories((prev) =>
       prev.map((c) => (c.id === cat.id ? { ...c, cashier_allowed: updated } : c))
@@ -119,7 +121,7 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
   };
 
   const handleSaveRename = async (catId: string) => {
-    if (!editingName.trim()) return;
+    if (!isOwner || !editingName.trim()) return;
     const res = await updateExpenseCategoryAction(catId, { name: editingName });
     if (res.success) {
       setCategories((prev) =>
@@ -178,7 +180,7 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
         </section>
       )}
 
-      {/* 2. SECTION GESTION DES CATÉGORIES DE DÉPENSES */}
+      {/* 2. SECTION GESTION DES CATÉGORIES DE DÉPENSES (OWNER ONLY POUR LA MODIFICATION) */}
       <section className="p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
           <div className="flex items-center space-x-2 text-amber-400">
@@ -186,13 +188,15 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
             <h2 className="text-sm font-bold text-white">Catégories de Dépenses</h2>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs border border-amber-500/20 transition flex items-center space-x-1"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Ajouter une catégorie</span>
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs border border-amber-500/20 transition flex items-center space-x-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Ajouter une catégorie</span>
+            </button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -215,7 +219,7 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
                       }`}
                     >
                       <div className="space-y-1 pr-2 min-w-0 flex-1">
-                        {editingCatId === cat.id ? (
+                        {isOwner && editingCatId === cat.id ? (
                           <div className="flex items-center space-x-1.5">
                             <input
                               type="text"
@@ -233,11 +237,13 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
                         ) : (
                           <p
                             onClick={() => {
-                              setEditingCatId(cat.id);
-                              setEditingName(cat.name);
+                              if (isOwner) {
+                                setEditingCatId(cat.id);
+                                setEditingName(cat.name);
+                              }
                             }}
-                            className="text-xs font-semibold text-white truncate hover:text-amber-400 cursor-pointer"
-                            title="Cliquer pour renommer"
+                            className={`text-xs font-semibold text-white truncate ${isOwner ? 'hover:text-amber-400 cursor-pointer' : ''}`}
+                            title={isOwner ? 'Cliquer pour renommer' : ''}
                           >
                             {cat.name}
                           </p>
@@ -262,34 +268,36 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 shrink-0">
-                        {/* Toggle Autorisé Caissier */}
-                        {kind === 'DAILY' && !cat.owner_only && (
+                      {isOwner && (
+                        <div className="flex items-center space-x-2 shrink-0">
+                          {/* Toggle Autorisé Caissier */}
+                          {kind === 'DAILY' && !cat.owner_only && (
+                            <button
+                              onClick={() => handleToggleCashierAllowed(cat)}
+                              title={cat.cashier_allowed ? 'Bloquer pour caissier' : 'Autoriser au caissier'}
+                              className={`px-2 py-1 rounded text-[10px] font-bold transition ${
+                                cat.cashier_allowed
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-500'
+                              }`}
+                            >
+                              {cat.cashier_allowed ? 'Caissier OK' : 'Caissier NON'}
+                            </button>
+                          )}
+
+                          {/* Toggle Actif/Inactif */}
                           <button
-                            onClick={() => handleToggleCashierAllowed(cat)}
-                            title={cat.cashier_allowed ? 'Bloquer pour caissier' : 'Autoriser au caissier'}
-                            className={`px-2 py-1 rounded text-[10px] font-bold transition ${
-                              cat.cashier_allowed
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            onClick={() => handleToggleActive(cat)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                              cat.is_active
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                                 : 'bg-slate-800 text-slate-500'
                             }`}
                           >
-                            {cat.cashier_allowed ? 'Caissier OK' : 'Caissier NON'}
+                            {cat.is_active ? 'Actif' : 'Masqué'}
                           </button>
-                        )}
-
-                        {/* Toggle Actif/Inactif */}
-                        <button
-                          onClick={() => handleToggleActive(cat)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                            cat.is_active
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              : 'bg-slate-800 text-slate-500'
-                          }`}
-                        >
-                          {cat.is_active ? 'Actif' : 'Masqué'}
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -299,8 +307,8 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
         </div>
       </section>
 
-      {/* MODAL NOUVELLE CATÉGRIE */}
-      {showAddModal && (
+      {/* MODAL NOUVELLE CATÉGORIE (OWNER ONLY) */}
+      {isOwner && showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 w-full max-w-md space-y-4 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center">
@@ -369,17 +377,15 @@ export function ExpenseSettings({ initialLimit, categories: initialCategories, u
                   <span>Note explicative obligatoire lors de la saisie</span>
                 </label>
 
-                {isOwner && (
-                  <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newOwnerOnly}
-                      onChange={(e) => setNewOwnerOnly(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span>Réservé exclusivement au Propriétaire (OWNER)</span>
-                  </label>
-                )}
+                <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newOwnerOnly}
+                    onChange={(e) => setNewOwnerOnly(e.target.checked)}
+                    className="rounded bg-slate-950 border-slate-800 text-amber-500 focus:ring-amber-500"
+                  />
+                  <span>Réservé exclusivement au Propriétaire (OWNER)</span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">

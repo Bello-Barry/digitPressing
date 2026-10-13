@@ -23,6 +23,13 @@ export interface RecordExpenseInput {
 }
 
 /**
+ * Helper pour obtenir la date du jour au fuseau Africa/Brazzaville
+ */
+export async function getBrazzavilleToday(): Promise<string> {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' });
+}
+
+/**
  * 1. Enregistrer une nouvelle dépense via la fonction RPC sécurisée record_expense
  */
 export async function recordExpenseAction(input: RecordExpenseInput) {
@@ -52,9 +59,9 @@ export async function recordExpenseAction(input: RecordExpenseInput) {
       return { success: false, error: 'La date de dépense est obligatoire.' };
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (input.expenseDate > todayStr) {
-      return { success: false, error: 'La date de dépense ne peut pas être dans le futur.' };
+    const todayBrazza = await getBrazzavilleToday();
+    if (input.expenseDate > todayBrazza) {
+      return { success: false, error: 'La date de la dépense ne peut pas être dans le futur.' };
     }
 
     if (input.fromTill && input.method !== 'CASH') {
@@ -153,6 +160,7 @@ export async function getExpensesAction(options?: {
 
     const orgId = auth.profile.membership.organization_id;
     const db = await createServerSupabaseClient();
+    const todayBrazza = await getBrazzavilleToday();
 
     let query = db
       .from('expenses')
@@ -164,16 +172,14 @@ export async function getExpensesAction(options?: {
       .order('expense_date', { ascending: false })
       .order('created_at', { ascending: false });
 
-    // Filtre Période
+    // Filtre Période (Africa/Brazzaville)
     if (options?.period === 'today') {
-      const today = new Date().toISOString().split('T')[0];
-      query = query.eq('expense_date', today);
+      query = query.eq('expense_date', todayBrazza);
     } else if (options?.period === '7days') {
-      const d7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const d7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' });
       query = query.gte('expense_date', d7);
     } else if (options?.period === 'month') {
-      const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const firstDay = todayBrazza.substring(0, 7) + '-01';
       query = query.gte('expense_date', firstDay);
     }
 
@@ -243,7 +249,7 @@ export async function getExpenseCategoriesAction() {
 }
 
 /**
- * 5. Créer une nouvelle catégorie de dépense (OWNER ou MANAGER)
+ * 5. Créer une nouvelle catégorie de dépense (OWNER uniquement)
  */
 export async function createExpenseCategoryAction(input: {
   name: string;
@@ -256,16 +262,11 @@ export async function createExpenseCategoryAction(input: {
   try {
     const auth = await requirePermission('manage_expense_categories');
     if (!auth.authorized || !auth.profile?.membership) {
-      return { success: false, error: auth.error || 'Accès réservé au Propriétaire et au Gérant.' };
+      return { success: false, error: auth.error || 'Accès strictement réservé au Propriétaire (OWNER).' };
     }
 
     if (!input.name || input.name.trim().length < 2) {
       return { success: false, error: 'Le nom de la catégorie doit comporter au moins 2 caractères.' };
-    }
-
-    const role = auth.profile.membership.role;
-    if (role === 'MANAGER' && input.ownerOnly) {
-      return { success: false, error: 'Seul le propriétaire (OWNER) peut créer des catégories réservées aux propriétaires.' };
     }
 
     const orgId = auth.profile.membership.organization_id;
@@ -306,7 +307,7 @@ export async function createExpenseCategoryAction(input: {
 }
 
 /**
- * 6. Modifier ou désactiver une catégorie de dépense (OWNER ou MANAGER)
+ * 6. Modifier ou désactiver une catégorie de dépense (OWNER uniquement)
  */
 export async function updateExpenseCategoryAction(
   categoryId: string,
@@ -320,27 +321,11 @@ export async function updateExpenseCategoryAction(
   try {
     const auth = await requirePermission('manage_expense_categories');
     if (!auth.authorized || !auth.profile?.membership) {
-      return { success: false, error: auth.error || 'Accès réservé au Propriétaire et au Gérant.' };
+      return { success: false, error: auth.error || 'Accès strictement réservé au Propriétaire (OWNER).' };
     }
 
     const orgId = auth.profile.membership.organization_id;
-    const role = auth.profile.membership.role;
     const db = await createServerSupabaseClient();
-
-    // Vérifier la catégorie existante
-    const { data: existing } = await db
-      .from('expense_categories')
-      .select('id, owner_only, organization_id')
-      .eq('id', categoryId)
-      .single();
-
-    if (!existing || existing.organization_id !== orgId) {
-      return { success: false, error: 'Catégorie introuvable.' };
-    }
-
-    if (role === 'MANAGER' && existing.owner_only) {
-      return { success: false, error: 'Le gérant ne peut pas modifier une catégorie réservée au propriétaire.' };
-    }
 
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (input.name !== undefined && input.name.trim().length >= 2) {
@@ -353,7 +338,8 @@ export async function updateExpenseCategoryAction(
     const { error } = await db
       .from('expense_categories')
       .update(payload)
-      .eq('id', categoryId);
+      .eq('id', categoryId)
+      .eq('organization_id', orgId);
 
     if (error) {
       if (error.code === '23505') {
@@ -413,7 +399,49 @@ export async function updateCashierExpenseLimitAction(limit: number) {
 }
 
 /**
- * 8. Calculer le résumé financier (Encaissements, Dépenses, RÉSULTAT base caisse) pour le Propriétaire
+ * 8. Obtenir le bilan de caisse quotidien via la fonction RPC get_daily_cash_summary(org, date)
+ */
+export async function getDailyCashSummaryAction(dateStr?: string) {
+  try {
+    const auth = await requirePermission('record_expense');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Accès refusé.' };
+    }
+
+    const orgId = auth.profile.membership.organization_id;
+    const dateToQuery = dateStr || (await getBrazzavilleToday());
+    const db = await createServerSupabaseClient();
+
+    const { data, error } = await db.rpc('get_daily_cash_summary', {
+      p_org_id: orgId,
+      p_date: dateToQuery,
+    });
+
+    if (error) {
+      console.error('Erreur RPC get_daily_cash_summary:', error);
+      return { success: false, error: error.message };
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+
+    return {
+      success: true,
+      summary: {
+        totalCashCollected: Number(row?.total_cash_collected ?? 0),
+        totalCashExpenses: Number(row?.total_cash_expenses ?? 0),
+        expectedCashBalance: Number(row?.expected_cash_balance ?? 0),
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur lors de la lecture du bilan de caisse.',
+    };
+  }
+}
+
+/**
+ * 9. Calculer le résumé financier (Encaissements, Dépenses, RÉSULTAT base caisse) pour le Propriétaire
  */
 export async function getExpenseSummaryAction(period: 'today' | 'week' | 'month' = 'month') {
   try {
@@ -424,28 +452,36 @@ export async function getExpenseSummaryAction(period: 'today' | 'week' | 'month'
 
     const orgId = auth.profile.membership.organization_id;
     const db = await createServerSupabaseClient();
+    const todayBrazza = await getBrazzavilleToday();
 
-    const now = new Date();
     let startDate: string;
-
     if (period === 'today') {
-      startDate = now.toISOString().split('T')[0];
+      startDate = todayBrazza;
     } else if (period === 'week') {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const now = new Date();
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' });
     } else {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      startDate = todayBrazza.substring(0, 7) + '-01';
     }
 
     // 1. Total des encaissements sur la période
     const { data: payments } = await db
       .from('payments')
-      .select('amount, method, collected_at')
+      .select('amount, method, collected_at, is_reversal')
       .eq('organization_id', orgId)
       .gte('collected_at', `${startDate}T00:00:00.000Z`);
 
-    const totalEncaissement = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const encaissementCash = payments?.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const encaissementMoMo = payments?.filter((p) => p.method !== 'CASH').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    const validPayments = payments || [];
+    const totalEncaissement = validPayments.reduce((sum, p) => {
+      const amt = Number(p.amount);
+      return sum + (p.is_reversal ? -Math.abs(amt) : Math.abs(amt));
+    }, 0);
+
+    const encaissementCash = validPayments
+      .filter((p) => p.method === 'CASH')
+      .reduce((sum, p) => sum + (p.is_reversal ? -Math.abs(Number(p.amount)) : Math.abs(Number(p.amount))), 0);
+
+    const encaissementMoMo = totalEncaissement - encaissementCash;
 
     // 2. Total des dépenses sur la période (excluant counts_in_result = false)
     const { data: expenses } = await db

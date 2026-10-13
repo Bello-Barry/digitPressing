@@ -3,7 +3,7 @@ import { createServerSupabaseClient, getServerUserMembership } from '@/lib/supab
 import { redirect } from 'next/navigation';
 import { AccessDenied } from '@/components/admin/AccessDenied';
 import { ExpensesListClient } from '@/components/admin/ExpensesListClient';
-import { getExpensesAction, getExpenseSummaryAction } from '@/actions/expenses';
+import { getExpensesAction, getExpenseSummaryAction, getBrazzavilleToday } from '@/actions/expenses';
 
 export default async function AdminExpensesPage() {
   const profile = await getServerUserMembership();
@@ -21,8 +21,9 @@ export default async function AdminExpensesPage() {
 
   const orgId = profile.membership.organization_id;
   const db = await createServerSupabaseClient();
+  const todayBrazza = await getBrazzavilleToday();
 
-  // Charger le plafond caissier et les catégories
+  // Charger le plafond caissier, les catégories et la liste des dépenses
   const [orgRes, catRes, expensesRes] = await Promise.all([
     db.from('organizations').select('cashier_expense_limit').eq('id', orgId).single(),
     db.from('expense_categories').select('*').eq('organization_id', orgId).eq('is_active', true).order('sort_order'),
@@ -49,6 +50,7 @@ export default async function AdminExpensesPage() {
       cashierLimit={cashierLimit}
       userRole={role}
       initialSummary={initialSummary}
+      initialTodayBrazza={todayBrazza}
     />
   );
 }

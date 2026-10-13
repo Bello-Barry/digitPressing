@@ -440,7 +440,7 @@ export async function cancelOrderAction(
       };
     }
 
-    // Annulation strictly réservée OWNER / MANAGER
+    // Annulation strictement réservée OWNER / MANAGER
     const auth = await requirePermission('view_audit_logs');
     if (!auth.authorized || (auth.role !== 'OWNER' && auth.role !== 'MANAGER')) {
       return { success: false, error: 'L\'annulation de commande est réservée au Propriétaire et au Manager.' };
@@ -542,9 +542,8 @@ export async function getAdminDashboardStats(orgId: string) {
     }
 
     const db = await createServerSupabaseClient();
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Brazzaville' });
+    const firstDayOfMonth = today.substring(0, 7) + '-01';
 
     // Commandes en attente de validation
     const { count: toValidateCount } = await db
@@ -567,7 +566,7 @@ export async function getAdminDashboardStats(orgId: string) {
       .eq('organization_id', orgId)
       .eq('status', 'READY');
 
-    // Chiffre d'affaires encaissé aujourd'hui
+    // Chiffre d'affaires encaissé aujourd'hui (Africa/Brazzaville)
     const { data: todayPayments } = await db
       .from('payments')
       .select('amount, method')
@@ -593,11 +592,14 @@ export async function getAdminDashboardStats(orgId: string) {
     // Métriques mensuelles (Résultat du mois)
     const { data: monthPayments } = await db
       .from('payments')
-      .select('amount')
+      .select('amount, is_reversal')
       .eq('organization_id', orgId)
       .gte('collected_at', `${firstDayOfMonth}T00:00:00.000Z`);
 
-    const caMonth = monthPayments?.reduce((sum: number, p: any) => sum + Number(p.amount), 0) || 0;
+    const caMonth = monthPayments?.reduce((sum: number, p: any) => {
+      const amt = Number(p.amount);
+      return sum + (p.is_reversal ? -Math.abs(amt) : Math.abs(amt));
+    }, 0) || 0;
 
     const { data: monthExpenses } = await db
       .from('expenses')

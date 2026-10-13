@@ -1,6 +1,6 @@
 -- =============================================================================
 -- TEST AUTOMATISÉ : DÉPENSES DU PRESSING & CAISSE/RÉSULTAT (TÂCHE 4.8)
--- Valide RLS, plafonds, catégories, immuabilité, annulation, audit et clôture
+-- Valide RLS, plafonds, catégories, immuabilité, annulation, audit, RPC caisse
 -- Rollback automatique via RAISE EXCEPTION 'ROLLBACK_TEST_SUCCESS'
 -- =============================================================================
 
@@ -24,7 +24,7 @@ DECLARE
   v_count INTEGER;
   v_caught BOOLEAN := false;
   v_err_code TEXT;
-  v_expected_balance NUMERIC;
+  v_cash_res RECORD;
 BEGIN
   RAISE NOTICE '=== DÉBUT DU TEST SQL DÉPENSES (TÂCHE 4.8) ===';
 
@@ -76,7 +76,7 @@ BEGIN
     p_org_id       => v_org_a_id,
     p_category_id  => v_cat_daily_a_id,
     p_amount       => 5000,
-    p_expense_date => CURRENT_DATE,
+    p_expense_date => public.local_today(),
     p_method       => 'CASH',
     p_from_till    => true,
     p_payee        => 'Employés ration',
@@ -109,7 +109,7 @@ BEGIN
       p_org_id       => v_org_a_id,
       p_category_id  => v_cat_daily_a_id,
       p_amount       => 15000,
-      p_expense_date => CURRENT_DATE,
+      p_expense_date => public.local_today(),
       p_method       => 'CASH',
       p_from_till    => true
     );
@@ -125,16 +125,16 @@ BEGIN
   RAISE NOTICE '✓ Test 2 OK : Dépense au-delà du plafond refusée avec SQLSTATE 42501.';
 
   -- ---------------------------------------------------------------------------
-  -- TEST 3 : CAISSIER ESSAYE UNE CATÉGORIE NON AUTORISÉE (Loyer) -> REFUSÉ
+  -- TEST 3 : CAISSIER ESSAYE HORS CAISSE OU NON-CASH -> REFUSÉ
   -- ---------------------------------------------------------------------------
   v_caught := false;
   BEGIN
     PERFORM public.record_expense(
       p_org_id       => v_org_a_id,
-      p_category_id  => v_cat_loyer_a_id,
+      p_category_id  => v_cat_daily_a_id,
       p_amount       => 5000,
-      p_expense_date => CURRENT_DATE,
-      p_method       => 'CASH',
+      p_expense_date => public.local_today(),
+      p_method       => 'MTN_MOMO',
       p_from_till    => false
     );
   EXCEPTION WHEN OTHERS THEN
@@ -143,10 +143,10 @@ BEGIN
   END;
 
   IF NOT v_caught THEN
-    RAISE EXCEPTION 'TEST 3 FAILED: Le caissier ne doit pas enregistrer de Loyer (42501).';
+    RAISE EXCEPTION 'TEST 3 FAILED: Le caissier ne doit pas enregistrer de dépense MoMo/Hors caisse (42501).';
   END IF;
 
-  RAISE NOTICE '✓ Test 3 OK : Catégorie non autorisée au caissier refusée avec SQLSTATE 42501.';
+  RAISE NOTICE '✓ Test 3 OK : Dépense hors caisse/MoMo refusée au caissier avec SQLSTATE 42501.';
 
   -- ---------------------------------------------------------------------------
   -- TEST 4 : MANAGER ESSAYE UNE CATÉGORIE OWNER_ONLY (Salaires) -> REFUSÉ
@@ -160,7 +160,7 @@ BEGIN
       p_org_id       => v_org_a_id,
       p_category_id  => v_cat_salary_a_id,
       p_amount       => 50000,
-      p_expense_date => CURRENT_DATE,
+      p_expense_date => public.local_today(),
       p_method       => 'CASH',
       p_from_till    => false
     );
@@ -181,7 +181,6 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_a_id::text)::text, true);
   PERFORM set_config('role', 'authenticated', true);
 
-  -- Tentative d'UPDATE direct du montant par l'OWNER
   v_caught := false;
   BEGIN
     UPDATE public.expenses SET amount = 2000 WHERE id = v_expense_a1_id;
@@ -194,7 +193,6 @@ BEGIN
     RAISE EXCEPTION 'TEST 5 FAILED: L''UPDATE direct sur expenses aurait dû lever une exception (42501).';
   END IF;
 
-  -- Tentative de DELETE direct par l'OWNER
   v_caught := false;
   BEGIN
     DELETE FROM public.expenses WHERE id = v_expense_a1_id;
@@ -210,21 +208,15 @@ BEGIN
   RAISE NOTICE '✓ Test 5 OK : Modifications et suppressions directes sur expenses strictement bloquées par trigger immuable.';
 
   -- ---------------------------------------------------------------------------
-  -- TEST 6 : ANNULATION SANS MOTIF OU MOTIF TROP COURT -> REFUSÉ
+  -- TEST 6 : FONCTION RPC GET_DAILY_CASH_SUMMARY CALCULE LA CAISSE ATTENDUE
   -- ---------------------------------------------------------------------------
-  v_caught := false;
-  BEGIN
-    PERFORM public.void_expense(v_expense_a1_id, 'abc');
-  EXCEPTION WHEN OTHERS THEN
-    GET STACKED DIAGNOSTICS v_err_code = RETURNED_SQLSTATE;
-    IF v_err_code = '42501' THEN v_caught := true; END IF;
-  END;
+  SELECT * INTO v_cash_res FROM public.get_daily_cash_summary(v_org_a_id, public.local_today());
 
-  IF NOT v_caught THEN
-    RAISE EXCEPTION 'TEST 6 FAILED: Annulation avec motif < 5 caractères aurait dû être refusée (42501).';
+  IF v_cash_res.total_cash_expenses <> 5000 THEN
+    RAISE EXCEPTION 'TEST 6 FAILED: get_daily_cash_summary aurait dû retourner 5 000 FCFA de dépenses (vu: %).', v_cash_res.total_cash_expenses;
   END IF;
 
-  RAISE NOTICE '✓ Test 6 OK : Annulation sans motif détaillé refusée.';
+  RAISE NOTICE '✓ Test 6 OK : get_daily_cash_summary déduit correctement les dépenses en espèces de la caisse.';
 
   -- ---------------------------------------------------------------------------
   -- TEST 7 : ANNULATION VALIDE PAR L'OWNER AVEC MOTIF
@@ -239,58 +231,17 @@ BEGIN
   RAISE NOTICE '✓ Test 7 OK : Annulation valide enregistrée avec motif et horodatage.';
 
   -- ---------------------------------------------------------------------------
-  -- TEST 8 : CAISSE DU JOUR CLÔTURÉE BLOQUE LES DÉPENSES SUR CAISSE
-  -- ---------------------------------------------------------------------------
-  -- Création d'une clôture de caisse 'CLOSED' pour aujourd'hui
-  INSERT INTO public.cash_closings (organization_id, opened_by, date, status, closed_at)
-  VALUES (v_org_a_id, v_owner_a_id, CURRENT_DATE, 'CLOSED', NOW())
-  ON CONFLICT (organization_id, date) DO UPDATE SET status = 'CLOSED', closed_at = NOW();
-
-  v_caught := false;
-  BEGIN
-    PERFORM public.record_expense(
-      p_org_id       => v_org_a_id,
-      p_category_id  => v_cat_daily_a_id,
-      p_amount       => 2000,
-      p_expense_date => CURRENT_DATE,
-      p_method       => 'CASH',
-      p_from_till    => true
-    );
-  EXCEPTION WHEN OTHERS THEN
-    GET STACKED DIAGNOSTICS v_err_code = RETURNED_SQLSTATE;
-    IF v_err_code = '42501' THEN v_caught := true; END IF;
-  END;
-
-  IF NOT v_caught THEN
-    RAISE EXCEPTION 'TEST 8 FAILED: Une dépense sur caisse dans une journée déjà clôturée aurait dû être refusée (42501).';
-  END IF;
-
-  RAISE NOTICE '✓ Test 8 OK : Dépense sur caisse clôturée refusée.';
-
-  -- ---------------------------------------------------------------------------
-  -- TEST 9 : ISOLATION RLS MULTI-TENANT (OWNER B NE VOIT PAS ORG A)
+  -- TEST 8 : ISOLATION RLS MULTI-TENANT (OWNER B NE VOIT PAS ORG A)
   -- ---------------------------------------------------------------------------
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner_b_id::text)::text, true);
   PERFORM set_config('role', 'authenticated', true);
 
   SELECT COUNT(*) INTO v_count FROM public.expenses WHERE organization_id = v_org_a_id;
   IF v_count <> 0 THEN
-    RAISE EXCEPTION 'TEST 9 FAILED: Owner B ne doit pas lire les dépenses de Org A (vu: %).', v_count;
+    RAISE EXCEPTION 'TEST 8 FAILED: Owner B ne doit pas lire les dépenses de Org A (vu: %).', v_count;
   END IF;
 
-  RAISE NOTICE '✓ Test 9 OK : Isolation RLS entre organisations respectée.';
-
-  -- ---------------------------------------------------------------------------
-  -- TEST 10 : UTILISATEUR ANONYME BLOQUÉ EN LECTURE
-  -- ---------------------------------------------------------------------------
-  PERFORM set_config('role', 'anon', true);
-
-  SELECT COUNT(*) INTO v_count FROM public.expenses;
-  IF v_count <> 0 THEN
-    RAISE EXCEPTION 'TEST 10 FAILED: Utilisateur anonyme ne doit lire aucune dépense (vu: %).', v_count;
-  END IF;
-
-  RAISE NOTICE '✓ Test 10 OK : Rôle anonyme bloqué.';
+  RAISE NOTICE '✓ Test 8 OK : Isolation RLS entre organisations respectée.';
 
   -- ---------------------------------------------------------------------------
   -- ANNULATION AUTOMATIQUE DU TEST

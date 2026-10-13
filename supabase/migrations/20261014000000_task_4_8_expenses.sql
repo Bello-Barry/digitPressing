@@ -1,167 +1,213 @@
 -- =============================================================================
--- MIGRATION 20261014000000: DÉPENSES DU PRESSING & IMPACT CAISSE/RÉSULTAT (TÂCHE 4.8)
--- Migration unique, additive, idempotente
+-- MIGRATION 20261014000000 (VERSION CORRIGÉE) : DÉPENSES DU PRESSING (TÂCHE 4.8)
+-- Corrections par rapport à la version de Jules :
+--  1. Vue de caisse : l'erreur "subquery uses ungrouped column p.collected_at"
+--     est corrigée (agrégation séparée des paiements et des dépenses).
+--  2. Fuseau horaire : les dates se calculent à l'heure de Brazzaville (UTC+1),
+--     sinon une dépense saisie entre minuit et 1 h était refusée ou mal datée.
+--  3. Politique du journal : la version de Jules supprimait une politique qui
+--     n'existe pas (audit_logs_owner_manager_select) et laissait la mienne
+--     (audit_logs_select) active EN PLUS : les gérants auraient pu lire les
+--     salaires dans le journal. Une seule politique, restreinte, est recréée.
+--  4. seed_default_expense_categories n'est plus appelable par un utilisateur
+--     connecté (il pouvait écrire dans n'importe quelle organisation).
+--  5. Le caissier ne peut enregistrer que des dépenses en espèces payées avec la
+--     caisse (imposé dans la base, pas seulement dans l'interface).
+--  6. Seul le propriétaire modifie les catégories (un gérant pouvait changer
+--     counts_in_result et falsifier le résultat).
+--  7. Le caissier ne voit que les catégories qui lui sont autorisées.
+--  8. Fonction get_daily_cash_summary : caisse attendue exacte pour tout membre
+--     autorisé (la vue seule ne montrerait au caissier que SES dépenses).
+--  9. Le contrôle "journée clôturée" est isolé dans une fonction : si la table
+--     cash_closings ne correspond pas, la migration échoue tout de suite avec un
+--     message clair au lieu d'échouer plus tard en silence.
+-- Idempotente. Aucune donnée n'est supprimée.
 -- =============================================================================
 
--- 1. EXTENSION DE LA TABLE ORGANIZATIONS (Plafond de dépense du caissier)
-ALTER TABLE public.organizations
-  ADD COLUMN IF NOT EXISTS cashier_expense_limit NUMERIC NOT NULL DEFAULT 10000 CHECK (cashier_expense_limit >= 0);
+-- 0. FONCTIONS UTILITAIRES
+CREATE OR REPLACE FUNCTION public.local_today()
+RETURNS date
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (now() AT TIME ZONE 'Africa/Brazzaville')::date;
+$$;
 
--- 2. TABLE EXPENSE_CATEGORIES (Catégories de dépenses configurables)
+-- Journée de caisse déjà clôturée ? (échoue à la création si cash_closings ou ses colonnes diffèrent)
+CREATE OR REPLACE FUNCTION public.expense_day_is_closed(p_org_id uuid, p_date date)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.cash_closings
+    WHERE organization_id = p_org_id
+      AND date = p_date
+      AND status = 'CLOSED'
+  );
+$$;
+REVOKE ALL ON FUNCTION public.expense_day_is_closed(uuid, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.expense_day_is_closed(uuid, date) TO authenticated;
+
+-- 1. PLAFOND DE DÉPENSE DU CAISSIER
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS cashier_expense_limit NUMERIC NOT NULL DEFAULT 10000
+  CHECK (cashier_expense_limit >= 0);
+
+-- 2. CATÉGORIES DE DÉPENSES
 CREATE TABLE IF NOT EXISTS public.expense_categories (
-  id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id     UUID         NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  name                TEXT         NOT NULL,
-  kind                TEXT         NOT NULL CHECK (kind IN ('DAILY', 'FIXED', 'TAX', 'TRANSFER', 'OTHER')),
-  counts_in_result    BOOLEAN      NOT NULL DEFAULT true,
-  owner_only          BOOLEAN      NOT NULL DEFAULT false,
-  cashier_allowed     BOOLEAN      NOT NULL DEFAULT false,
-  note_required       BOOLEAN      NOT NULL DEFAULT false,
-  sort_order          INT          NOT NULL DEFAULT 0,
-  is_active           BOOLEAN      NOT NULL DEFAULT true,
-  created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id  UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  name             TEXT        NOT NULL,
+  kind             TEXT        NOT NULL CHECK (kind IN ('DAILY', 'FIXED', 'TAX', 'TRANSFER', 'OTHER')),
+  counts_in_result BOOLEAN     NOT NULL DEFAULT true,
+  owner_only       BOOLEAN     NOT NULL DEFAULT false,
+  cashier_allowed  BOOLEAN     NOT NULL DEFAULT false,
+  note_required    BOOLEAN     NOT NULL DEFAULT false,
+  sort_order       INT         NOT NULL DEFAULT 0,
+  is_active        BOOLEAN     NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index d'unicité par organisation sur le nom normalisé
 CREATE UNIQUE INDEX IF NOT EXISTS idx_expense_categories_unique_name
   ON public.expense_categories (organization_id, public.normalize_catalog_name(name));
-
 CREATE INDEX IF NOT EXISTS idx_expense_categories_org_kind
   ON public.expense_categories (organization_id, kind, is_active);
 
--- 3. FONCTION DE SEED DES CATÉGORIES PAR DÉFAUT
-CREATE OR REPLACE FUNCTION public.seed_default_expense_categories(p_org_id UUID)
-RETURNS VOID
+CREATE OR REPLACE FUNCTION public.expense_categories_touch()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_expense_categories_touch ON public.expense_categories;
+CREATE TRIGGER trg_expense_categories_touch
+  BEFORE UPDATE ON public.expense_categories
+  FOR EACH ROW EXECUTE FUNCTION public.expense_categories_touch();
+
+-- 3. CATALOGUE PAR DÉFAUT (réservé au serveur, non appelable depuis l'API publique)
+CREATE OR REPLACE FUNCTION public.seed_default_expense_categories(p_org_id uuid)
+RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- DAILY (Autorisées aux caissiers)
-  INSERT INTO public.expense_categories (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
+  INSERT INTO public.expense_categories
+    (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
   VALUES
-    (p_org_id, 'Ration journalière des employés', 'DAILY', true, false, true, false, 10),
-    (p_org_id, 'Produits de lavage et d''entretien', 'DAILY', true, false, true, false, 20),
-    (p_org_id, 'Carburant (groupe électrogène en cas de coupure)', 'DAILY', true, false, true, false, 30),
-    (p_org_id, 'Transport et déplacements', 'DAILY', true, false, true, false, 40),
-    (p_org_id, 'Emballages et fournitures (cintres, sachets)', 'DAILY', true, false, true, false, 50),
-    (p_org_id, 'Petites réparations et entretien', 'DAILY', true, false, true, false, 60),
-    (p_org_id, 'Eau', 'DAILY', true, false, true, false, 70),
-    (p_org_id, 'Autres dépenses courantes', 'DAILY', true, false, true, true, 80)
-  ON CONFLICT DO NOTHING;
-
-  -- FIXED (Charges fixes)
-  INSERT INTO public.expense_categories (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
-  VALUES
-    (p_org_id, 'Loyer', 'FIXED', true, false, false, false, 110),
-    (p_org_id, 'Salaires', 'FIXED', true, true, false, false, 120),
-    (p_org_id, 'Électricité', 'FIXED', true, false, false, false, 130),
-    (p_org_id, 'Téléphone et internet', 'FIXED', true, false, false, false, 140)
-  ON CONFLICT DO NOTHING;
-
-  -- TAX (Impôts et taxes)
-  INSERT INTO public.expense_categories (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
-  VALUES
-    (p_org_id, 'Patente', 'TAX', true, false, false, false, 210),
-    (p_org_id, 'Contrat de bail (frais d''enregistrement)', 'TAX', true, false, false, false, 220),
-    (p_org_id, 'Taxes de la mairie', 'TAX', true, false, false, false, 230),
-    (p_org_id, 'Autres impôts et taxes', 'TAX', true, false, false, false, 240)
-  ON CONFLICT DO NOTHING;
-
-  -- TRANSFER (Mouvements de trésorerie non comptabilisés dans le résultat)
-  INSERT INTO public.expense_categories (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
-  VALUES
-    (p_org_id, 'Retrait du propriétaire', 'TRANSFER', false, true, false, false, 310),
-    (p_org_id, 'Versement en banque ou Mobile Money', 'TRANSFER', false, false, false, false, 320)
-  ON CONFLICT DO NOTHING;
-
-  -- OTHER (Autres charges)
-  INSERT INTO public.expense_categories (organization_id, name, kind, counts_in_result, owner_only, cashier_allowed, note_required, sort_order)
-  VALUES
-    (p_org_id, 'Autres charges', 'OTHER', true, false, false, true, 410)
+    -- DAILY : autorisées au caissier
+    (p_org_id, 'Ration journalière des employés',                 'DAILY',    true,  false, true,  false, 10),
+    (p_org_id, 'Produits de lavage et d''entretien',              'DAILY',    true,  false, true,  false, 20),
+    (p_org_id, 'Carburant (groupe électrogène en cas de coupure)', 'DAILY',   true,  false, true,  false, 30),
+    (p_org_id, 'Transport et déplacements',                       'DAILY',    true,  false, true,  false, 40),
+    (p_org_id, 'Emballages et fournitures (cintres, sachets)',    'DAILY',    true,  false, true,  false, 50),
+    (p_org_id, 'Petites réparations et entretien',                'DAILY',    true,  false, true,  false, 60),
+    (p_org_id, 'Eau',                                             'DAILY',    true,  false, true,  false, 70),
+    (p_org_id, 'Autres dépenses courantes',                       'DAILY',    true,  false, true,  true,  80),
+    -- FIXED : charges fixes
+    (p_org_id, 'Loyer',                                           'FIXED',    true,  false, false, false, 110),
+    (p_org_id, 'Salaires',                                        'FIXED',    true,  true,  false, false, 120),
+    (p_org_id, 'Électricité',                                     'FIXED',    true,  false, false, false, 130),
+    (p_org_id, 'Téléphone et internet',                           'FIXED',    true,  false, false, false, 140),
+    -- TAX : impôts et taxes
+    (p_org_id, 'Patente',                                         'TAX',      true,  false, false, false, 210),
+    (p_org_id, 'Contrat de bail (frais d''enregistrement)',       'TAX',      true,  false, false, false, 220),
+    (p_org_id, 'Taxes de la mairie',                              'TAX',      true,  false, false, false, 230),
+    (p_org_id, 'Autres impôts et taxes',                          'TAX',      true,  false, false, false, 240),
+    -- TRANSFER : mouvements de trésorerie, hors résultat
+    (p_org_id, 'Retrait du propriétaire',                         'TRANSFER', false, true,  false, false, 310),
+    (p_org_id, 'Versement en banque ou Mobile Money',             'TRANSFER', false, false, false, false, 320),
+    -- OTHER
+    (p_org_id, 'Autres charges',                                  'OTHER',    true,  false, false, true,  410)
   ON CONFLICT DO NOTHING;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.seed_default_expense_categories(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.seed_default_expense_categories(UUID) TO authenticated;
+REVOKE ALL ON FUNCTION public.seed_default_expense_categories(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.seed_default_expense_categories(uuid) TO service_role;
 
--- Exécution pour toutes les organisations existantes
 DO $$
 DECLARE
-  v_org RECORD;
+  v_org record;
 BEGIN
   FOR v_org IN SELECT id FROM public.organizations LOOP
     PERFORM public.seed_default_expense_categories(v_org.id);
   END LOOP;
 END $$;
 
--- 4. TABLE EXPENSES (Registre des dépenses)
+-- 4. REGISTRE DES DÉPENSES
 CREATE TABLE IF NOT EXISTS public.expenses (
-  id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id  UUID         NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  category_id      UUID         NOT NULL REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
-  amount           NUMERIC      NOT NULL CHECK (amount > 0 AND amount = trunc(amount)),
-  expense_date     DATE         NOT NULL CHECK (expense_date <= CURRENT_DATE),
-  method           TEXT         NOT NULL CHECK (method IN ('CASH', 'MTN_MOMO', 'AIRTEL_MONEY', 'BANK', 'OTHER')),
-  from_till        BOOLEAN      NOT NULL DEFAULT false,
-  payee            TEXT         CHECK (payee IS NULL OR char_length(payee) <= 100),
-  reference        TEXT         CHECK (reference IS NULL OR char_length(reference) <= 100),
-  note             TEXT         CHECK (note IS NULL OR char_length(note) <= 300),
-  period_start     DATE,
-  period_end       DATE,
-  created_by       UUID,        -- Sans FK vers auth.users pour survivre à la suppression d'utilisateur
-  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  voided_at        TIMESTAMPTZ,
-  voided_by        UUID,
-  void_reason      TEXT,
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  category_id     UUID        NOT NULL REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
+  amount          NUMERIC     NOT NULL CHECK (amount > 0 AND amount = trunc(amount) AND amount <= 100000000),
+  expense_date    DATE        NOT NULL,
+  method          TEXT        NOT NULL CHECK (method IN ('CASH', 'MTN_MOMO', 'AIRTEL_MONEY', 'BANK', 'OTHER')),
+  from_till       BOOLEAN     NOT NULL DEFAULT false,
+  payee           TEXT        CHECK (payee IS NULL OR char_length(payee) <= 100),
+  reference       TEXT        CHECK (reference IS NULL OR char_length(reference) <= 100),
+  note            TEXT        CHECK (note IS NULL OR char_length(note) <= 300),
+  period_start    DATE,
+  period_end      DATE,
+  created_by      UUID,       -- pas de clé étrangère : le journal doit survivre à la suppression d'un utilisateur
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  voided_at       TIMESTAMPTZ,
+  voided_by       UUID,
+  void_reason     TEXT,
   CONSTRAINT chk_expense_till_method CHECK (from_till = false OR method = 'CASH'),
   CONSTRAINT chk_expense_period CHECK (period_end IS NULL OR period_start IS NULL OR period_end >= period_start),
   CONSTRAINT chk_expense_void CHECK (voided_at IS NULL OR (void_reason IS NOT NULL AND char_length(trim(void_reason)) >= 5))
 );
 
-CREATE INDEX IF NOT EXISTS idx_expenses_org_date
-  ON public.expenses (organization_id, expense_date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_org_date ON public.expenses (organization_id, expense_date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses (category_id);
 
-CREATE INDEX IF NOT EXISTS idx_expenses_category
-  ON public.expenses (category_id);
-
--- 5. TRIGGER BEFORE UPDATE ET DELETE : IMMUABILITÉ STRICTE DES DÉPENSES
+-- 5. IMMUABILITÉ : seule l'annulation avec motif est possible
 CREATE OR REPLACE FUNCTION public.prevent_expense_mutation()
-RETURNS TRIGGER
+RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    RAISE EXCEPTION 'Les lignes de dépenses ne peuvent pas être supprimées (SQLSTATE 42501).'
-      USING ERRCODE = '42501';
+  IF TG_OP = 'TRUNCATE' THEN
+    RAISE EXCEPTION 'Le registre des dépenses ne peut pas être vidé.' USING ERRCODE = '42501';
   END IF;
 
-  IF TG_OP = 'UPDATE' THEN
-    -- Refuser toute modification sur une dépense déjà annulée
-    IF OLD.voided_at IS NOT NULL THEN
-      RAISE EXCEPTION 'Une dépense déjà annulée ne peut plus être modifiée (SQLSTATE 42501).'
-        USING ERRCODE = '42501';
-    END IF;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'Une dépense ne peut pas être supprimée : elle s''annule avec un motif.' USING ERRCODE = '42501';
+  END IF;
 
-    -- Vérifier que les colonnes métier ne sont PAS modifiées
-    IF NEW.amount IS DISTINCT FROM OLD.amount
-       OR NEW.category_id IS DISTINCT FROM OLD.category_id
-       OR NEW.expense_date IS DISTINCT FROM OLD.expense_date
-       OR NEW.method IS DISTINCT FROM OLD.method
-       OR NEW.from_till IS DISTINCT FROM OLD.from_till
-       OR NEW.created_by IS DISTINCT FROM OLD.created_by
-       OR NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
-      RAISE EXCEPTION 'Les informations d''une dépense enregistrée sont immuables. Seule l''annulation avec motif est autorisée (SQLSTATE 42501).'
-        USING ERRCODE = '42501';
-    END IF;
+  -- UPDATE
+  IF OLD.voided_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Une dépense déjà annulée ne peut plus être modifiée.' USING ERRCODE = '42501';
+  END IF;
 
-    -- Seules les colonnes d'annulation peuvent passer de NULL à renseigné
-    IF NEW.voided_at IS NULL THEN
-      RAISE EXCEPTION 'L''annulation d''une dépense exige de renseigner voided_at (SQLSTATE 42501).'
-        USING ERRCODE = '42501';
-    END IF;
+  IF NEW.amount IS DISTINCT FROM OLD.amount
+     OR NEW.category_id IS DISTINCT FROM OLD.category_id
+     OR NEW.expense_date IS DISTINCT FROM OLD.expense_date
+     OR NEW.method IS DISTINCT FROM OLD.method
+     OR NEW.from_till IS DISTINCT FROM OLD.from_till
+     OR NEW.payee IS DISTINCT FROM OLD.payee
+     OR NEW.reference IS DISTINCT FROM OLD.reference
+     OR NEW.note IS DISTINCT FROM OLD.note
+     OR NEW.period_start IS DISTINCT FROM OLD.period_start
+     OR NEW.period_end IS DISTINCT FROM OLD.period_end
+     OR NEW.created_by IS DISTINCT FROM OLD.created_by
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+    RAISE EXCEPTION 'Les informations d''une dépense enregistrée sont immuables : seule l''annulation avec motif est autorisée.' USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.voided_at IS NULL OR NEW.voided_by IS NULL THEN
+    RAISE EXCEPTION 'Une modification de dépense doit être une annulation (date, auteur et motif).' USING ERRCODE = '42501';
   END IF;
 
   RETURN NEW;
@@ -173,53 +219,66 @@ CREATE TRIGGER trg_prevent_expense_mutation
   BEFORE UPDATE OR DELETE ON public.expenses
   FOR EACH ROW EXECUTE FUNCTION public.prevent_expense_mutation();
 
--- 6. FONCTION DE SAISIE SÉCURISÉE : RECORD_EXPENSE
+DROP TRIGGER IF EXISTS trg_prevent_expense_truncate ON public.expenses;
+CREATE TRIGGER trg_prevent_expense_truncate
+  BEFORE TRUNCATE ON public.expenses
+  FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_expense_mutation();
+
+-- 6. ENREGISTRER UNE DÉPENSE (seule voie d'écriture)
 CREATE OR REPLACE FUNCTION public.record_expense(
-  p_org_id        UUID,
-  p_category_id   UUID,
-  p_amount        NUMERIC,
-  p_expense_date  DATE,
-  p_method        TEXT,
-  p_from_till     BOOLEAN,
-  p_payee         TEXT DEFAULT NULL,
-  p_reference     TEXT DEFAULT NULL,
-  p_note          TEXT DEFAULT NULL,
-  p_period_start  DATE DEFAULT NULL,
-  p_period_end    DATE DEFAULT NULL
+  p_org_id        uuid,
+  p_category_id   uuid,
+  p_amount        numeric,
+  p_expense_date  date,
+  p_method        text,
+  p_from_till     boolean,
+  p_payee         text DEFAULT NULL,
+  p_reference     text DEFAULT NULL,
+  p_note          text DEFAULT NULL,
+  p_period_start  date DEFAULT NULL,
+  p_period_end    date DEFAULT NULL
 )
-RETURNS UUID
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_user_id      UUID := auth.uid();
-  v_role         TEXT;
-  v_cat          RECORD;
-  v_limit        NUMERIC;
-  v_expense_id   UUID;
-  v_is_closed    BOOLEAN;
+  v_user_id    uuid := auth.uid();
+  v_role       text;
+  v_cat        record;
+  v_limit      numeric;
+  v_from_till  boolean := COALESCE(p_from_till, false);
+  v_expense_id uuid;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Utilisateur non authentifié.' USING ERRCODE = '42501';
   END IF;
 
-  -- 1. Détermination du rôle dans l'organisation
+  -- Rôle dans l'organisation (vérifié en premier)
   SELECT role::text INTO v_role
   FROM public.memberships
-  WHERE organization_id = p_org_id
-    AND user_id = v_user_id
-    AND is_active = true;
+  WHERE organization_id = p_org_id AND user_id = v_user_id AND is_active = true;
 
-  IF v_role IS NULL THEN
-    RAISE EXCEPTION 'Accès refusé : vous n''êtes pas membre actif de cette organisation.' USING ERRCODE = '42501';
+  IF v_role IS NULL OR v_role NOT IN ('OWNER', 'MANAGER', 'CASHIER') THEN
+    RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = '42501';
   END IF;
 
-  IF v_role = 'DELIVERY' THEN
-    RAISE EXCEPTION 'Accès refusé : le rôle LIVREUR ne peut pas enregistrer de dépenses.' USING ERRCODE = '42501';
+  -- Validation générale
+  IF p_amount IS NULL OR p_amount <= 0 OR p_amount <> trunc(p_amount) THEN
+    RAISE EXCEPTION 'Le montant doit être un nombre entier positif de FCFA.' USING ERRCODE = '42501';
+  END IF;
+  IF p_expense_date IS NULL OR p_expense_date > public.local_today() THEN
+    RAISE EXCEPTION 'La date de la dépense ne peut pas être dans le futur.' USING ERRCODE = '42501';
+  END IF;
+  IF p_method IS NULL OR p_method NOT IN ('CASH', 'MTN_MOMO', 'AIRTEL_MONEY', 'BANK', 'OTHER') THEN
+    RAISE EXCEPTION 'Mode de paiement invalide.' USING ERRCODE = '42501';
+  END IF;
+  IF v_from_till AND p_method <> 'CASH' THEN
+    RAISE EXCEPTION 'Une dépense payée avec la caisse doit être en espèces.' USING ERRCODE = '42501';
   END IF;
 
-  -- 2. Validation de la catégorie
+  -- Catégorie
   SELECT id, name, owner_only, cashier_allowed, note_required, is_active
   INTO v_cat
   FROM public.expense_categories
@@ -229,86 +288,43 @@ BEGIN
     RAISE EXCEPTION 'Catégorie de dépense invalide ou inactive.' USING ERRCODE = '42501';
   END IF;
 
-  -- 3. Vérification des autorisations spécifiques par rôle
   IF v_role = 'MANAGER' AND v_cat.owner_only THEN
-    RAISE EXCEPTION 'Accès refusé : la catégorie "%" est réservée au propriétaire (OWNER).', v_cat.name USING ERRCODE = '42501';
+    RAISE EXCEPTION 'La catégorie « % » est réservée au propriétaire.', v_cat.name USING ERRCODE = '42501';
   END IF;
 
   IF v_role = 'CASHIER' THEN
     IF NOT v_cat.cashier_allowed THEN
-      RAISE EXCEPTION 'Accès refusé : la catégorie "%" n''est pas autorisée aux caissiers.', v_cat.name USING ERRCODE = '42501';
+      RAISE EXCEPTION 'La catégorie « % » n''est pas autorisée pour un caissier.', v_cat.name USING ERRCODE = '42501';
     END IF;
-
-    -- Récupération du plafond caissier de l'organisation
-    SELECT cashier_expense_limit INTO v_limit
-    FROM public.organizations
-    WHERE id = p_org_id;
-
+    -- Un caissier ne dépense que les espèces de la caisse
+    IF p_method <> 'CASH' OR NOT v_from_till THEN
+      RAISE EXCEPTION 'Un caissier enregistre uniquement des dépenses en espèces payées avec la caisse.' USING ERRCODE = '42501';
+    END IF;
+    SELECT cashier_expense_limit INTO v_limit FROM public.organizations WHERE id = p_org_id;
     IF p_amount > v_limit THEN
-      RAISE EXCEPTION 'Montant supérieur à votre plafond autorisé (Plafond : % FCFA). Veuillez demander au gérant.', v_limit USING ERRCODE = '42501';
+      RAISE EXCEPTION 'Montant supérieur à votre plafond (% FCFA) : demandez au gérant.', v_limit USING ERRCODE = '42501';
     END IF;
-
-    -- Contrôle de la date (aujourd'hui ou hier uniquement pour le caissier)
-    IF p_expense_date < CURRENT_DATE - 1 OR p_expense_date > CURRENT_DATE THEN
-      RAISE EXCEPTION 'Un caissier ne peut enregistrer des dépenses que pour aujourd''hui ou hier.' USING ERRCODE = '42501';
+    IF p_expense_date < public.local_today() - 1 THEN
+      RAISE EXCEPTION 'Un caissier ne peut enregistrer que les dépenses d''aujourd''hui ou d''hier.' USING ERRCODE = '42501';
     END IF;
   END IF;
 
-  -- 4. Contrôle de date globale (pas dans le futur)
-  IF p_expense_date > CURRENT_DATE THEN
-    RAISE EXCEPTION 'La date de la dépense ne peut pas être située dans le futur.' USING ERRCODE = '42501';
-  END IF;
-
-  -- 5. Note obligatoire si exigée par la catégorie
   IF v_cat.note_required AND (p_note IS NULL OR char_length(trim(p_note)) < 5) THEN
-    RAISE EXCEPTION 'Une note explicative détaillée (au moins 5 caractères) est obligatoire pour cette catégorie.' USING ERRCODE = '42501';
+    RAISE EXCEPTION 'Une note explicative (au moins 5 caractères) est obligatoire pour cette catégorie.' USING ERRCODE = '42501';
   END IF;
 
-  -- 6. Dépense sur caisse : vérification de la fermeture de caisse
-  IF p_from_till THEN
-    IF p_method <> 'CASH' THEN
-      RAISE EXCEPTION 'Une dépense payée depuis la caisse doit obligatoirement être en espèces (CASH).' USING ERRCODE = '42501';
-    END IF;
-
-    SELECT EXISTS (
-      SELECT 1 FROM public.cash_closings
-      WHERE organization_id = p_org_id
-        AND date = p_expense_date
-        AND status = 'CLOSED'
-    ) INTO v_is_closed;
-
-    IF v_is_closed THEN
-      RAISE EXCEPTION 'Impossible d''enregistrer une dépense en caisse pour une journée déjà clôturée.' USING ERRCODE = '42501';
-    END IF;
+  -- Dépense prise sur la caisse : refusée si la journée est clôturée
+  IF v_from_till AND public.expense_day_is_closed(p_org_id, p_expense_date) THEN
+    RAISE EXCEPTION 'La caisse de cette journée est déjà clôturée.' USING ERRCODE = '42501';
   END IF;
 
-  -- 7. Insertion de la dépense
   INSERT INTO public.expenses (
-    organization_id,
-    category_id,
-    amount,
-    expense_date,
-    method,
-    from_till,
-    payee,
-    reference,
-    note,
-    period_start,
-    period_end,
-    created_by
+    organization_id, category_id, amount, expense_date, method, from_till,
+    payee, reference, note, period_start, period_end, created_by
   ) VALUES (
-    p_org_id,
-    p_category_id,
-    p_amount,
-    p_expense_date,
-    p_method,
-    p_from_till,
-    NULLIF(trim(p_payee), ''),
-    NULLIF(trim(p_reference), ''),
-    NULLIF(trim(p_note), ''),
-    p_period_start,
-    p_period_end,
-    v_user_id
+    p_org_id, p_category_id, p_amount, p_expense_date, p_method, v_from_till,
+    NULLIF(trim(p_payee), ''), NULLIF(trim(p_reference), ''), NULLIF(trim(p_note), ''),
+    p_period_start, p_period_end, v_user_id
   )
   RETURNING id INTO v_expense_id;
 
@@ -316,160 +332,114 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.record_expense FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.record_expense TO authenticated;
+REVOKE ALL ON FUNCTION public.record_expense(uuid, uuid, numeric, date, text, boolean, text, text, text, date, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_expense(uuid, uuid, numeric, date, text, boolean, text, text, text, date, date) TO authenticated;
 
--- 7. FONCTION D'ANNULATION SÉCURISÉE : VOID_EXPENSE
-CREATE OR REPLACE FUNCTION public.void_expense(
-  p_id      UUID,
-  p_reason  TEXT
-)
-RETURNS VOID
+-- 7. ANNULER UNE DÉPENSE (motif obligatoire)
+CREATE OR REPLACE FUNCTION public.void_expense(p_id uuid, p_reason text)
+RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_user_id    UUID := auth.uid();
-  v_role       TEXT;
-  v_exp        RECORD;
-  v_is_closed  BOOLEAN;
+  v_user_id uuid := auth.uid();
+  v_exp     record;
+  v_role    text;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Utilisateur non authentifié.' USING ERRCODE = '42501';
   END IF;
 
-  IF p_reason IS NULL OR char_length(trim(p_reason)) < 5 THEN
-    RAISE EXCEPTION 'Un motif d''annulation détaillé (au moins 5 caractères) est obligatoire.' USING ERRCODE = '42501';
-  END IF;
-
-  -- Chargement de la dépense
-  SELECT e.*, c.owner_only
+  SELECT e.id, e.organization_id, e.from_till, e.expense_date, e.voided_at, c.owner_only
   INTO v_exp
   FROM public.expenses e
   JOIN public.expense_categories c ON c.id = e.category_id
   WHERE e.id = p_id;
 
-  IF v_exp.id IS NULL THEN
-    RAISE EXCEPTION 'Dépense introuvable.' USING ERRCODE = '42501';
+  IF v_exp.id IS NOT NULL THEN
+    SELECT role::text INTO v_role
+    FROM public.memberships
+    WHERE organization_id = v_exp.organization_id AND user_id = v_user_id AND is_active = true;
+  END IF;
+
+  -- Dépense inconnue, autre organisation ou rôle insuffisant : même réponse
+  IF v_exp.id IS NULL OR v_role IS NULL OR v_role NOT IN ('OWNER', 'MANAGER')
+     OR (v_role = 'MANAGER' AND v_exp.owner_only) THEN
+    RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_reason IS NULL OR char_length(trim(p_reason)) < 5 THEN
+    RAISE EXCEPTION 'Un motif d''annulation (au moins 5 caractères) est obligatoire.' USING ERRCODE = '42501';
   END IF;
 
   IF v_exp.voided_at IS NOT NULL THEN
     RAISE EXCEPTION 'Cette dépense est déjà annulée.' USING ERRCODE = '42501';
   END IF;
 
-  -- Détermination du rôle
-  SELECT role::text INTO v_role
-  FROM public.memberships
-  WHERE organization_id = v_exp.organization_id
-    AND user_id = v_user_id
-    AND is_active = true;
-
-  IF v_role IS NULL OR v_role NOT IN ('OWNER', 'MANAGER') THEN
-    RAISE EXCEPTION 'L''annulation d''une dépense est réservée aux rôles OWNER et MANAGER.' USING ERRCODE = '42501';
+  IF v_exp.from_till AND public.expense_day_is_closed(v_exp.organization_id, v_exp.expense_date) THEN
+    RAISE EXCEPTION 'La caisse de cette journée est clôturée : la dépense ne peut plus être annulée.' USING ERRCODE = '42501';
   END IF;
 
-  IF v_role = 'MANAGER' AND v_exp.owner_only THEN
-    RAISE EXCEPTION 'Accès refusé : le gérant ne peut pas annuler une dépense réservée au propriétaire.' USING ERRCODE = '42501';
-  END IF;
-
-  -- Si payée sur la caisse, vérifier que la journée de caisse n'est pas déjà clôturée
-  IF v_exp.from_till THEN
-    SELECT EXISTS (
-      SELECT 1 FROM public.cash_closings
-      WHERE organization_id = v_exp.organization_id
-        AND date = v_exp.expense_date
-        AND status = 'CLOSED'
-    ) INTO v_is_closed;
-
-    IF v_is_closed THEN
-      RAISE EXCEPTION 'Impossible d''annuler une dépense en caisse pour une journée déjà clôturée.' USING ERRCODE = '42501';
-    END IF;
-  END IF;
-
-  -- Annulation effectuant la mise à jour
   UPDATE public.expenses
-  SET
-    voided_at = NOW(),
-    voided_by = v_user_id,
-    void_reason = trim(p_reason)
+  SET voided_at = NOW(), voided_by = v_user_id, void_reason = trim(p_reason)
   WHERE id = p_id;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.void_expense FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.void_expense TO authenticated;
+REVOKE ALL ON FUNCTION public.void_expense(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.void_expense(uuid, text) TO authenticated;
 
--- 8. RLS ET POLITIQUES DE SÉCURITÉ SUR EXPENSE_CATEGORIES ET EXPENSES
+-- 8. DROITS ET LECTURE (RLS)
 ALTER TABLE public.expense_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.expense_categories FROM anon, PUBLIC;
 REVOKE ALL ON public.expenses FROM anon, PUBLIC;
-
-GRANT SELECT ON public.expense_categories TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.expense_categories TO authenticated;
-
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.expenses FROM authenticated;
 GRANT SELECT ON public.expenses TO authenticated;
--- L'écriture sur expenses se fait STRICTEMENT via les fonctions SECURITY DEFINER
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.expense_categories TO authenticated;
 
+-- Catégories : lecture selon le rôle ; écriture réservée au propriétaire
 DROP POLICY IF EXISTS "expense_categories_select" ON public.expense_categories;
 CREATE POLICY "expense_categories_select"
   ON public.expense_categories FOR SELECT
+  TO authenticated
   USING (
-    public.catalog_is_member(organization_id)
-    AND (
-      public.catalog_has_role(organization_id, ARRAY['OWNER', 'CASHIER'])
-      OR (public.catalog_has_role(organization_id, ARRAY['MANAGER']) AND owner_only = false)
-    )
+    public.catalog_has_role(organization_id, ARRAY['OWNER'])
+    OR (public.catalog_has_role(organization_id, ARRAY['MANAGER']) AND NOT owner_only)
+    OR (public.catalog_has_role(organization_id, ARRAY['CASHIER']) AND cashier_allowed)
   );
 
 DROP POLICY IF EXISTS "expense_categories_write" ON public.expense_categories;
 CREATE POLICY "expense_categories_write"
   ON public.expense_categories FOR ALL
-  USING (
-    public.catalog_is_member(organization_id)
-    AND (
-      public.catalog_has_role(organization_id, ARRAY['OWNER'])
-      OR (public.catalog_has_role(organization_id, ARRAY['MANAGER']) AND owner_only = false)
-    )
-  )
-  WITH CHECK (
-    public.catalog_is_member(organization_id)
-    AND (
-      public.catalog_has_role(organization_id, ARRAY['OWNER'])
-      OR (public.catalog_has_role(organization_id, ARRAY['MANAGER']) AND owner_only = false)
-    )
-  );
+  TO authenticated
+  USING (public.catalog_has_role(organization_id, ARRAY['OWNER']))
+  WITH CHECK (public.catalog_has_role(organization_id, ARRAY['OWNER']));
 
+-- Dépenses : propriétaire = tout ; gérant = sauf catégories réservées ; caissier = les siennes (2 derniers jours)
 DROP POLICY IF EXISTS "expenses_select" ON public.expenses;
 CREATE POLICY "expenses_select"
   ON public.expenses FOR SELECT
+  TO authenticated
   USING (
-    public.catalog_is_member(organization_id)
-    AND (
-      -- OWNER voit tout dans son organisation
-      public.catalog_has_role(organization_id, ARRAY['OWNER'])
-      OR
-      -- MANAGER voit tout sauf les catégories owner_only
-      (
-        public.catalog_has_role(organization_id, ARRAY['MANAGER'])
-        AND EXISTS (
-          SELECT 1 FROM public.expense_categories c
-          WHERE c.id = category_id AND c.owner_only = false
-        )
+    public.catalog_has_role(organization_id, ARRAY['OWNER'])
+    OR (
+      public.catalog_has_role(organization_id, ARRAY['MANAGER'])
+      AND EXISTS (
+        SELECT 1 FROM public.expense_categories c
+        WHERE c.id = expenses.category_id AND c.owner_only = false
       )
-      OR
-      -- CASHIER voit seulement SES dépenses des 2 derniers jours
-      (
-        public.catalog_has_role(organization_id, ARRAY['CASHIER'])
-        AND created_by = auth.uid()
-        AND expense_date >= CURRENT_DATE - 1
-      )
+    )
+    OR (
+      public.catalog_has_role(organization_id, ARRAY['CASHIER'])
+      AND created_by = auth.uid()
+      AND expense_date >= public.local_today() - 1
     )
   );
 
--- 9. TRIGGERS D'AUDIT SUR EXPENSES ET EXPENSE_CATEGORIES
+-- 9. JOURNAL D'AUDIT SUR LES DÉPENSES
 DROP TRIGGER IF EXISTS trg_audit_expenses ON public.expenses;
 CREATE TRIGGER trg_audit_expenses
   AFTER INSERT OR UPDATE OR DELETE ON public.expenses
@@ -480,67 +450,118 @@ CREATE TRIGGER trg_audit_expense_categories
   AFTER INSERT OR UPDATE OR DELETE ON public.expense_categories
   FOR EACH ROW EXECUTE FUNCTION public.trigger_generic_audit_log();
 
--- Mise à jour de la politique de lecture sur audit_logs pour masquer les dépenses owner_only aux gérants
+-- Lit une dépense en ignorant la RLS (nécessaire : un gérant ne voit pas les dépenses réservées)
+CREATE OR REPLACE FUNCTION public.expense_is_owner_only(p_expense_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (SELECT c.owner_only
+     FROM public.expenses e
+     JOIN public.expense_categories c ON c.id = e.category_id
+     WHERE e.id = p_expense_id),
+    false);
+$$;
+REVOKE ALL ON FUNCTION public.expense_is_owner_only(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.expense_is_owner_only(uuid) TO authenticated;
+
+-- UNE SEULE politique de lecture du journal (remplace l'ancienne audit_logs_select ET
+-- la politique audit_logs_owner_manager_select que Jules tentait de remplacer)
+DROP POLICY IF EXISTS "audit_logs_select" ON public.audit_logs;
 DROP POLICY IF EXISTS "audit_logs_owner_manager_select" ON public.audit_logs;
-CREATE POLICY "audit_logs_owner_manager_select"
+CREATE POLICY "audit_logs_select"
   ON public.audit_logs FOR SELECT
+  TO authenticated
   USING (
-    public.catalog_is_member(organization_id)
+    organization_id IS NOT NULL
     AND public.catalog_has_role(organization_id, ARRAY['OWNER', 'MANAGER'])
     AND (
-      -- Exclure les modules sensibles si non-OWNER
-      COALESCE(object_type, table_name) NOT IN ('service_costs', 'expenses', 'expense_categories')
-      OR (
-        COALESCE(object_type, table_name) = 'service_costs'
-        AND public.catalog_has_role(organization_id, ARRAY['OWNER'])
-      )
-      OR (
-        COALESCE(object_type, table_name) = 'expense_categories'
-        AND (
-          NOT COALESCE((after->>'owner_only')::boolean, (before->>'owner_only')::boolean, false)
-          OR public.catalog_has_role(organization_id, ARRAY['OWNER'])
-        )
-      )
-      OR (
-        COALESCE(object_type, table_name) = 'expenses'
-        AND (
-          NOT EXISTS (
-            SELECT 1 FROM public.expense_categories c
-            WHERE c.id = COALESCE(NULLIF(after->>'category_id', '')::uuid, NULLIF(before->>'category_id', '')::uuid)
-              AND c.owner_only = true
-          )
-          OR public.catalog_has_role(organization_id, ARRAY['OWNER'])
-        )
-      )
+      -- le propriétaire voit tout
+      public.catalog_has_role(organization_id, ARRAY['OWNER'])
+      -- le gérant : tout sauf coûts internes, catégories de dépenses et dépenses réservées
+      OR table_name NOT IN ('service_costs', 'expenses', 'expense_categories')
+      OR (table_name = 'expenses' AND NOT public.expense_is_owner_only(object_id))
     )
   );
 
--- 10. VUE DE CALCUL DE LA CAISSE ATTENDUE D'UNE JOURNÉE (Intégrant les dépenses en caisse)
+-- 10. CAISSE ATTENDUE : espèces encaissées - dépenses payées avec la caisse
 CREATE OR REPLACE VIEW public.v_daily_cash_summary
 WITH (security_invoker = true)
 AS
+WITH pay AS (
+  SELECT p.organization_id,
+         (p.collected_at AT TIME ZONE 'Africa/Brazzaville')::date AS d,
+         SUM(CASE WHEN p.is_reversal THEN -abs(p.amount) ELSE abs(p.amount) END) AS collected
+  FROM public.payments p
+  WHERE p.method = 'CASH'
+  GROUP BY p.organization_id, (p.collected_at AT TIME ZONE 'Africa/Brazzaville')::date
+),
+exp AS (
+  SELECT e.organization_id, e.expense_date AS d, SUM(e.amount) AS spent
+  FROM public.expenses e
+  WHERE e.method = 'CASH' AND e.from_till = true AND e.voided_at IS NULL
+  GROUP BY e.organization_id, e.expense_date
+)
 SELECT
-  p.organization_id,
-  p.collected_at::date AS date,
-  COALESCE(SUM(p.amount), 0) AS total_cash_collected,
-  COALESCE((
-    SELECT SUM(e.amount)
-    FROM public.expenses e
-    WHERE e.organization_id = p.organization_id
-      AND e.expense_date = p.collected_at::date
-      AND e.method = 'CASH'
-      AND e.from_till = true
-      AND e.voided_at IS NULL
-  ), 0) AS total_cash_expenses,
-  COALESCE(SUM(p.amount), 0) - COALESCE((
-    SELECT SUM(e.amount)
-    FROM public.expenses e
-    WHERE e.organization_id = p.organization_id
-      AND e.expense_date = p.collected_at::date
-      AND e.method = 'CASH'
-      AND e.from_till = true
-      AND e.voided_at IS NULL
-  ), 0) AS expected_cash_balance
-FROM public.payments p
-WHERE p.method = 'CASH'
-GROUP BY p.organization_id, p.collected_at::date;
+  COALESCE(pay.organization_id, exp.organization_id) AS organization_id,
+  COALESCE(pay.d, exp.d)                              AS date,
+  COALESCE(pay.collected, 0)                          AS total_cash_collected,
+  COALESCE(exp.spent, 0)                              AS total_cash_expenses,
+  COALESCE(pay.collected, 0) - COALESCE(exp.spent, 0) AS expected_cash_balance
+FROM pay
+FULL OUTER JOIN exp ON exp.organization_id = pay.organization_id AND exp.d = pay.d;
+
+GRANT SELECT ON public.v_daily_cash_summary TO authenticated;
+REVOKE ALL ON public.v_daily_cash_summary FROM anon;
+
+-- Version fiable pour la clôture : totaux exacts pour tout membre autorisé
+-- (la vue ci-dessus ne montrerait au caissier que SES dépenses)
+CREATE OR REPLACE FUNCTION public.get_daily_cash_summary(p_org_id uuid, p_date date)
+RETURNS TABLE (total_cash_collected numeric, total_cash_expenses numeric, expected_cash_balance numeric)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_collected numeric;
+  v_spent     numeric;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.catalog_has_role(p_org_id, ARRAY['OWNER', 'MANAGER', 'CASHIER']) THEN
+    RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT COALESCE(SUM(CASE WHEN p.is_reversal THEN -abs(p.amount) ELSE abs(p.amount) END), 0)
+  INTO v_collected
+  FROM public.payments p
+  WHERE p.organization_id = p_org_id
+    AND p.method = 'CASH'
+    AND (p.collected_at AT TIME ZONE 'Africa/Brazzaville')::date = p_date;
+
+  SELECT COALESCE(SUM(e.amount), 0)
+  INTO v_spent
+  FROM public.expenses e
+  WHERE e.organization_id = p_org_id
+    AND e.expense_date = p_date
+    AND e.method = 'CASH' AND e.from_till = true AND e.voided_at IS NULL;
+
+  RETURN QUERY SELECT v_collected, v_spent, v_collected - v_spent;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_daily_cash_summary(uuid, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_daily_cash_summary(uuid, date) TO authenticated;
+
+-- 11. VÉRIFICATION (s'affiche à la fin) :
+--     categories = 19 (par pressing) ; politiques_audit = 1 ; fonctions = 8 ; vue_caisse = true
+SELECT
+  (SELECT count(*) FROM public.expense_categories) AS categories,
+  (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'audit_logs') AS politiques_audit,
+  (SELECT count(*) FROM pg_proc WHERE proname IN (
+     'record_expense', 'void_expense', 'get_daily_cash_summary', 'expense_day_is_closed',
+     'expense_is_owner_only', 'local_today', 'seed_default_expense_categories', 'prevent_expense_mutation'
+   )) AS fonctions,
+  (to_regclass('public.v_daily_cash_summary') IS NOT NULL) AS vue_caisse;
