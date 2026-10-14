@@ -60,9 +60,11 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
 
   // Extraction du motif éventuel
   const reason =
+    after.void_reason ||
     after.cancellation_reason ||
     after.rejection_reason ||
     after.reason ||
+    before.void_reason ||
     before.cancellation_reason ||
     before.rejection_reason ||
     before.reason ||
@@ -179,7 +181,66 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
-  // 4. SERVICES / TARIFS
+  // 4. EXPENSES / DÉPENSES
+  if (objectType === 'expenses') {
+    const isTill = after.from_till ?? before.from_till;
+    const tillLabel = isTill ? 'caisse' : 'hors caisse';
+    const amount = after.amount || before.amount || 0;
+
+    if (action === 'INSERT') {
+      return {
+        title: `Dépense enregistrée : ${formatMoney(amount)} (${tillLabel})`,
+        description: `Mode de paiement : ${after.method || 'CASH'}`,
+        badgeColor: 'rose',
+        reason,
+      };
+    }
+    if (action === 'UPDATE' && after.voided_at) {
+      return {
+        title: `Dépense annulée : ${after.void_reason || 'Annulation'}`,
+        description: `Montant initial : ${formatMoney(amount)} (${tillLabel})`,
+        badgeColor: 'rose',
+        reason: after.void_reason,
+      };
+    }
+    return {
+      title: `Dépense modifiée`,
+      description: `Montant : ${formatMoney(amount)}`,
+      badgeColor: 'amber',
+      reason,
+    };
+  }
+
+  // 5. EXPENSE_CATEGORIES / CATÉGORIES DE DÉPENSES
+  if (objectType === 'expense_categories') {
+    const catName = after.name || before.name || log.item_label || 'Catégorie de dépense';
+    if (action === 'INSERT') {
+      return {
+        title: `Catégorie de dépense créée : ${catName}`,
+        description: `Type : ${after.kind || 'DAILY'}`,
+        badgeColor: 'emerald',
+        reason,
+      };
+    }
+    if (action === 'UPDATE') {
+      return {
+        title: `Catégorie de dépense modifiée : ${catName}`,
+        description: `Mise à jour de la catégorie`,
+        badgeColor: 'blue',
+        reason,
+      };
+    }
+    if (action === 'DELETE') {
+      return {
+        title: `Catégorie de dépense supprimée : ${catName}`,
+        description: `Suppression de catégorie`,
+        badgeColor: 'rose',
+        reason,
+      };
+    }
+  }
+
+  // 6. SERVICES / TARIFS
   if (objectType === 'services') {
     const serviceName = after.name || before.name || log.item_label || 'Service';
     if (action === 'INSERT') {
@@ -216,7 +277,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     }
   }
 
-  // 5. SERVICE_CATEGORIES / CATÉGORIES
+  // 7. SERVICE_CATEGORIES / CATÉGORIES
   if (objectType === 'service_categories') {
     const catName = after.name || before.name || log.item_label || 'Catégorie';
     if (action === 'INSERT') {
@@ -245,7 +306,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     }
   }
 
-  // 6. GARMENT_TYPES / ARTICLES DU CATALOGUE
+  // 8. GARMENT_TYPES / ARTICLES DU CATALOGUE
   if (objectType === 'garment_types') {
     const garmentName = after.name || before.name || log.item_label || 'Article du catalogue';
     if (action === 'INSERT') {
@@ -274,7 +335,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     }
   }
 
-  // 7. SERVICE_COSTS / COÛTS
+  // 9. SERVICE_COSTS / COÛTS
   if (objectType === 'service_costs') {
     if (before.cost_price !== undefined && after.cost_price !== undefined) {
       return {
@@ -292,7 +353,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
-  // 8. MEMBERSHIPS / PERSONNEL
+  // 10. MEMBERSHIPS / PERSONNEL
   if (objectType === 'memberships') {
     const memberName = after.full_name || before.full_name || after.email || before.email || log.item_label || 'Membre';
     const roleText = after.role || before.role ? ` (${after.role || before.role})` : '';
@@ -340,7 +401,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     }
   }
 
-  // 9. ORGANIZATIONS / PARAMÈTRES
+  // 11. ORGANIZATIONS / PARAMÈTRES
   if (objectType === 'organizations') {
     const orgName = after.name || before.name || log.item_label || 'Établissement';
     return {
@@ -351,7 +412,7 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
-  // 10. CUSTOMER_REMINDERS / RAPPELS CLIENTS
+  // 12. CUSTOMER_REMINDERS / RAPPELS CLIENTS
   if (objectType === 'customer_reminders') {
     return {
       title: `Rappel client enregistré : ${orderCode}`,

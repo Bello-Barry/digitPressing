@@ -14,6 +14,8 @@ import {
   MessageCircle,
   Truck,
   BellRing,
+  Receipt,
+  TrendingUp,
 } from 'lucide-react';
 
 export default async function AdminDashboardPage() {
@@ -24,6 +26,7 @@ export default async function AdminDashboardPage() {
   const db = await createServerSupabaseClient();
 
   const canViewStats = can(role, 'view_stats_and_daily_summary') || Boolean(profile.isPlatformAdmin);
+  const isOwner = role === 'OWNER';
   const isDelivery = role === 'DELIVERY';
 
   // Récupérer les stats réelles si autorisé
@@ -34,6 +37,11 @@ export default async function AdminDashboardPage() {
     caToday: 0,
     cashToday: 0,
     momoToday: 0,
+    expensesToday: 0,
+    expensesCashToday: 0,
+    caMonth: 0,
+    expensesMonth: 0,
+    resultMonth: 0,
   };
 
   if (canViewStats) {
@@ -100,11 +108,16 @@ export default async function AdminDashboardPage() {
     year: 'numeric',
   });
 
+  const dailyResult = stats.caToday - stats.expensesToday;
+
   const summaryMessage = `📊 *RÉSUMÉ LB PRESSING DU ${todayStr}*
 ---------------------------------------
 💰 CA encaissé aujourd'hui : *${stats.caToday.toLocaleString('fr-FR')} FCFA*
 💵 Espèces : *${stats.cashToday.toLocaleString('fr-FR')} FCFA*
 📱 Mobile Money : *${stats.momoToday.toLocaleString('fr-FR')} FCFA*
+💸 Dépenses : *${stats.expensesToday.toLocaleString('fr-FR')} FCFA* (dont caisse : *${stats.expensesCashToday.toLocaleString('fr-FR')} FCFA*)
+📈 Résultat du jour : *${dailyResult.toLocaleString('fr-FR')} FCFA*
+---------------------------------------
 ⏳ À valider : *${stats.toValidateCount}*
 👕 En cours : *${stats.inProcessCount}*
 ✨ Prêtes : *${stats.readyCount}*
@@ -222,6 +235,44 @@ Généré via Digit Pressing.`;
             </p>
             <p className="text-[11px] text-slate-400">
               Espèces : {stats.cashToday.toLocaleString('fr-FR')} | MoMo : {stats.momoToday.toLocaleString('fr-FR')}
+            </p>
+          </Link>
+        )}
+
+        {/* Carte Dépenses du jour - Affichée UNIQUEMENT pour OWNER et MANAGER */}
+        {canViewStats && (
+          <Link
+            href="/admin/depenses"
+            className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-rose-500/50 transition group space-y-1"
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Dépenses du jour</span>
+              <Receipt className="w-4 h-4 text-rose-400" />
+            </div>
+            <p className="text-xl sm:text-2xl font-black font-mono text-rose-400">
+              {stats.expensesToday.toLocaleString('fr-FR')} <span className="text-xs font-normal text-slate-400">FCFA</span>
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Dont caisse : {stats.expensesCashToday.toLocaleString('fr-FR')} FCFA
+            </p>
+          </Link>
+        )}
+
+        {/* Carte Résultat du mois - Affichée UNIQUEMENT pour OWNER */}
+        {isOwner && (
+          <Link
+            href="/admin/depenses"
+            className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-emerald-500/50 transition group space-y-1"
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Résultat du mois</span>
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            </div>
+            <p className={`text-xl sm:text-2xl font-black font-mono ${stats.resultMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {stats.resultMonth.toLocaleString('fr-FR')} <span className="text-xs font-normal text-slate-400">FCFA</span>
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Base caisse : encaissements − charges
             </p>
           </Link>
         )}

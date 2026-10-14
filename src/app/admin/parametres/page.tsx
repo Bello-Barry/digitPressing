@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { AccessDenied } from '@/components/admin/AccessDenied';
 import { Settings, Building2, MessageSquare, ArrowLeft } from 'lucide-react';
 import { PickupReminderSettings } from '@/components/admin/PickupReminderSettings';
+import { ExpenseSettings } from '@/components/admin/ExpenseSettings';
 
 export default async function AdminSettingsPage() {
   const auth = await requirePermission('manage_organization_settings');
@@ -23,12 +24,14 @@ export default async function AdminSettingsPage() {
   }
 
   const orgId = auth.profile.membership.organization_id;
+  const userRole = auth.profile.membership.role;
   const db = await createServerSupabaseClient();
 
-  // Charger les données de l'organisation et des modèles de messages
-  const [orgRes, templatesRes] = await Promise.all([
+  // Charger les données de l'organisation, des modèles et des catégories de dépenses
+  const [orgRes, templatesRes, catRes] = await Promise.all([
     db.from('organizations').select('*').eq('id', orgId).single(),
     db.from('message_templates').select('*').eq('organization_id', orgId).order('event_type'),
+    db.from('expense_categories').select('*').eq('organization_id', orgId).order('sort_order'),
   ]);
 
   if (orgRes.error) {
@@ -40,7 +43,9 @@ export default async function AdminSettingsPage() {
 
   const org = orgRes.data;
   const templates = templatesRes.data || [];
+  const categories = catRes.data || [];
   const pickupDays = org?.pickup_reminder_days ?? 3;
+  const cashierLimit = Number(org?.cashier_expense_limit ?? 10000);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -51,7 +56,7 @@ export default async function AdminSettingsPage() {
             Paramètres du Pressing
           </h1>
           <p className="text-xs text-slate-400">
-            Configuration générale de l'établissement, informations d'en-tête et modèles WhatsApp.
+            Configuration générale de l'établissement, informations d'en-tête, dépenses et notifications WhatsApp.
           </p>
         </div>
 
@@ -66,6 +71,9 @@ export default async function AdminSettingsPage() {
 
       {/* Configuration du délai de relance */}
       <PickupReminderSettings initialDays={pickupDays} />
+
+      {/* Configuration du plafond caissier et des catégories de dépenses */}
+      <ExpenseSettings initialLimit={cashierLimit} categories={categories} userRole={userRole} />
 
       {/* Identité de l'Établissement */}
       <section className="p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">
