@@ -589,23 +589,23 @@ export function ExpensesListClient({
       {/* CONTENU ONGLET 2 : RÉSUMÉ FINANCIER & RÉSULTAT (OWNER ONLY) */}
       {activeTab === 'summary' && isOwner && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between bg-slate-900 p-4 rounded-2xl border border-slate-800">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2 text-emerald-400" />
-                Résultat d'Exploitation (Base Caisse)
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 w-full min-w-0">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-bold text-white flex items-center flex-wrap gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span className="break-words">Résultat d'Exploitation (Base Caisse)</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 mt-1 break-words">
                 Calculé strictement sur les encaissements réels et dépenses d'exploitation (hors mouvements de trésorerie).
               </p>
             </div>
 
-            <div className="flex space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <div className="flex space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs self-start sm:self-auto w-full sm:w-auto overflow-x-auto">
               {(['today', 'week', 'month'] as const).map((p) => (
                 <button
                   key={p}
                   onClick={() => handleLoadSummary(p)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap text-center ${
                     summaryPeriod === p ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
                   }`}
                 >
