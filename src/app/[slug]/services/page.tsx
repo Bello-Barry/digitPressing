@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { PublicBottomNav } from '@/components/public/PublicBottomNav';
 import { ArrowLeft, Clock, ShoppingCart, Sparkles } from 'lucide-react';
 
 interface PageProps {
@@ -13,7 +14,7 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
 
   const { data: org } = await db
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, phone_1')
     .eq('slug', slug)
     .eq('is_active', true)
     .maybeSingle();
@@ -32,43 +33,42 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
 
   const services = rawServices || [];
 
-  // Map des anciennes clés vers de beaux titres si besoin
   const legacyCategoryLabels: Record<string, string> = {
-    vetement: 'Vêtements',
+    vetement: 'Vêtements du quotidien',
     ceremonie: 'Costumes et cérémonie',
     traditionnel: 'Tenues Traditionnelles (Bazin / Pagne)',
     maison: 'Linge de maison',
     cuir: 'Cuir & Daim',
     chaussure: 'Chaussures & Baskets',
+    repassage: 'Repassage seul',
     retouche: 'Retouches & Coutures',
-    accessoire: 'Accessoires & Autres',
+    accessoire: 'Accessoires & Sacs',
   };
 
-  // Regroupement dynamique par catégorie
   const servicesByCategory = services.reduce((acc, s) => {
-    const rawCat = s.category || 'Vêtements';
-    const displayCat = legacyCategoryLabels[rawCat] || rawCat;
+    const rawCat = (s.category || 'Vêtements').trim();
+    const displayCat = legacyCategoryLabels[rawCat.toLowerCase()] || rawCat;
     if (!acc[displayCat]) acc[displayCat] = [];
     acc[displayCat].push(s);
     return acc;
   }, {} as Record<string, typeof services>);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
+    <div className="min-h-screen bg-[#F7F9FC] text-[#041C4C] flex flex-col font-sans pb-20 md:pb-0">
+      {/* En-tête bleu nuit */}
+      <header className="sticky top-0 z-40 bg-[#041C4C] text-white border-b border-slate-800 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <Link
             href={`/${slug}`}
-            className="flex items-center text-xs font-semibold text-slate-300 hover:text-white"
+            className="flex items-center text-xs font-bold text-slate-200 hover:text-[#FFC72C] transition"
           >
-            <ArrowLeft className="w-4 h-4 mr-1 text-amber-400" />
+            <ArrowLeft className="w-4 h-4 mr-1 text-[#FFC72C]" />
             Retour à l'accueil
           </Link>
 
           <Link
             href={`/${slug}/commander`}
-            className="px-3.5 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg shadow-md shadow-amber-500/20 flex items-center transition"
+            className="px-3.5 py-1.5 text-xs font-extrabold bg-[#FFC72C] hover:bg-[#F5A300] text-[#041C4C] rounded-xl shadow-sm flex items-center transition"
           >
             <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
             Passer commande
@@ -78,14 +78,14 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6 md:py-8 space-y-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold">
-            <Sparkles className="w-3 h-3" />
+          <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#FFC72C]/20 text-[#041C4C] border border-amber-300 text-xs font-bold">
+            <Sparkles className="w-3 h-3 text-[#F5A300]" />
             <span>Grille Tarifaire Officielle</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-black text-[#041C4C] tracking-tight">
             Catalogue des Prestations & Tarifs
           </h1>
-          <p className="text-xs md:text-sm text-slate-400">
+          <p className="text-xs md:text-sm text-slate-600">
             {org.name} — Tous les prix sont indiqués en FCFA pour un traitement soigné et professionnel.
           </p>
         </div>
@@ -94,10 +94,10 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
         <div className="space-y-8">
           {Object.entries(servicesByCategory).map(([catName, items]) => (
             <div key={catName} className="space-y-3">
-              <h2 className="text-base font-bold text-amber-400/90 flex items-center border-b border-slate-800 pb-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400 mr-2" />
+              <h2 className="text-base font-extrabold text-[#041C4C] flex items-center border-b border-slate-200 pb-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F5A300] mr-2" />
                 {catName}
-                <span className="ml-2 text-xs font-normal text-slate-400">
+                <span className="ml-2 text-xs font-normal text-slate-500">
                   ({items.length})
                 </span>
               </h2>
@@ -106,32 +106,32 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
                 {items.map((service) => (
                   <div
                     key={service.id}
-                    className="p-4 rounded-2xl bg-slate-900 border border-slate-800/80 hover:border-slate-700 transition flex flex-col justify-between"
+                    className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm hover:border-[#FFC72C] transition flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-start justify-between">
-                        <h3 className="font-semibold text-white text-sm">
+                        <h3 className="font-bold text-[#041C4C] text-sm">
                           {service.name}
                         </h3>
-                        <span className="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md shrink-0 ml-2">
+                        <span className="text-xs font-mono font-black text-[#041C4C] bg-[#FFC72C]/20 px-2 py-0.5 rounded-md shrink-0 ml-2">
                           {Number(service.price).toLocaleString('fr-FR')} FCFA
                         </span>
                       </div>
                       {service.description && (
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-slate-500 mt-1">
                           {service.description}
                         </p>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-800/60 text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 text-[11px] text-slate-500">
                       <span className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-slate-500" />
+                        <Clock className="w-3 h-3 mr-1 text-slate-400" />
                         Délai moyen : ~{service.estimated_days || 2}j
                       </span>
                       <Link
                         href={`/${slug}/commander`}
-                        className="text-amber-400 hover:text-amber-300 font-semibold text-[11px]"
+                        className="text-[#0B5CE1] hover:underline font-bold text-[11px]"
                       >
                         Ajouter +
                       </Link>
@@ -144,21 +144,23 @@ export default async function ServicesCatalogPage({ params }: PageProps) {
         </div>
 
         {/* Call to Action */}
-        <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/20 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="rounded-2xl bg-white border border-amber-300 p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-bold text-white">Prêt à confier votre linge ?</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="text-base font-extrabold text-[#041C4C]">Prêt à confier votre linge ?</h3>
+            <p className="text-xs text-slate-600">
               Commandez en quelques clics sans créer de compte.
             </p>
           </div>
           <Link
             href={`/${slug}/commander`}
-            className="w-full sm:w-auto px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center transition"
+            className="w-full sm:w-auto px-5 py-3 bg-[#FFC72C] hover:bg-[#F5A300] text-[#041C4C] font-extrabold rounded-xl text-xs flex items-center justify-center transition"
           >
             Remplir ma demande en ligne
           </Link>
         </div>
       </main>
+
+      <PublicBottomNav slug={slug} phone1={org.phone_1} orgName={org.name} />
     </div>
   );
 }
