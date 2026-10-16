@@ -63,7 +63,7 @@ export function InstallPrompt() {
       setShowBanner(false);
       setInstalledStatus(true);
       setDeferredPrompt(null);
-      setTimeout(() => setInstalledStatus(false), 5000);
+      setTimeout(() => setInstalledStatus(false), 4000);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

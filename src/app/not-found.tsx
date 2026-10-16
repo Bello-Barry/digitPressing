@@ -1,45 +1,50 @@
-"use client";
+'use client';
 
-import React from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { BRAND_CONFIG } from '@/config/brand';
+import { Home, ShoppingBag, ArrowLeft } from 'lucide-react';
 
-export default function NoFundePage(): JSX.Element {
+export default function NotFoundPage(): JSX.Element {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <div className="max-w-3xl w-full bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center">
-        <div className="flex items-center justify-center mb-6">
-          <div className="rounded-full bg-amber-100 p-4 inline-flex">
-            <AlertTriangle className="h-8 w-8 text-amber-600" />
-          </div>
+    <main className="min-h-screen flex items-center justify-center bg-slate-950 p-6 text-white">
+      <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-8 text-center space-y-6">
+        <div className="flex justify-center">
+          <Image
+            src={BRAND_CONFIG.assets.logos.horizontalDark}
+            alt={BRAND_CONFIG.name}
+            width={220}
+            height={60}
+            priority
+            className="h-12 w-auto object-contain"
+          />
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-semibold mb-3 text-slate-900">Page introuvable — NoFunde</h1>
-        <p className="text-sm md:text-base text-slate-600 mb-6">
-          La page que vous cherchez n'existe pas (ou a été déplacée). Si vous pensez que c'est une erreur,
-          contactez l'équipe ou utilisez les boutons ci-dessous pour revenir à l'accueil.
-        </p>
+        <div className="space-y-2">
+          <span className="text-amber-400 font-extrabold text-sm tracking-widest uppercase">Erreur 404</span>
+          <h1 className="text-2xl font-black text-white">Cette page n'existe pas</h1>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            La page que vous recherchez est introuvable ou a été déplacée.
+          </p>
+        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/" className="w-full sm:w-auto">
-            <Button variant="default" className="w-full sm:w-auto">
-              Retour à l'accueil
-            </Button>
+        <div className="flex flex-col gap-3 pt-2">
+          <Link
+            href="/"
+            className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-amber-500/10 flex items-center justify-center space-x-2"
+          >
+            <Home className="w-4 h-4" />
+            <span>Retour à l'accueil</span>
           </Link>
 
-          <a
-            href="mailto:support@ton-domaine.com?subject=Erreur%20NoFunde%20-%20Page%20introuvable&body=Salut%20%5BRenseignez%20ici%20le%20contexte%5D"
-            className="w-full sm:w-auto"
+          <Link
+            href="/lb-pressing/commander"
+            className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center space-x-2"
           >
-            <Button variant="secondary" className="w-full sm:w-auto">
-              Signaler un problème
-            </Button>
-          </a>
-        </div>
-
-        <div className="mt-8 text-xs text-slate-400">
-          <p>Si tu es en train de développer — vérifie la route `src/app/nofunde` et le fichier `page.tsx`.</p>
+            <ShoppingBag className="w-4 h-4 text-amber-400" />
+            <span>Commander en ligne</span>
+          </Link>
         </div>
       </div>
     </main>

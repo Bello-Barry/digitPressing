@@ -34,6 +34,7 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isInstalled, setIsInstalled] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
+  const [showInstalledToast, setShowInstalledToast] = useState(false);
 
   useEffect(() => {
     // Vérifier si l'app est déjà installée
@@ -78,6 +79,8 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setCanInstall(false);
       setShowBanner(false);
       setDeferredPrompt(null);
+      setShowInstalledToast(true);
+      setTimeout(() => setShowInstalledToast(false), 4000);
       
       // Supprimer le timestamp de refus puisque l'app est installée
       localStorage.removeItem('pwa-install-dismissed');
@@ -195,13 +198,10 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         )}
       </AnimatePresence>
 
-      {/* Indicateur d'état PWA dans la barre de statut */}
-      {isInstalled && (
-        <div className="fixed top-4 right-4 z-40">
-          <div className="flex items-center gap-2 rounded-full bg-success/10 px-2 py-1 text-xs font-medium text-success">
-            <div className="h-1.5 w-1.5 rounded-full bg-success" />
-            Application installée
-          </div>
+      {/* Toast d'installation temporaire (4s) */}
+      {showInstalledToast && (
+        <div className="fixed top-4 right-4 z-50 p-3 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs shadow-xl animate-fade-in flex items-center space-x-2">
+          <span>Application installée</span>
         </div>
       )}
     </PWAInstallContext.Provider>

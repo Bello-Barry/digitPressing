@@ -101,17 +101,20 @@ export function AdminNavbar() {
   return (
     <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        {/* Logo & Org Badge */}
+        {/* Logo Monogramme + PRESSING & Org Badge */}
         <div className="flex items-center space-x-3">
           <Link href="/admin" className="flex items-center space-x-2">
             <Image
-              src={BRAND_CONFIG.assets.logos.horizontalDark}
+              src="/brand/logo-mark.png"
               alt={BRAND_CONFIG.name}
-              width={140}
-              height={36}
+              width={40}
+              height={40}
               priority
-              className="h-8 w-auto object-contain"
+              className="h-10 w-auto object-contain shrink-0"
             />
+            <span className="font-black text-white text-base tracking-wider uppercase">
+              PRESSING
+            </span>
           </Link>
 
           {profile?.role && (
