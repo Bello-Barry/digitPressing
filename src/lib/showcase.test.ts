@@ -1,11 +1,27 @@
 import {
   calculateCategoryMinPrices,
+  formatShortPriceBadge,
   getCategoryIconKey,
   getAvailablePhotos,
   DEFAULT_CATEGORY_ICON,
 } from '@/lib/showcase';
 
 describe('Showcase Unit Tests', () => {
+  describe('formatShortPriceBadge', () => {
+    it('should format valid positive prices as "Dès X F"', () => {
+      const badge = formatShortPriceBadge(1000);
+      expect(badge).toMatch(/^Dès 1[\s\u00a0\u202f]000 F$/);
+      expect(formatShortPriceBadge(1500)).toMatch(/^Dès 1[\s\u00a0\u202f]500 F$/);
+      expect(formatShortPriceBadge(12500)).toMatch(/^Dès 12[\s\u00a0\u202f]500 F$/);
+    });
+
+    it('should return empty string for zero or negative or NaN prices', () => {
+      expect(formatShortPriceBadge(0)).toBe('');
+      expect(formatShortPriceBadge(-500)).toBe('');
+      expect(formatShortPriceBadge(NaN)).toBe('');
+    });
+  });
+
   describe('calculateCategoryMinPrices', () => {
     it('should calculate the minimum price for each active category', () => {
       const mockServices = [

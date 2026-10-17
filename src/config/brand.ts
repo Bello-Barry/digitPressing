@@ -1,17 +1,18 @@
 // Config centralisée de la marque LB Pressing
-// Conforme à la spec Task 2.13 - Aucune valeur dispersée dans les composants.
+// Conforme aux specs Tasks 2.13 et 2.13b - Aucune valeur dispersée dans les composants.
 
 export interface BrandPhoto {
   src: string;
   alt: string;
   title: string;
+  objectPosition?: string;
 }
 
 export const BRAND_CONFIG = {
   name: 'LB Pressing',
   shortName: 'LB Pressing',
   slogan: 'Vos vêtements, notre priorité.',
-  heroSubtitle: 'Lavage, repassage, nettoyage à sec, ramassage et livraison à Brazzaville. Commandez en 1 minute, sans compte.',
+  heroSubtitle: 'Lavage, repassage, nettoyage à sec, ramassage et livraison à Brazzaville.',
   description: 'Blanchisserie & Pressing Haute Qualité à Brazzaville. Soin du linge professionnel, livraison et suivi en ligne.',
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://digit-pressing.vercel.app',
 
@@ -57,72 +58,75 @@ export const BRAND_CONFIG = {
       src: '/photos/hero.png',
       alt: 'Chemises et vêtements parfaitement repassés et rangés chez LB Pressing',
       title: 'Soin et Repassage Professionnel',
+      objectPosition: 'center 35%',
     },
     ceremonie: {
       src: '/photos/ceremonie.png',
       alt: 'Costumes, robes de cérémonie et tenues délicates nettoyés à sec',
       title: 'Tenues de Cérémonie & Soirée',
+      objectPosition: 'center 25%',
     },
     maison: {
       src: '/photos/maison.png',
       alt: 'Linge de maison, draps et couettes propres et désinfectés',
       title: 'Linge de Maison & Textile',
+      objectPosition: 'center 40%',
     },
   } as Record<string, BrandPhoto>,
 
-  // Engagement / Pourquoi nous choisir (4 éléments)
+  // Pastilles de confiance défilantes (4 engagements)
   whyUs: [
     {
       id: 'soigne',
       title: 'Travail soigné',
-      description: 'Chaque habit fait l\'objet d\'un traitement attentif selon sa matière et sa couleur.',
+      description: 'Chaque habit fait l\'objet d\'un traitement attentif.',
       iconKey: 'Sparkles',
     },
     {
       id: 'delais',
       title: 'Respect des délais',
-      description: 'Retrait ou livraison garanti selon le délai annoncé lors de votre commande.',
+      description: 'Retrait ou livraison garanti dans les temps.',
       iconKey: 'Timer',
     },
     {
       id: 'qualite',
       title: 'Produits de qualité',
-      description: 'Lessives écologiques et détachants professionnels préservant la fibre textile.',
+      description: 'Lessives écologiques et détachants professionnels.',
       iconKey: 'Leaf',
     },
     {
       id: 'livraison',
       title: 'Ramassage & Livraison',
-      description: 'Option de collecte et retour directement à votre domicile ou bureau à Brazzaville.',
+      description: 'Collecte et retour à domicile à Brazzaville.',
       iconKey: 'Truck',
     },
   ],
 
-  // Comment ça marche (4 étapes)
+  // Comment ça marche (4 étapes ultra compactes pour mobile)
   howItWorks: [
     {
       step: 1,
-      title: 'Commander en ligne ou sur WhatsApp',
-      description: 'Choisissez vos prestations en 1 minute sans création de compte.',
-      iconKey: 'Shirt',
+      title: 'Commandez',
+      description: 'En ligne ou WhatsApp',
+      iconKey: 'WhatsApp',
     },
     {
       step: 2,
-      title: 'Nous collectons ou vous déposez',
-      description: 'Déposez au pressing ou optez pour notre service de coursier.',
-      iconKey: 'MapPin',
+      title: 'Collecte',
+      description: 'Dépôt ou coursier',
+      iconKey: 'Motorbike',
     },
     {
       step: 3,
-      title: 'Traitement soigné',
-      description: 'Lavage, détachage, repassage et contrôle qualité rigoureux.',
-      iconKey: 'Sparkles',
+      title: 'Traitement',
+      description: 'Lavage & repassage',
+      iconKey: 'Hanger',
     },
     {
       step: 4,
-      title: 'Récupération ou livraison',
-      description: 'Soyez notifié par message dès que vos vêtements sont prêts.',
-      iconKey: 'Truck',
+      title: 'Livraison',
+      description: 'Récupération rapide',
+      iconKey: 'Package',
     },
   ],
 } as const;

@@ -7,11 +7,31 @@ export interface CategorySummary {
   rawCategory: string;
   displayCategory: string;
   minPrice: number;
+  shortPriceBadge: string;
   count: number;
-  iconKey: string;
 }
 
-// Libellés élégants pour les catégories normalisées
+export const DEFAULT_CATEGORY_ICON = 'Sparkles';
+
+/**
+ * Mappe le nom d'une catégorie vers une clé d'icône symbolique
+ */
+export function getCategoryIconKey(categoryName?: string | null): string {
+  if (!categoryName) return DEFAULT_CATEGORY_ICON;
+  const norm = normalizeCatalogName(categoryName);
+
+  if (norm.includes('vetement') || norm.includes('chemise')) return 'Shirt';
+  if (norm.includes('costume') || norm.includes('ceremonie')) return 'Suit';
+  if (norm.includes('maison') || norm.includes('linge')) return 'BedDouble';
+  if (norm.includes('repassage')) return 'Iron';
+  if (norm.includes('chaussure')) return 'Footprints';
+  if (norm.includes('cuir')) return 'Sparkles';
+  if (norm.includes('livraison')) return 'Truck';
+
+  return DEFAULT_CATEGORY_ICON;
+}
+
+// Libellés élégants et complets pour les catégories normalisées
 const CATEGORY_DISPLAY_LABELS: Record<string, string> = {
   vetement: 'Vêtements du quotidien',
   vetements: 'Vêtements du quotidien',
@@ -20,7 +40,7 @@ const CATEGORY_DISPLAY_LABELS: Record<string, string> = {
   costume: 'Costumes & Cérémonie',
   costumes: 'Costumes & Cérémonie',
   ceremonie: 'Costumes & Cérémonie',
-  traditionnel: 'Tenues Traditionnelles (Bazin / Pagne)',
+  traditionnel: 'Tenues Traditionnelles',
   maison: 'Linge de Maison',
   'linge de maison': 'Linge de Maison',
   linge: 'Linge de Maison',
@@ -28,56 +48,19 @@ const CATEGORY_DISPLAY_LABELS: Record<string, string> = {
   chaussure: 'Chaussures & Baskets',
   chaussures: 'Chaussures & Baskets',
   repassage: 'Repassage seul',
-  retouche: 'Retouches & Coutures',
-  retouches: 'Retouches & Coutures',
+  retouche: 'Retouches & Couture',
+  retouches: 'Retouches & Couture',
   accessoire: 'Accessoires & Sacs',
   accessoires: 'Accessoires & Sacs',
 };
 
-// Map des catégories vers la clé d'icône correspondante
-const CATEGORY_ICON_MAP: Record<string, string> = {
-  vetement: 'Shirt',
-  vetements: 'Shirt',
-  chemise: 'Shirt',
-  chemises: 'Shirt',
-  costume: 'Suit',
-  costumes: 'Suit',
-  ceremonie: 'Suit',
-  traditionnel: 'Sparkles',
-  maison: 'BedDouble',
-  'linge de maison': 'BedDouble',
-  linge: 'BedDouble',
-  cuir: 'ShieldCheck',
-  chaussure: 'Footprints',
-  chaussures: 'Footprints',
-  repassage: 'Iron',
-  retouche: 'Sparkles',
-  retouches: 'Sparkles',
-  accessoire: 'Sparkles',
-  accessoires: 'Sparkles',
-};
-
-export const DEFAULT_CATEGORY_ICON = 'WashingMachine';
-
 /**
- * Retourne la clé d'icône associée à une catégorie (avec repli par défaut)
+ * Formate un prix en badge court "Dès X F" sur une seule ligne
  */
-export function getCategoryIconKey(categoryName?: string | null): string {
-  if (!categoryName) return DEFAULT_CATEGORY_ICON;
-  const normalized = normalizeCatalogName(categoryName);
-
-  if (CATEGORY_ICON_MAP[normalized]) return CATEGORY_ICON_MAP[normalized];
-
-  // Recherche par mot-clé si pas de correspondance exacte
-  if (normalized.includes('costume') || normalized.includes('ceremonie')) return 'Suit';
-  if (normalized.includes('repass')) return 'Iron';
-  if (normalized.includes('maison') || normalized.includes('linge') || normalized.includes('drap')) return 'BedDouble';
-  if (normalized.includes('chaussur') || normalized.includes('basket')) return 'Footprints';
-  if (normalized.includes('cuir')) return 'ShieldCheck';
-  if (normalized.includes('vetement') || normalized.includes('chemis')) return 'Shirt';
-  if (normalized.includes('tradition') || normalized.includes('bazin') || normalized.includes('pagne')) return 'Sparkles';
-
-  return DEFAULT_CATEGORY_ICON;
+export function formatShortPriceBadge(price: number): string {
+  if (isNaN(price) || price <= 0) return '';
+  const formatted = price.toLocaleString('fr-FR');
+  return `Dès ${formatted} F`;
 }
 
 /**
@@ -88,7 +71,7 @@ export function calculateCategoryMinPrices(
 ): CategorySummary[] {
   if (!services || services.length === 0) return [];
 
-  const grouped: Record<string, { displayCategory: string; prices: number[]; iconKey: string }> = {};
+  const grouped: Record<string, { displayCategory: string; rawCategory: string; prices: number[] }> = {};
 
   for (const service of services) {
     const rawCategory = service.category?.trim() || 'Vêtements';
@@ -97,23 +80,27 @@ export function calculateCategoryMinPrices(
 
     if (isNaN(numPrice) || numPrice <= 0) continue;
 
-    if (!grouped[normalizedKey]) {
-      const displayCategory = CATEGORY_DISPLAY_LABELS[normalizedKey] || rawCategory;
-      const iconKey = getCategoryIconKey(rawCategory);
-      grouped[normalizedKey] = { displayCategory, prices: [], iconKey };
+    const displayCategory = CATEGORY_DISPLAY_LABELS[normalizedKey] || rawCategory;
+    const groupKey = normalizeCatalogName(displayCategory);
+
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = { displayCategory, rawCategory, prices: [] };
     }
 
-    grouped[normalizedKey].prices.push(numPrice);
+    grouped[groupKey].prices.push(numPrice);
   }
 
-  return Object.entries(grouped)
-    .map(([rawCategory, data]) => ({
-      rawCategory,
-      displayCategory: data.displayCategory,
-      minPrice: Math.min(...data.prices),
-      count: data.prices.length,
-      iconKey: data.iconKey,
-    }))
+  return Object.values(grouped)
+    .map((data) => {
+      const minPrice = Math.min(...data.prices);
+      return {
+        rawCategory: data.rawCategory,
+        displayCategory: data.displayCategory,
+        minPrice,
+        shortPriceBadge: formatShortPriceBadge(minPrice),
+        count: data.prices.length,
+      };
+    })
     .filter((cat) => cat.count > 0 && isFinite(cat.minPrice))
     .sort((a, b) => a.minPrice - b.minPrice);
 }
