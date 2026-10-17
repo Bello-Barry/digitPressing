@@ -12,7 +12,7 @@ export function OfflineReloadButton() {
           window.location.reload();
         }
       }}
-      className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2"
+      className="w-full h-[48px] bg-[#FFC72C] hover:bg-[#FFC72C]/90 text-[#041C4C] font-black rounded-2xl text-sm transition shadow-sm flex items-center justify-center space-x-2 active:scale-95"
     >
       <RotateCw className="w-4 h-4" />
       <span>Réessayer</span>
