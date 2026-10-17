@@ -1,5 +1,5 @@
 // Config centralisée de la marque LB Pressing
-// Conforme aux specs Tasks 2.13 et 2.13b - Aucune valeur dispersée dans les composants.
+// Conforme aux specs Task 2.13c - Palette officielle Bleu Nuit & Jaune
 
 export interface BrandPhoto {
   src: string;
@@ -16,15 +16,17 @@ export const BRAND_CONFIG = {
   description: 'Blanchisserie & Pressing Haute Qualité à Brazzaville. Soin du linge professionnel, livraison et suivi en ligne.',
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://digit-pressing.vercel.app',
 
-  // Couleurs de la charte visuelle (thème clair pour vitrine publique)
+  // Charte visuelle officielle : Bleu Nuit, Jaune, Bleu Royal, Fond Bleu Très Clair (#EEF4FF)
   colors: {
     nightBlue: '#041C4C',
     goldPrimary: '#FFC72C',
-    goldSecondary: '#F5A300',
+    goldSecondary: '#F5A300', // Uniquement sur accent logo
     royalBlue: '#0B5CE1',
-    lightBg: '#F7F9FC',
+    lightBg: '#EEF4FF',
     cardBg: '#FFFFFF',
+    cardBorder: '#D9E4FA',
     textMain: '#041C4C',
+    textMuted: '#4A5F86',
   },
 
   contact: {
@@ -53,12 +55,13 @@ export const BRAND_CONFIG = {
   },
 
   // Photos de vitrine déclarées dans public/photos/
+  // Ordre strict : 1. Fer & Chemises (hero.png), 2. Costume & Robe (ceremonie.png), 3. Linge de maison (maison.png)
   photos: {
     hero: {
       src: '/photos/hero.png',
       alt: 'Chemises et vêtements parfaitement repassés et rangés chez LB Pressing',
       title: 'Soin et Repassage Professionnel',
-      objectPosition: 'center 35%',
+      objectPosition: '80% 85%',
     },
     ceremonie: {
       src: '/photos/ceremonie.png',
@@ -74,7 +77,7 @@ export const BRAND_CONFIG = {
     },
   } as Record<string, BrandPhoto>,
 
-  // Pastilles de confiance défilantes (4 engagements)
+  // Pastilles de confiance (4 engagements)
   whyUs: [
     {
       id: 'soigne',

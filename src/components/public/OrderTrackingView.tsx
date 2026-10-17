@@ -1,7 +1,7 @@
 'use client';
 
 // =============================================================================
-// COMPOSANT SUIVI DE COMMANDE SANS COMPTE (THÈME CLAIR CLIENT)
+// COMPOSANT SUIVI DE COMMANDE SANS COMPTE (THÈME BLEU & JAUNE)
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -111,10 +111,10 @@ export function OrderTrackingView({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Formulaire de recherche */}
-      <div className="p-5 md:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-4">
-        <h2 className="text-base font-bold text-[#041C4C] flex items-center">
+      <div className="p-5 md:p-6 rounded-[24px] bg-white border border-[#D9E4FA] shadow-brand-card space-y-4">
+        <h2 className="text-base font-extrabold text-[#041C4C] flex items-center">
           <Search className="w-4 h-4 mr-2 text-[#0B5CE1]" />
           Consulter l'état de votre commande
         </h2>
@@ -124,10 +124,10 @@ export function OrderTrackingView({
             e.preventDefault();
             handleSearch();
           }}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3.5"
         >
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+          <div className="space-y-1.5">
+            <label className="text-xs font-extrabold text-[#041C4C]">
               Code de demande ou Ticket
             </label>
             <input
@@ -136,13 +136,13 @@ export function OrderTrackingView({
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F7F9FC] border border-slate-200 text-[#041C4C] placeholder-slate-400 font-mono text-sm focus:outline-none focus:border-[#0B5CE1] uppercase"
+              className="w-full h-[48px] px-4 rounded-2xl bg-[#EEF4FF] border border-[#D9E4FA] text-[#041C4C] placeholder-[#4A5F86]/60 font-mono text-sm focus:outline-none focus:border-[#0B5CE1] uppercase"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
-              Numéro de téléphone
+          <div className="space-y-1.5">
+            <label className="text-xs font-extrabold text-[#041C4C]">
+              Numéro WhatsApp
             </label>
             <input
               type="tel"
@@ -150,7 +150,7 @@ export function OrderTrackingView({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F7F9FC] border border-slate-200 text-[#041C4C] placeholder-slate-400 font-mono text-sm focus:outline-none focus:border-[#0B5CE1]"
+              className="w-full h-[48px] px-4 rounded-2xl bg-[#EEF4FF] border border-[#D9E4FA] text-[#041C4C] placeholder-[#4A5F86]/60 font-mono text-sm focus:outline-none focus:border-[#0B5CE1]"
             />
           </div>
 
@@ -158,7 +158,7 @@ export function OrderTrackingView({
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-[#FFC72C] hover:bg-[#F5A300] disabled:opacity-50 text-[#041C4C] font-extrabold rounded-xl text-sm transition flex items-center justify-center min-h-[44px]"
+              className="w-full h-[52px] bg-[#FFC72C] hover:bg-[#FFC72C]/90 disabled:opacity-50 text-[#041C4C] font-black rounded-2xl text-sm transition flex items-center justify-center active:scale-95 shadow-xs"
             >
               {isLoading ? (
                 <span className="flex items-center">
@@ -177,7 +177,7 @@ export function OrderTrackingView({
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center space-x-2">
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
           <span>{errorMsg}</span>
         </div>
@@ -185,10 +185,10 @@ export function OrderTrackingView({
 
       {/* Résultat du Suivi */}
       {trackingData && (
-        <div className="rounded-3xl bg-white border border-slate-200/80 p-6 md:p-8 space-y-6 shadow-md">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+        <div className="rounded-[24px] bg-white border border-[#D9E4FA] p-6 md:p-8 space-y-6 shadow-brand-card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#D9E4FA] gap-3">
             <div>
-              <span className="text-[11px] uppercase tracking-wider font-bold text-[#F5A300]">
+              <span className="text-[11px] uppercase tracking-wider font-extrabold text-[#0B5CE1]">
                 Commande de {trackingData.client_name}
               </span>
               <div className="flex items-center space-x-2 mt-0.5">
@@ -196,7 +196,7 @@ export function OrderTrackingView({
                   {trackingData.ticket_number || trackingData.request_code}
                 </h3>
                 {trackingData.ticket_number && (
-                  <span className="text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-semibold">
+                  <span className="text-xs bg-[#041C4C] text-[#FFC72C] px-2.5 py-0.5 rounded-md font-extrabold">
                     Ticket officiel
                   </span>
                 )}
@@ -204,7 +204,7 @@ export function OrderTrackingView({
             </div>
 
             <div className="sm:text-right">
-              <p className="text-xs text-slate-500">Montant total estimé</p>
+              <p className="text-xs text-[#4A5F86]">Montant total estimé</p>
               <p className="text-lg md:text-xl font-black font-mono text-[#041C4C]">
                 {Number(trackingData.total_amount).toLocaleString('fr-FR')} FCFA
               </p>
@@ -213,7 +213,7 @@ export function OrderTrackingView({
 
           {/* État Spécifique Annulé ou Rejeté */}
           {isCancelled ? (
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 space-y-1">
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 space-y-1">
               <p className="font-bold text-sm">
                 Commande {trackingData.status === 'CANCELLED' ? 'Annulée' : 'Refusée'}
               </p>
@@ -224,11 +224,11 @@ export function OrderTrackingView({
           ) : (
             /* Timeline des étapes */
             <div className="space-y-4">
-              <h4 className="text-xs uppercase font-bold tracking-wider text-slate-500">
+              <h4 className="text-xs uppercase font-black tracking-wider text-[#041C4C]">
                 Progression du traitement
               </h4>
 
-              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#D9E4FA]">
                 {steps.map((step, idx) => {
                   const isDone = idx < currentIndex;
                   const isCurrent = idx === currentIndex;
@@ -238,10 +238,10 @@ export function OrderTrackingView({
                       <div
                         className={`absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border transition ${
                           isDone
-                            ? 'bg-emerald-600 border-emerald-500 text-white'
+                            ? 'bg-[#0B5CE1] border-[#0B5CE1] text-white'
                             : isCurrent
-                            ? 'bg-[#FFC72C] border-[#F5A300] text-[#041C4C] ring-4 ring-amber-200'
-                            : 'bg-slate-100 border-slate-300 text-slate-400'
+                            ? 'bg-[#FFC72C] border-[#041C4C] text-[#041C4C] ring-4 ring-[#FFC72C]/30'
+                            : 'bg-white border-[#D9E4FA] text-[#4A5F86]'
                         }`}
                       >
                         {isDone ? '✓' : idx + 1}
@@ -253,13 +253,13 @@ export function OrderTrackingView({
                             isCurrent
                               ? 'text-[#041C4C] font-black'
                               : isDone
-                              ? 'text-slate-800'
-                              : 'text-slate-400'
+                              ? 'text-[#041C4C]'
+                              : 'text-[#4A5F86]'
                           }`}
                         >
                           {step.label}
                         </p>
-                        <p className="text-[11px] text-slate-500">{step.desc}</p>
+                        <p className="text-[11px] text-[#4A5F86]">{step.desc}</p>
                       </div>
                     </div>
                   );
@@ -269,15 +269,15 @@ export function OrderTrackingView({
           )}
 
           {/* Contact d'assistance */}
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <span className="text-slate-500">Une question sur vos vêtements ?</span>
+          <div className="pt-4 border-t border-[#D9E4FA] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <span className="text-[#4A5F86]">Une question sur vos vêtements ?</span>
             <a
               href={helpWhatsApp}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center text-emerald-700 hover:text-emerald-800 font-bold"
+              className="inline-flex items-center text-[#041C4C] hover:text-[#0B5CE1] font-extrabold"
             >
-              <MessageCircle className="w-4 h-4 mr-1.5" />
+              <MessageCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
               Contacter {orgName} sur WhatsApp
             </a>
           </div>

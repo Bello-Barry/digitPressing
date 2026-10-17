@@ -74,17 +74,17 @@ export function calculateCategoryMinPrices(
   const grouped: Record<string, { displayCategory: string; rawCategory: string; prices: number[] }> = {};
 
   for (const service of services) {
-    const rawCategory = service.category?.trim() || 'Vêtements';
-    const normalizedKey = normalizeCatalogName(rawCategory);
+    const rawCategoryInput = service.category?.trim() || 'Vêtements';
+    const normalizedKey = normalizeCatalogName(rawCategoryInput);
     const numPrice = Number(service.price);
 
     if (isNaN(numPrice) || numPrice <= 0) continue;
 
-    const displayCategory = CATEGORY_DISPLAY_LABELS[normalizedKey] || rawCategory;
+    const displayCategory = CATEGORY_DISPLAY_LABELS[normalizedKey] || rawCategoryInput;
     const groupKey = normalizeCatalogName(displayCategory);
 
     if (!grouped[groupKey]) {
-      grouped[groupKey] = { displayCategory, rawCategory, prices: [] };
+      grouped[groupKey] = { displayCategory, rawCategory: normalizedKey, prices: [] };
     }
 
     grouped[groupKey].prices.push(numPrice);

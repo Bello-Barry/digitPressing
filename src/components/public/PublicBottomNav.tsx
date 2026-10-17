@@ -3,7 +3,7 @@
 // =============================================================================
 // BARRE DE NAVIGATION CLIENT (MOBILE ONLY)
 // Fixe en bas de l'écran, avec env(safe-area-inset-bottom)
-// Remplace le bouton flottant WhatsApp. Absente dans l'admin et l'impression.
+// Absente dans l'admin et l'impression. Alignement rigoureux des libellés.
 // =============================================================================
 
 import React from 'react';
@@ -53,48 +53,48 @@ export function PublicBottomNav({ slug, phone1, orgName }: PublicBottomNavProps)
         {/* 1. Accueil */}
         <Link
           href={homeHref}
-          className={`flex flex-col items-center justify-center w-full py-1 min-h-[44px] text-[10px] font-medium transition ${
-            isHome ? 'text-[#FFC72C] font-bold' : 'text-slate-300 hover:text-white'
+          className={`flex flex-col items-center justify-end w-full h-full pb-1 text-[10px] font-medium transition ${
+            isHome ? 'text-[#FFC72C] font-extrabold' : 'text-white/70 hover:text-white'
           }`}
         >
-          <Home className="w-5 h-5 mb-0.5" />
-          <span className="leading-tight">Accueil</span>
+          <Home className="w-5 h-5 mb-1" />
+          <span className="leading-none">Accueil</span>
         </Link>
 
         {/* 2. Tarifs */}
         <Link
           href={tarifsHref}
-          className={`flex flex-col items-center justify-center w-full py-1 min-h-[44px] text-[10px] font-medium transition ${
-            isTarifs ? 'text-[#FFC72C] font-bold' : 'text-slate-300 hover:text-white'
+          className={`flex flex-col items-center justify-end w-full h-full pb-1 text-[10px] font-medium transition ${
+            isTarifs ? 'text-[#FFC72C] font-extrabold' : 'text-white/70 hover:text-white'
           }`}
         >
-          <Shirt className="w-5 h-5 mb-0.5" />
-          <span className="leading-tight">Tarifs</span>
+          <Shirt className="w-5 h-5 mb-1" />
+          <span className="leading-none">Tarifs</span>
         </Link>
 
-        {/* 3. Commander (Bouton central en relief doré) */}
+        {/* 3. Commander (Bouton central en relief doré, libellé aligné) */}
         <Link
           href={orderHref}
           aria-label="Passer une commande"
-          className="flex flex-col items-center justify-center -mt-6"
+          className={`relative flex flex-col items-center justify-end w-full h-full pb-1 text-[10px] font-medium transition ${
+            isOrder ? 'text-[#FFC72C] font-extrabold' : 'text-white/70 hover:text-white'
+          }`}
         >
-          <div className="w-13 h-13 rounded-full bg-[#FFC72C] hover:bg-[#F5A300] text-[#041C4C] flex items-center justify-center shadow-lg shadow-amber-500/30 border-4 border-[#041C4C] transition active:scale-95">
-            <ShoppingBag className="w-6 h-6 stroke-[2.5]" />
+          <div className="absolute -top-3 w-12 h-12 rounded-full bg-[#FFC72C] text-[#041C4C] flex items-center justify-center shadow-lg border-4 border-[#041C4C] transition active:scale-95">
+            <ShoppingBag className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className={`text-[10px] mt-0.5 font-bold leading-tight ${isOrder ? 'text-[#FFC72C]' : 'text-slate-200'}`}>
-            Commander
-          </span>
+          <span className="leading-none">Commander</span>
         </Link>
 
         {/* 4. Suivi */}
         <Link
           href={trackingHref}
-          className={`flex flex-col items-center justify-center w-full py-1 min-h-[44px] text-[10px] font-medium transition ${
-            isTracking ? 'text-[#FFC72C] font-bold' : 'text-slate-300 hover:text-white'
+          className={`flex flex-col items-center justify-end w-full h-full pb-1 text-[10px] font-medium transition ${
+            isTracking ? 'text-[#FFC72C] font-extrabold' : 'text-white/70 hover:text-white'
           }`}
         >
-          <Search className="w-5 h-5 mb-0.5" />
-          <span className="leading-tight">Suivi</span>
+          <Search className="w-5 h-5 mb-1" />
+          <span className="leading-none">Suivi</span>
         </Link>
 
         {/* 5. WhatsApp */}
@@ -102,10 +102,10 @@ export function PublicBottomNav({ slug, phone1, orgName }: PublicBottomNavProps)
           href={whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex flex-col items-center justify-center w-full py-1 min-h-[44px] text-[10px] font-medium text-emerald-400 hover:text-emerald-300 transition"
+          className="flex flex-col items-center justify-end w-full h-full pb-1 text-[10px] font-medium text-white/70 hover:text-white transition"
         >
-          <MessageCircle className="w-5 h-5 mb-0.5" />
-          <span className="leading-tight">WhatsApp</span>
+          <MessageCircle className="w-5 h-5 mb-1 text-emerald-400" />
+          <span className="leading-none">WhatsApp</span>
         </a>
       </div>
     </nav>

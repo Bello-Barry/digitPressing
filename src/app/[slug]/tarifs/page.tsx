@@ -55,7 +55,7 @@ export default async function TarifsPage({ params }: PageProps) {
   }, {} as Record<string, typeof services>);
 
   return (
-    <div className="min-h-screen bg-[#F7F9FC] text-[#041C4C] flex flex-col font-sans pb-28 md:pb-12">
+    <div className="min-h-screen bg-[#EEF4FF] text-[#041C4C] flex flex-col font-sans pb-28 md:pb-12">
       {/* En-tête bleu nuit */}
       <header className="sticky top-0 z-40 bg-[#041C4C] text-white border-b border-slate-800 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -64,12 +64,12 @@ export default async function TarifsPage({ params }: PageProps) {
             className="flex items-center text-xs font-bold text-slate-200 hover:text-[#FFC72C] transition"
           >
             <ArrowLeft className="w-4 h-4 mr-1 text-[#FFC72C]" />
-            Retour
+            Retour à l'accueil
           </Link>
 
           <Link
             href={`/${slug}/commander`}
-            className="px-3.5 py-1.5 text-xs font-extrabold bg-[#FFC72C] hover:bg-[#F5A300] text-[#041C4C] rounded-xl shadow-xs flex items-center transition"
+            className="px-4 py-2 text-xs font-extrabold bg-[#FFC72C] hover:bg-[#FFC72C]/90 text-[#041C4C] rounded-2xl shadow-xs flex items-center transition"
           >
             <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
             Commander
@@ -79,14 +79,14 @@ export default async function TarifsPage({ params }: PageProps) {
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-5 space-y-5">
         <div className="space-y-1">
-          <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#FFC72C]/20 text-[#041C4C] border border-amber-300 text-xs font-bold">
-            <Sparkles className="w-3 h-3 text-[#F5A300]" />
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#041C4C] text-[#FFC72C] text-xs font-bold shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-[#FFC72C]" />
             <span>Grille Tarifaire Officielle</span>
           </div>
           <h1 className="text-xl md:text-2xl font-black text-[#041C4C] tracking-tight">
             Tarifs & Prestations
           </h1>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-[#4A5F86]">
             {org.name} — Tous les tarifs sont nets, en FCFA.
           </p>
         </div>
@@ -95,16 +95,16 @@ export default async function TarifsPage({ params }: PageProps) {
         <CategoryAccordions slug={slug} servicesByCategory={servicesByCategory} />
 
         {/* CTA Bas de page */}
-        <div className="rounded-2xl bg-white border border-amber-300 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="rounded-[24px] bg-white border border-[#D9E4FA] p-5 shadow-brand-card flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-extrabold text-[#041C4C]">Prêt à nous confier votre linge ?</h3>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-[#4A5F86]">
               Commandez en 1 minute sans créer de compte.
             </p>
           </div>
           <Link
             href={`/${slug}/commander`}
-            className="w-full sm:w-auto px-4 py-2.5 bg-[#FFC72C] hover:bg-[#F5A300] text-[#041C4C] font-extrabold rounded-xl text-xs flex items-center justify-center transition shadow-2xs"
+            className="w-full sm:w-auto h-[48px] px-5 bg-[#FFC72C] hover:bg-[#FFC72C]/90 text-[#041C4C] font-black rounded-2xl text-xs flex items-center justify-center transition shadow-xs"
           >
             Passer ma commande
           </Link>
