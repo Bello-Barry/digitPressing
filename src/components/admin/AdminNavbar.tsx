@@ -24,6 +24,7 @@ import {
   Shield,
   Settings,
   BellRing,
+  Truck,
 } from 'lucide-react';
 
 export function AdminNavbar() {
@@ -69,6 +70,7 @@ export function AdminNavbar() {
   const baseNavLinks = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/commandes', label: 'Commandes', icon: ShoppingBag },
+    { href: '/admin/missions', label: 'Missions', icon: Truck },
     { href: '/admin/relances', label: 'Relances', icon: BellRing },
     { href: '/admin/clients', label: 'Clients', icon: Users },
     { href: '/admin/services', label: 'Services', icon: Shirt },
@@ -95,7 +97,7 @@ export function AdminNavbar() {
     : baseNavLinks;
 
   const visibleNavLinks = profile?.role === 'DELIVERY'
-    ? navLinks.filter((link) => link.href === '/admin' || link.href === '/admin/commandes')
+    ? navLinks.filter((link) => link.href === '/admin' || link.href === '/admin/commandes' || link.href === '/admin/missions')
     : navLinks;
 
   return (

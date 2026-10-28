@@ -7,6 +7,7 @@ import { AccessDenied } from '@/components/admin/AccessDenied';
 import { Settings, Building2, MessageSquare, ArrowLeft } from 'lucide-react';
 import { PickupReminderSettings } from '@/components/admin/PickupReminderSettings';
 import { ExpenseSettings } from '@/components/admin/ExpenseSettings';
+import { CourierPaySettings } from '@/components/admin/CourierPaySettings';
 
 export default async function AdminSettingsPage() {
   const auth = await requirePermission('manage_organization_settings');
@@ -68,6 +69,9 @@ export default async function AdminSettingsPage() {
           Retour au dashboard
         </Link>
       </div>
+
+      {/* Configuration de la rémunération des livreurs */}
+      <CourierPaySettings />
 
       {/* Configuration du délai de relance */}
       <PickupReminderSettings initialDays={pickupDays} />

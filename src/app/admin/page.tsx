@@ -78,6 +78,13 @@ export default async function AdminDashboardPage() {
     .eq('status', 'READY')
     .lte('ready_at', thresholdIso);
 
+  // Nombre de missions en attente (Tâche D1)
+  const { count: pendingMissionsCount } = await db
+    .from('delivery_missions')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .in('status', ['OPEN', 'ASSIGNED']);
+
   // Récupérer les 5 dernières commandes réelles (ou livraisons du jour si livreur)
   let recentOrdersQuery = db
     .from('orders')
@@ -201,6 +208,21 @@ Généré via Digit Pressing.`;
             {stats.readyCount}
           </p>
           <p className="text-[11px] text-emerald-400/80 font-medium">À retirer ou livrer</p>
+        </Link>
+
+        {/* Missions en attente (Tâche D1) */}
+        <Link
+          href="/admin/missions"
+          className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition group space-y-1"
+        >
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>Missions en attente</span>
+            <Truck className="w-4 h-4 text-amber-400" />
+          </div>
+          <p className="text-2xl sm:text-3xl font-black font-mono text-white group-hover:text-amber-400 transition">
+            {pendingMissionsCount || 0}
+          </p>
+          <p className="text-[11px] text-amber-400/80 font-medium">Collectes & livraisons ouvertes</p>
         </Link>
 
         {/* Linge prêt non récupéré (Relances) - Visible OWNER, MANAGER, CASHIER */}

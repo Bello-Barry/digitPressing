@@ -15,6 +15,7 @@ import {
   recordPaymentAction,
   cancelOrderAction,
 } from '@/actions/admin';
+import { createMissionAction, getActiveCouriersAction } from '@/actions/missions';
 import { generateWhatsAppLink, formatPhoneDisplay } from '@/lib/whatsapp';
 import { ORDER_STATUS_LABELS } from '@/lib/audit-formatter';
 import {
@@ -66,6 +67,14 @@ export function OrderDetailClient({
 
   const [showDeliveryOverrideModal, setShowDeliveryOverrideModal] = useState(false);
   const [deliveryOverrideReason, setDeliveryOverrideReason] = useState('');
+
+  // Modale de création de mission (Tâche D1)
+  const [showMissionModal, setShowMissionModal] = useState(false);
+  const [missionKind, setMissionKind] = useState<'COLLECTION' | 'DELIVERY'>('COLLECTION');
+  const [missionZone, setMissionZone] = useState(order.pickup_address || order.delivery_address || '');
+  const [missionAssignedTo, setMissionAssignedTo] = useState('');
+  const [missionInstructions, setMissionInstructions] = useState('');
+  const [courierList, setCourierList] = useState<{ id: string; name: string }[]>([]);
 
   // 1. Validation de la demande
   const handleValidate = async () => {
@@ -369,6 +378,26 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
             >
               <Truck className="w-4 h-4 mr-1.5" />
               5. Remettre / Livrer au client (DELIVERED)
+            </button>
+          )}
+
+          {/* CRÉATION DE MISSION (TÂCHE D1) pour commandes PICKUP ou DELIVERY */}
+          {canOperateOrder && (order.mode === 'PICKUP' || order.mode === 'DELIVERY') && order.status !== 'CANCELLED' && order.status !== 'REJECTED' && (
+            <button
+              onClick={async () => {
+                const initialKind = order.mode === 'DELIVERY' && order.status === 'READY' ? 'DELIVERY' : 'COLLECTION';
+                setMissionKind(initialKind);
+                setMissionZone(order.pickup_address || order.delivery_address || 'Zone générale');
+                setShowMissionModal(true);
+                const res = await getActiveCouriersAction();
+                if (res.success && res.couriers) {
+                  setCourierList(res.couriers);
+                }
+              }}
+              className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl transition flex items-center"
+            >
+              <Truck className="w-4 h-4 mr-1.5 text-amber-400" />
+              Créer une mission
             </button>
           )}
 
@@ -727,6 +756,113 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL 5 : CRÉATION DE MISSION DE LIVRAISON / COLLECTE (TÂCHE D1) */}
+      {showMissionModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setIsLoading(true);
+              setMsg(null);
+              const res = await createMissionAction(
+                order.id,
+                missionKind,
+                missionAssignedTo || undefined,
+                missionZone,
+                missionInstructions || undefined
+              );
+              setIsLoading(false);
+              if (res.success) {
+                setMsg({ type: 'success', text: 'Mission créée avec succès !' });
+                setShowMissionModal(false);
+                router.refresh();
+              } else {
+                setMsg({ type: 'error', text: res.error || 'Erreur lors de la création de la mission.' });
+              }
+            }}
+            className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl"
+          >
+            <h3 className="text-base font-bold text-white flex items-center">
+              <Truck className="w-5 h-5 mr-2 text-amber-400" />
+              Créer une mission
+            </h3>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Type de mission</label>
+              <select
+                value={missionKind}
+                onChange={(e) => setMissionKind(e.target.value as any)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500 font-semibold"
+              >
+                {(order.mode === 'PICKUP' || order.mode === 'DELIVERY') && (
+                  <option value="COLLECTION">Collecte à domicile</option>
+                )}
+                {order.mode === 'DELIVERY' && (
+                  <option value="DELIVERY">Livraison à domicile</option>
+                )}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Zone ou quartier</label>
+              <input
+                type="text"
+                required
+                value={missionZone}
+                onChange={(e) => setMissionZone(e.target.value)}
+                placeholder="Ex: Bacongo, Rue Mbochi"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500 font-medium"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Attribution (Optionnel)</label>
+              <select
+                value={missionAssignedTo}
+                onChange={(e) => setMissionAssignedTo(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
+              >
+                <option value="">Ouverte à tous les livreurs</option>
+                {courierList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Consignes particulières (Optionnel)</label>
+              <textarea
+                rows={2}
+                maxLength={300}
+                value={missionInstructions}
+                onChange={(e) => setMissionInstructions(e.target.value)}
+                placeholder="Consignes particulières pour le livreur..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowMissionModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold"
+              >
+                Créer la mission
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
