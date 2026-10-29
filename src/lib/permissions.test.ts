@@ -90,6 +90,22 @@ describe('Matrice des permissions can(role, permission)', () => {
     expect(can('MANAGER', 'view_results')).toBe(false);
     expect(can('CASHIER', 'view_results')).toBe(false);
     expect(can('DELIVERY', 'view_results')).toBe(false);
+
+    // Permissions relatives aux missions de livraison (Tâche D1)
+    expect(can('OWNER', 'manage_missions')).toBe(true);
+    expect(can('MANAGER', 'manage_missions')).toBe(true);
+    expect(can('CASHIER', 'manage_missions')).toBe(false);
+    expect(can('DELIVERY', 'manage_missions')).toBe(false);
+
+    expect(can('OWNER', 'create_mission')).toBe(true);
+    expect(can('MANAGER', 'create_mission')).toBe(true);
+    expect(can('CASHIER', 'create_mission')).toBe(true);
+    expect(can('DELIVERY', 'create_mission')).toBe(false);
+
+    expect(can('OWNER', 'run_mission')).toBe(true);
+    expect(can('MANAGER', 'run_mission')).toBe(true);
+    expect(can('CASHIER', 'run_mission')).toBe(false);
+    expect(can('DELIVERY', 'run_mission')).toBe(true);
   });
 
   test('Gestion des cas de rôles invalides, nulls ou minuscules', () => {

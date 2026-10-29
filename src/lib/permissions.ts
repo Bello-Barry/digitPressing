@@ -22,9 +22,30 @@ export type Permission =
   | 'record_expense'
   | 'manage_expense_categories'
   | 'void_expense'
-  | 'view_results';
+  | 'view_results'
+  | 'manage_missions'
+  | 'create_mission'
+  | 'run_mission';
 
 export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
+  manage_missions: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: false,
+    DELIVERY: false,
+  },
+  create_mission: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: true,
+    DELIVERY: false,
+  },
+  run_mission: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: false,
+    DELIVERY: true,
+  },
   send_reminders: {
     OWNER: true,
     MANAGER: true,

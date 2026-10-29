@@ -422,6 +422,98 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
+  // 13. DELIVERY_MISSIONS / MISSIONS DE LIVRAISON
+  if (objectType === 'delivery_missions') {
+    const kindLabel = after.kind === 'COLLECTION' || before.kind === 'COLLECTION' ? 'Collecte' : 'Livraison';
+    const status = after.status || before.status;
+    const itemsCount = after.items_count_collected;
+    const failReason = after.fail_reason || before.fail_reason;
+    const cancelReason = after.cancel_reason || before.cancel_reason;
+
+    if (action === 'INSERT') {
+      return {
+        title: `Mission créée : ${kindLabel}`,
+        description: `Zone : ${after.zone_label || 'Non spécifiée'} - Montant : ${formatMoney(after.pay_amount || 0)}`,
+        badgeColor: 'blue',
+        reason,
+      };
+    }
+    if (action === 'UPDATE') {
+      if (status === 'ACCEPTED') {
+        return {
+          title: `Mission acceptée`,
+          description: `Mission de ${kindLabel.toLowerCase()}`,
+          badgeColor: 'emerald',
+          reason,
+        };
+      }
+      if (status === 'EN_ROUTE') {
+        return {
+          title: `Mission en route`,
+          description: `Livreur en déplacement`,
+          badgeColor: 'blue',
+          reason,
+        };
+      }
+      if (status === 'AT_CUSTOMER') {
+        return {
+          title: `Livreur arrivé chez le client`,
+          description: `Sur place pour ${kindLabel.toLowerCase()}`,
+          badgeColor: 'blue',
+          reason,
+        };
+      }
+      if (status === 'COLLECTED') {
+        return {
+          title: `Collecte confirmée : ${itemsCount ?? 0} pièce(s)`,
+          description: `Articles récupérés`,
+          badgeColor: 'emerald',
+          reason,
+        };
+      }
+      if (status === 'IN_TRANSIT') {
+        return {
+          title: `En route vers le pressing`,
+          description: `Transport des articles`,
+          badgeColor: 'blue',
+          reason,
+        };
+      }
+      if (status === 'AT_SHOP') {
+        return {
+          title: `Arrivée au pressing`,
+          description: `Livreur arrivé au pressing`,
+          badgeColor: 'emerald',
+          reason,
+        };
+      }
+      if (status === 'FAILED') {
+        return {
+          title: `Mission échouée : ${failReason || 'Motif non précisé'}`,
+          description: `Échec de la mission de ${kindLabel.toLowerCase()}`,
+          badgeColor: 'rose',
+          reason: failReason,
+        };
+      }
+      if (status === 'CANCELLED') {
+        return {
+          title: `Mission annulée : ${cancelReason || 'Motif non précisé'}`,
+          description: `Annulation par la gestion`,
+          badgeColor: 'rose',
+          reason: cancelReason,
+        };
+      }
+      if (status === 'OPEN' && before.status === 'ASSIGNED') {
+        return {
+          title: `Mission refusée / réattribuée`,
+          description: `Remise à disposition de la mission`,
+          badgeColor: 'amber',
+          reason: cancelReason || failReason,
+        };
+      }
+    }
+  }
+
   // DEFAUT
   const actionText = ACTION_LABELS[action] || action;
   return {
