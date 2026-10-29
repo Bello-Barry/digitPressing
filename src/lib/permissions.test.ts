@@ -106,6 +106,12 @@ describe('Matrice des permissions can(role, permission)', () => {
     expect(can('MANAGER', 'run_mission')).toBe(true);
     expect(can('CASHIER', 'run_mission')).toBe(false);
     expect(can('DELIVERY', 'run_mission')).toBe(true);
+
+    // Permission de révision / correction de facture chez le client (Tâche D2)
+    expect(can('OWNER', 'revise_order')).toBe(true);
+    expect(can('MANAGER', 'revise_order')).toBe(true);
+    expect(can('CASHIER', 'revise_order')).toBe(false);
+    expect(can('DELIVERY', 'revise_order')).toBe(true);
   });
 
   test('Gestion des cas de rôles invalides, nulls ou minuscules', () => {

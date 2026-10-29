@@ -25,9 +25,16 @@ export type Permission =
   | 'view_results'
   | 'manage_missions'
   | 'create_mission'
-  | 'run_mission';
+  | 'run_mission'
+  | 'revise_order';
 
 export const PERMISSION_MATRIX: Record<Permission, Record<Role, boolean>> = {
+  revise_order: {
+    OWNER: true,
+    MANAGER: true,
+    CASHIER: false,
+    DELIVERY: true,
+  },
   manage_missions: {
     OWNER: true,
     MANAGER: true,

@@ -19,6 +19,13 @@ import {
   getActiveCouriersAction,
   MissionItem,
 } from '@/actions/missions';
+import {
+  createOrderRevisionDraftAction,
+  confirmOrderRevisionOtpAction,
+  confirmOrderRevisionUnverifiedAction,
+  getActiveServicesCatalogAction,
+  getOrderRevisionsHistoryAction,
+} from '@/actions/revisions';
 import { generateWhatsAppLink } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -88,6 +95,18 @@ export function MissionsViewClient() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Modales Révision de facture (Tâche D2)
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [revisionLines, setRevisionLines] = useState<any[]>([]);
+  const [catalogServices, setCatalogServices] = useState<any[]>([]);
+  const [selectedCatalogServiceId, setSelectedCatalogServiceId] = useState<string>('');
+  const [revisionNotes, setRevisionNotes] = useState<string>('');
+  const [revisionDraft, setRevisionDraft] = useState<any | null>(null);
+  const [otpInput, setOtpInput] = useState<string>('');
+  const [unverifiedReason, setUnverifiedReason] = useState<string>('');
+  const [showUnverifiedForm, setShowUnverifiedForm] = useState<boolean>(false);
+  const [revisionsHistory, setRevisionsHistory] = useState<any[]>([]);
+
   const [activeActionMissionId, setActiveActionMissionId] = useState<string | null>(null);
 
   // Formateur FCFA
@@ -143,6 +162,13 @@ export function MissionsViewClient() {
 
     if (res.success && res.details) {
       setMissionDetails(res.details);
+      // Charger l'historique des révisions pour cette commande
+      if (res.details.order_id) {
+        const revRes = await getOrderRevisionsHistoryAction(res.details.order_id);
+        if (revRes.success && revRes.revisions) {
+          setRevisionsHistory(revRes.revisions);
+        }
+      }
     } else {
       toast({
         title: 'Erreur',
@@ -151,6 +177,142 @@ export function MissionsViewClient() {
       });
       setSelectedMissionId(null);
       setMissionDetails(null);
+    }
+  };
+
+  // Ouverture du modal de contrôle chez le client / Révision de facture
+  const handleOpenRevisionModal = async (missionId: string) => {
+    setActiveActionMissionId(missionId);
+    setRevisionDraft(null);
+    setOtpInput('');
+    setUnverifiedReason('');
+    setShowUnverifiedForm(false);
+    setRevisionNotes('');
+
+    setSubmitting(true);
+    const [detailsRes, catRes] = await Promise.all([
+      getMissionDetailsAction(missionId),
+      getActiveServicesCatalogAction(),
+    ]);
+    setSubmitting(false);
+
+    if (detailsRes.success && detailsRes.details) {
+      setMissionDetails(detailsRes.details);
+      // On initialise les lignes depuis les détails de la commande ou un tableau vide
+      setRevisionLines([]);
+    }
+
+    if (catRes.success && catRes.services) {
+      setCatalogServices(catRes.services);
+      if (catRes.services.length > 0) setSelectedCatalogServiceId(catRes.services[0].id);
+    }
+
+    setRevisionModalOpen(true);
+  };
+
+  // Ajout d'un article depuis le catalogue à la révision
+  const handleAddCatalogItem = () => {
+    if (!selectedCatalogServiceId) return;
+    const svc = catalogServices.find((s) => s.id === selectedCatalogServiceId);
+    if (!svc) return;
+
+    setRevisionLines((prev) => {
+      const exists = prev.find((l) => l.service_id === svc.id);
+      if (exists) {
+        return prev.map((l) => (l.service_id === svc.id ? { ...l, qty_after: l.qty_after + 1 } : l));
+      }
+      return [
+        ...prev,
+        {
+          service_id: svc.id,
+          service_name: svc.name,
+          unit_price: svc.price,
+          qty_after: 1,
+          color: '',
+          pattern: '',
+          brand: '',
+          size: '',
+          item_notes: '',
+        },
+      ];
+    });
+  };
+
+  // Modification quantité dans révision
+  const handleUpdateLineQty = (serviceId: string, newQty: number) => {
+    setRevisionLines((prev) =>
+      prev
+        .map((l) => (l.service_id === serviceId ? { ...l, qty_after: Math.max(0, newQty) } : l))
+        .filter((l) => l.qty_after > 0)
+    );
+  };
+
+  // Soumission du projet de révision (génère l'OTP)
+  const handleCreateRevisionDraft = async () => {
+    if (!activeActionMissionId || revisionLines.length === 0) {
+      toast({ title: 'Erreur', description: 'Sélectionnez au moins un article.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await createOrderRevisionDraftAction(
+      activeActionMissionId,
+      revisionLines,
+      revisionNotes
+    );
+    setSubmitting(false);
+
+    if (res.success) {
+      setRevisionDraft(res);
+      toast({
+        title: 'Correction de facture créée',
+        description: `Code OTP généré : ${res.otpCode}. Transmettez-le au client.`,
+      });
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
+    }
+  };
+
+  // Confirmation par OTP client
+  const handleConfirmOtp = async () => {
+    if (!revisionDraft?.revisionId || otpInput.trim().length !== 6) {
+      toast({ title: 'Code invalide', description: 'Entrez un code à 6 chiffres.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await confirmOrderRevisionOtpAction(revisionDraft.revisionId, otpInput.trim());
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Facture révisée et confirmée !', description: 'La commande et les articles ont été mis à jour.' });
+      setRevisionModalOpen(false);
+      loadData();
+    } else {
+      toast({ title: 'Erreur OTP', description: res.error, variant: 'destructive' });
+    }
+  };
+
+  // Confirmation sans vérification client
+  const handleConfirmUnverified = async () => {
+    if (!revisionDraft?.revisionId || unverifiedReason.trim().length < 5) {
+      toast({ title: 'Motif requis', description: 'Saisissez un motif détaillé d\'au moins 5 caractères.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await confirmOrderRevisionUnverifiedAction(revisionDraft.revisionId, unverifiedReason.trim());
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({
+        title: 'Correction enregistrée sans vérification',
+        description: 'La modification a été appliquée et signalée dans les alertes du propriétaire.',
+      });
+      setRevisionModalOpen(false);
+      loadData();
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
     }
   };
 
@@ -517,6 +679,36 @@ export function MissionsViewClient() {
                                 )}
                               </div>
 
+                              {/* Bouton Révision / Contrôle chez le client (Tâche D2) */}
+                              {['ACCEPTED', 'EN_ROUTE', 'AT_CUSTOMER', 'COLLECTED'].includes(m.status) && (
+                                <button
+                                  onClick={() => handleOpenRevisionModal(m.id)}
+                                  disabled={submitting}
+                                  className="w-full py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition"
+                                >
+                                  <FileText className="w-4 h-4 text-amber-400" />
+                                  <span>Contrôle client / Corriger la facture (vêtements)</span>
+                                </button>
+                              )}
+
+                              {/* Historique des révisions de facture si présent */}
+                              {revisionsHistory.length > 0 && (
+                                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
+                                  <span className="font-bold text-amber-400 text-[11px] uppercase tracking-wider block">
+                                    Historique des révisions de facture ({revisionsHistory.length})
+                                  </span>
+                                  {revisionsHistory.map((rev) => (
+                                    <div key={rev.id} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex justify-between items-center text-[11px]">
+                                      <div>
+                                        <span className="font-bold text-white">Version v{rev.version_number}</span>
+                                        <span className="text-slate-400 ml-2">({rev.status})</span>
+                                      </div>
+                                      <span className="font-mono text-amber-400 font-bold">{formatMoney(rev.total_after)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               {/* PROCHAINE ÉTAPE AUTORISÉE UNIQUEMENT */}
                               <div className="pt-2">
                                 {m.status === 'ACCEPTED' && (
@@ -758,6 +950,236 @@ export function MissionsViewClient() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODALE REVISION / CONTRÔLE CLIENT (TÂCHE D2) */}
+      {revisionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-5 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-amber-400">
+                <FileText className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white">Contrôle vêtement & Correction facture</h3>
+              </div>
+              <button
+                onClick={() => setRevisionModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!revisionDraft ? (
+              <div className="space-y-4 text-xs">
+                <p className="text-slate-300">
+                  Comparez les vêtements reçus aux lignes de la facture. Vous pouvez ajuster les quantités ou ajouter des articles du catalogue. Les prix unitaires du catalogue sont strictement appliqués.
+                </p>
+
+                {/* Sélecteur d'article du catalogue à ajouter */}
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <label className="block text-slate-400 font-semibold">Ajouter un article du catalogue</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedCatalogServiceId}
+                      onChange={(e) => setSelectedCatalogServiceId(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:outline-none"
+                    >
+                      {catalogServices.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({formatMoney(s.price)})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddCatalogItem}
+                      className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                </div>
+
+                {/* Liste des articles en cours de révision */}
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {revisionLines.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500 italic">
+                      Aucun article sélectionné. Ajoutez des prestations ci-dessus.
+                    </div>
+                  ) : (
+                    revisionLines.map((line) => (
+                      <div
+                        key={line.service_id}
+                        className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-white">{line.service_name}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {formatMoney(line.unit_price)} / unité
+                          </p>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateLineQty(line.service_id, line.qty_after - 1)}
+                            className="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center hover:bg-slate-700"
+                          >
+                            -
+                          </button>
+                          <span className="font-mono font-bold text-amber-400 w-6 text-center">
+                            {line.qty_after}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateLineQty(line.service_id, line.qty_after + 1)}
+                            className="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center hover:bg-slate-700"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Notes / Observations</label>
+                  <textarea
+                    rows={2}
+                    value={revisionNotes}
+                    onChange={(e) => setRevisionNotes(e.target.value)}
+                    placeholder="Remarques éventuelles sur l'état apparent des vêtements..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white placeholder-slate-600 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateRevisionDraft}
+                  disabled={submitting || revisionLines.length === 0}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  <span>Générer le code de validation OTP Client</span>
+                </button>
+              </div>
+            ) : (
+              /* ÉTAPE DE VALIDATION DU CODE OTP OU DÉCLARATION SANS VÉRIFICATION */
+              <div className="space-y-4 text-xs">
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 text-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    Code de validation généré
+                  </span>
+                  <div className="text-3xl font-black font-mono tracking-widest text-amber-300">
+                    {revisionDraft.otpCode}
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Nouveau total révisé : <span className="font-bold font-mono text-white">{formatMoney(revisionDraft.totalAfter)}</span>
+                  </p>
+
+                  {missionDetails?.client_phone && (
+                    <a
+                      href={generateWhatsAppLink(
+                        missionDetails.client_phone,
+                        `Bonjour ${missionDetails.client_name}, voici votre code à 6 chiffres pour valider la correction de votre facture : *${revisionDraft.otpCode}*.`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg shadow mt-2"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 mr-1" />
+                      Envoyer par WhatsApp
+                    </a>
+                  )}
+                </div>
+
+                {!showUnverifiedForm ? (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        Saisissez le code à 6 chiffres communiqué par le client
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Ex: 123456"
+                        value={otpInput}
+                        onChange={(e) => setOtpInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-center font-mono font-bold text-lg text-white tracking-widest focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmOtp}
+                      disabled={submitting || otpInput.trim().length !== 6}
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-bold rounded-xl flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                    >
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      <span>Confirmer avec le Code Client</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowUnverifiedForm(true)}
+                      className="w-full py-2 text-amber-400 hover:text-amber-300 font-semibold text-[11px] text-center"
+                    >
+                      Client sans téléphone / réseau ? (Déclaration sans vérification)
+                    </button>
+                  </div>
+                ) : (
+                  /* FORMULAIRE DE DÉCLARATION UNVERIFIED */
+                  <div className="space-y-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl">
+                    <div className="flex items-center space-x-2 text-amber-400 font-bold">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>Validation sans vérification (Alerte Propriétaire)</span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-300">
+                      Un motif obligatoire est exigé. Cette opération sera marquée &quot;accord non vérifié&quot; et apparaîtra immédiatement sur le tableau de bord du propriétaire.
+                    </p>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-semibold">Motif obligatoire</label>
+                      <textarea
+                        rows={2}
+                        value={unverifiedReason}
+                        onChange={(e) => setUnverifiedReason(e.target.value)}
+                        placeholder="Ex: Client sans téléphone portable, téléphone éteint..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white placeholder-slate-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex space-x-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowUnverifiedForm(false)}
+                        className="w-1/2 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
+                      >
+                        Retour
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleConfirmUnverified}
+                        disabled={submitting || unverifiedReason.trim().length < 5}
+                        className="w-1/2 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-bold rounded-xl transition disabled:opacity-50"
+                      >
+                        Valider dérogation
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

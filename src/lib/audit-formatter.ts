@@ -422,6 +422,48 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     };
   }
 
+  // 14. ORDER_REVISIONS / CORRECTIONS DE FACTURES
+  if (objectType === 'order_revisions') {
+    const version = after.version_number || before.version_number || 1;
+    const status = after.status || before.status;
+    const isUnverified = after.verification_type === 'UNVERIFIED_DECLARATION' || before.verification_type === 'UNVERIFIED_DECLARATION';
+
+    if (action === 'INSERT') {
+      return {
+        title: `Correction de facture créée (v${version})`,
+        description: `Montant révisé : ${formatMoney(after.total_after || 0)} (précédent: ${formatMoney(after.total_before || 0)})`,
+        badgeColor: 'blue',
+        reason,
+      };
+    }
+    if (action === 'UPDATE') {
+      if (status === 'CONFIRMED') {
+        return {
+          title: `Facture v${version} confirmée par code client (OTP)`,
+          description: `Validation client réussie. Total : ${formatMoney(after.total_after || 0)}`,
+          badgeColor: 'emerald',
+          reason,
+        };
+      }
+      if (status === 'UNVERIFIED_AGREEMENT' || isUnverified) {
+        return {
+          title: `Facture v${version} validée sans vérification client`,
+          description: `Accord non vérifié par SMS/OTP. Alerte propriétaire émise.`,
+          badgeColor: 'amber',
+          reason,
+        };
+      }
+      if (status === 'REJECTED') {
+        return {
+          title: `Facture v${version} refusée par le client`,
+          description: `Correction de facture rejetée`,
+          badgeColor: 'rose',
+          reason,
+        };
+      }
+    }
+  }
+
   // 13. DELIVERY_MISSIONS / MISSIONS DE LIVRAISON
   if (objectType === 'delivery_missions') {
     const kindLabel = after.kind === 'COLLECTION' || before.kind === 'COLLECTION' ? 'Collecte' : 'Livraison';
