@@ -1,8 +1,13 @@
 'use server';
 
 // =============================================================================
-// SERVER ACTIONS - REVISIONS ET CORRECTIONS DE FACTURES (TÂCHE D2)
-// Multi-tenant, contrôle chez le client, validation OTP & dérogations
+// SERVER ACTIONS - REVISIONS ET CORRECTIONS DE FACTURES (TÂCHE D2 - REWRITE)
+// Conforme règles strictes :
+// 1. Code calculé à la volée, non stocké, non renvoyé au livreur
+// 2. Gestion des essais sans exception (ok=false, essais restants)
+// 3. Rôles et état AT_CUSTOMER / VALIDATED
+// 4. Lignes order_item_id, prix catalogue pour ajouts, prix existants préservés
+// 5. Contrôle obligatoire confirm_pickup_conform avant COLLECTED
 // =============================================================================
 
 import { createServerSupabaseClient } from '@/lib/supabase-server';
@@ -10,8 +15,10 @@ import { requirePermission } from '@/lib/permissions-server';
 import { revalidatePath } from 'next/cache';
 
 export interface RevisionLineInput {
+  order_item_id?: string | null;
   service_id: string;
   qty_after: number;
+  item_type?: string;
   color?: string;
   pattern?: string;
   brand?: string;
@@ -19,29 +26,9 @@ export interface RevisionLineInput {
   item_notes?: string;
 }
 
-export interface OrderRevisionItem {
-  id: string;
-  organization_id: string;
-  order_id: string;
-  mission_id: string | null;
-  version_number: number;
-  status: 'DRAFT' | 'PENDING_AGREEMENT' | 'CONFIRMED' | 'UNVERIFIED_AGREEMENT' | 'REJECTED';
-  verification_type: 'CLIENT_OTP' | 'UNVERIFIED_DECLARATION' | null;
-  otp_code_plain?: string | null;
-  otp_expires_at?: string | null;
-  subtotal_before: number;
-  subtotal_after: number;
-  total_before: number;
-  total_after: number;
-  created_at: string;
-  confirmed_at?: string | null;
-  notes?: string | null;
-  created_by_name?: string | null;
-  lines?: any[];
-}
-
 /**
- * 1. Créer un projet de révision (DRAFT / PENDING_AGREEMENT) chez le client
+ * 1. Créer un projet de révision (PENDING_AGREEMENT) chez le client
+ * Ne renvoie JAMAIS le code OTP au livreur.
  */
 export async function createOrderRevisionDraftAction(
   missionId: string,
@@ -51,11 +38,7 @@ export async function createOrderRevisionDraftAction(
   try {
     const auth = await requirePermission('revise_order');
     if (!auth.authorized || !auth.profile?.membership) {
-      return { success: false, error: auth.error || 'Permission insuffisante pour réviser la commande.' };
-    }
-
-    if (!lines || lines.length === 0) {
-      return { success: false, error: 'Au moins un article doit être présent dans la révision.' };
+      return { success: false, error: auth.error || 'Permission insuffisante.' };
     }
 
     const db = await createServerSupabaseClient();
@@ -69,18 +52,23 @@ export async function createOrderRevisionDraftAction(
       return { success: false, error: error.message };
     }
 
-    const result = Array.isArray(data) ? data[0] : data;
+    const res = data as any;
+    if (res && res.ok === false) {
+      return { success: false, error: res.message || 'Erreur lors de la création.' };
+    }
 
     revalidatePath('/admin/missions');
     revalidatePath('/admin/commandes');
 
     return {
       success: true,
-      revisionId: result.revision_id,
-      versionNumber: result.version_number,
-      otpCode: result.otp_code,
-      subtotalAfter: result.subtotal_after,
-      totalAfter: result.total_after,
+      revisionId: res.revision_id,
+      versionNumber: res.version_number,
+      subtotalBefore: res.subtotal_before,
+      subtotalAfter: res.subtotal_after,
+      totalBefore: res.total_before,
+      totalAfter: res.total_after,
+      expiresAt: res.expires_at,
     };
   } catch (err: unknown) {
     return {
@@ -91,11 +79,46 @@ export async function createOrderRevisionDraftAction(
 }
 
 /**
- * 2. Confirmer la révision par saisie du code OTP client à 6 chiffres
+ * 2. Renouveler le code de validation (3 renouvellements max)
+ */
+export async function renewOrderRevisionCodeAction(missionId: string) {
+  try {
+    const auth = await requirePermission('revise_order');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Permission insuffisante.' };
+    }
+
+    const db = await createServerSupabaseClient();
+    const { data, error } = await db.rpc('renew_order_revision_code', {
+      p_mission_id: missionId,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const res = data as any;
+    return {
+      success: Boolean(res?.ok),
+      message: res?.message,
+      attemptsLeft: res?.attempts_left,
+      renewsLeft: res?.renews_left,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de renouvellement.',
+    };
+  }
+}
+
+/**
+ * 3. Confirmer la révision par saisie du code OTP client
+ * Renvoie ok=false et attempts_left sans exception si code incorrect
  */
 export async function confirmOrderRevisionOtpAction(
-  revisionId: string,
-  otpCode: string
+  missionId: string,
+  code: string
 ) {
   try {
     const auth = await requirePermission('revise_order');
@@ -103,25 +126,38 @@ export async function confirmOrderRevisionOtpAction(
       return { success: false, error: auth.error || 'Permission insuffisante.' };
     }
 
-    if (!otpCode || otpCode.trim().length !== 6) {
-      return { success: false, error: 'Le code de validation doit comporter exactement 6 chiffres.' };
+    if (!code || code.trim().length !== 6) {
+      return { success: false, error: 'Le code doit comporter exactement 6 chiffres.' };
     }
 
     const db = await createServerSupabaseClient();
     const { data, error } = await db.rpc('confirm_order_revision_otp', {
-      p_revision_id: revisionId,
-      p_otp_code: otpCode.trim(),
+      p_mission_id: missionId,
+      p_code: code.trim(),
     });
 
     if (error) {
       return { success: false, error: error.message };
     }
 
+    const res = data as any;
+    if (res && res.ok === false) {
+      return {
+        success: false,
+        error: res.message || 'Code incorrect.',
+        attemptsLeft: res.attempts_left,
+      };
+    }
+
     revalidatePath('/admin/missions');
     revalidatePath('/admin/commandes');
     revalidatePath('/admin');
 
-    return { success: true, revision: data };
+    return {
+      success: true,
+      message: res?.message,
+      totalAmount: res?.total_amount,
+    };
   } catch (err: unknown) {
     return {
       success: false,
@@ -131,10 +167,10 @@ export async function confirmOrderRevisionOtpAction(
 }
 
 /**
- * 3. Valider la révision sans vérification client (Déclaration d'accord non vérifié)
+ * 4. Valider sans vérification client (Déclaration d'accord non vérifié)
  */
 export async function confirmOrderRevisionUnverifiedAction(
-  revisionId: string,
+  missionId: string,
   reason: string
 ) {
   try {
@@ -149,7 +185,7 @@ export async function confirmOrderRevisionUnverifiedAction(
 
     const db = await createServerSupabaseClient();
     const { data, error } = await db.rpc('confirm_order_revision_unverified', {
-      p_revision_id: revisionId,
+      p_mission_id: missionId,
       p_reason: reason.trim(),
     });
 
@@ -157,73 +193,104 @@ export async function confirmOrderRevisionUnverifiedAction(
       return { success: false, error: error.message };
     }
 
+    const res = data as any;
+    if (res && res.ok === false) {
+      return { success: false, error: res.message };
+    }
+
     revalidatePath('/admin/missions');
     revalidatePath('/admin/commandes');
     revalidatePath('/admin');
 
-    return { success: true, revision: data };
+    return { success: true, message: res?.message, totalAmount: res?.total_amount };
   } catch (err: unknown) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Erreur lors de la validation sans vérification.',
+      error: err instanceof Error ? err.message : 'Erreur lors de la dérogation.',
     };
   }
 }
 
 /**
- * 4. Consulter l'historique des révisions d'une commande
+ * 5. Contrôle chez le client CONFORME (aucun article modifié)
  */
-export async function getOrderRevisionsHistoryAction(orderId: string) {
+export async function confirmPickupConformAction(missionId: string) {
   try {
-    const db = await createServerSupabaseClient();
-    const { data: revisions, error } = await db
-      .from('order_revisions')
-      .select(`
-        *,
-        lines:order_revision_lines(*)
-      `)
-      .eq('order_id', orderId)
-      .order('version_number', { ascending: false });
-
-    if (error) {
-      return { success: false, error: error.message };
+    const auth = await requirePermission('run_mission');
+    if (!auth.authorized || !auth.profile?.membership) {
+      return { success: false, error: auth.error || 'Permission insuffisante.' };
     }
 
-    return { success: true, revisions: revisions || [] };
-  } catch (err: unknown) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Erreur de chargement des révisions.',
-    };
-  }
-}
-
-/**
- * 5. Obtenir l'OTP actif pour affichage sur la page de suivi client (/f/[token])
- */
-export async function getActiveRevisionOtpForTrackingAction(orderId: string) {
-  try {
     const db = await createServerSupabaseClient();
-    const { data, error } = await db.rpc('get_active_revision_otp_for_tracking', {
-      p_order_id: orderId,
+    const { data, error } = await db.rpc('confirm_pickup_conform', {
+      p_mission_id: missionId,
     });
 
     if (error) {
       return { success: false, error: error.message };
     }
 
-    const activeOtp = Array.isArray(data) ? data[0] : data;
-    return { success: true, activeOtp };
+    const res = data as any;
+    if (res && res.ok === false) {
+      return { success: false, error: res.message };
+    }
+
+    revalidatePath('/admin/missions');
+    return { success: true, message: res?.message };
   } catch (err: unknown) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Erreur de chargement du code de validation.',
+      error: err instanceof Error ? err.message : 'Erreur lors du contrôle conforme.',
     };
   }
 }
 
 /**
- * 6. Obtenir le catalogue actif des services pour l'ajout d'articles lors de la révision
+ * 6. Obtenir la révision en attente pour affichage sur la page de suivi client (/f/[token])
+ */
+export async function getPendingRevisionForCustomerAction(token: string) {
+  try {
+    const db = await createServerSupabaseClient();
+    const { data, error } = await db.rpc('get_pending_revision_for_customer', {
+      p_token: token,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, pendingRevision: data };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de lecture du code de validation.',
+    };
+  }
+}
+
+/**
+ * 7. Obtenir les articles actuels d'une commande
+ */
+export async function getOrderItemsForRevisionAction(orderId: string) {
+  try {
+    const db = await createServerSupabaseClient();
+    const { data: items, error } = await db
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, items: items || [] };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de lecture des articles.',
+    };
+  }
+}
+
+/**
+ * 8. Obtenir le catalogue actif des services
  */
 export async function getActiveServicesCatalogAction() {
   try {
@@ -261,6 +328,31 @@ export async function getActiveServicesCatalogAction() {
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erreur de chargement du catalogue.',
+    };
+  }
+}
+
+/**
+ * 9. Historique des révisions d'une commande
+ */
+export async function getOrderRevisionsHistoryAction(orderId: string) {
+  try {
+    const db = await createServerSupabaseClient();
+    const { data: revisions, error } = await db
+      .from('order_revisions')
+      .select(`
+        *,
+        lines:order_revision_lines(*)
+      `)
+      .eq('order_id', orderId)
+      .order('version_number', { ascending: false });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, revisions: revisions || [] };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de chargement des révisions.',
     };
   }
 }

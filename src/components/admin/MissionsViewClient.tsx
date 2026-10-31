@@ -21,8 +21,11 @@ import {
 } from '@/actions/missions';
 import {
   createOrderRevisionDraftAction,
+  renewOrderRevisionCodeAction,
   confirmOrderRevisionOtpAction,
   confirmOrderRevisionUnverifiedAction,
+  confirmPickupConformAction,
+  getOrderItemsForRevisionAction,
   getActiveServicesCatalogAction,
   getOrderRevisionsHistoryAction,
 } from '@/actions/revisions';
@@ -180,6 +183,21 @@ export function MissionsViewClient() {
     }
   };
 
+  // Validation contrôle conforme
+  const handleConfirmConform = async (missionId: string) => {
+    setSubmitting(true);
+    const res = await confirmPickupConformAction(missionId);
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Contrôle conforme validé', description: 'Le comptage des pièces est vérifié.' });
+      loadData();
+      if (selectedMissionId === missionId) handleSelectMission(missionId);
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
+    }
+  };
+
   // Ouverture du modal de contrôle chez le client / Révision de facture
   const handleOpenRevisionModal = async (missionId: string) => {
     setActiveActionMissionId(missionId);
@@ -194,18 +212,33 @@ export function MissionsViewClient() {
       getMissionDetailsAction(missionId),
       getActiveServicesCatalogAction(),
     ]);
-    setSubmitting(false);
 
     if (detailsRes.success && detailsRes.details) {
       setMissionDetails(detailsRes.details);
-      // On initialise les lignes depuis les détails de la commande ou un tableau vide
-      setRevisionLines([]);
+      const itemsRes = await getOrderItemsForRevisionAction(detailsRes.details.order_id);
+      if (itemsRes.success && itemsRes.items) {
+        setRevisionLines(
+          itemsRes.items.map((item: any) => ({
+            order_item_id: item.id,
+            service_id: item.service_id,
+            service_name: item.service_name,
+            unit_price: Number(item.unit_price),
+            qty_after: item.quantity,
+            color: item.color || '',
+            pattern: item.pattern || '',
+            brand: item.brand || '',
+            size: item.size || '',
+            item_notes: item.item_notes || '',
+          }))
+        );
+      }
     }
 
     if (catRes.success && catRes.services) {
       setCatalogServices(catRes.services);
       if (catRes.services.length > 0) setSelectedCatalogServiceId(catRes.services[0].id);
     }
+    setSubmitting(false);
 
     setRevisionModalOpen(true);
   };
@@ -247,7 +280,7 @@ export function MissionsViewClient() {
     );
   };
 
-  // Soumission du projet de révision (génère l'OTP)
+  // Soumission du projet de révision (génère l'OTP côté client)
   const handleCreateRevisionDraft = async () => {
     if (!activeActionMissionId || revisionLines.length === 0) {
       toast({ title: 'Erreur', description: 'Sélectionnez au moins un article.', variant: 'destructive' });
@@ -265,43 +298,62 @@ export function MissionsViewClient() {
     if (res.success) {
       setRevisionDraft(res);
       toast({
-        title: 'Correction de facture créée',
-        description: `Code OTP généré : ${res.otpCode}. Transmettez-le au client.`,
+        title: 'Correction de facture enregistrée',
+        description: 'Le code de validation à 6 chiffres a été généré sur la page de suivi du client.',
       });
     } else {
       toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
     }
   };
 
+  // Renouvellement du code
+  const handleRenewCode = async () => {
+    if (!activeActionMissionId) return;
+    setSubmitting(true);
+    const res = await renewOrderRevisionCodeAction(activeActionMissionId);
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Code renouvelé', description: `${res.renewsLeft ?? 0} renouvellement(s) restant(s).` });
+    } else {
+      toast({ title: 'Erreur', description: res.error || res.message, variant: 'destructive' });
+    }
+  };
+
   // Confirmation par OTP client
   const handleConfirmOtp = async () => {
-    if (!revisionDraft?.revisionId || otpInput.trim().length !== 6) {
+    if (!activeActionMissionId || otpInput.trim().length !== 6) {
       toast({ title: 'Code invalide', description: 'Entrez un code à 6 chiffres.', variant: 'destructive' });
       return;
     }
 
     setSubmitting(true);
-    const res = await confirmOrderRevisionOtpAction(revisionDraft.revisionId, otpInput.trim());
+    const res = await confirmOrderRevisionOtpAction(activeActionMissionId, otpInput.trim());
     setSubmitting(false);
 
     if (res.success) {
-      toast({ title: 'Facture révisée et confirmée !', description: 'La commande et les articles ont été mis à jour.' });
+      toast({ title: 'Facture confirmée !', description: 'Les articles et le total ont été mis à jour.' });
       setRevisionModalOpen(false);
       loadData();
+      if (selectedMissionId === activeActionMissionId) handleSelectMission(activeActionMissionId);
     } else {
-      toast({ title: 'Erreur OTP', description: res.error, variant: 'destructive' });
+      toast({
+        title: 'Erreur validation code',
+        description: res.error || `Code incorrect. ${res.attemptsLeft !== undefined ? `${res.attemptsLeft} essai(s) restant(s).` : ''}`,
+        variant: 'destructive',
+      });
     }
   };
 
   // Confirmation sans vérification client
   const handleConfirmUnverified = async () => {
-    if (!revisionDraft?.revisionId || unverifiedReason.trim().length < 5) {
+    if (!activeActionMissionId || unverifiedReason.trim().length < 5) {
       toast({ title: 'Motif requis', description: 'Saisissez un motif détaillé d\'au moins 5 caractères.', variant: 'destructive' });
       return;
     }
 
     setSubmitting(true);
-    const res = await confirmOrderRevisionUnverifiedAction(revisionDraft.revisionId, unverifiedReason.trim());
+    const res = await confirmOrderRevisionUnverifiedAction(activeActionMissionId, unverifiedReason.trim());
     setSubmitting(false);
 
     if (res.success) {
@@ -311,6 +363,7 @@ export function MissionsViewClient() {
       });
       setRevisionModalOpen(false);
       loadData();
+      if (selectedMissionId === activeActionMissionId) handleSelectMission(activeActionMissionId);
     } else {
       toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
     }
@@ -679,16 +732,47 @@ export function MissionsViewClient() {
                                 )}
                               </div>
 
-                              {/* Bouton Révision / Contrôle chez le client (Tâche D2) */}
-                              {['ACCEPTED', 'EN_ROUTE', 'AT_CUSTOMER', 'COLLECTED'].includes(m.status) && (
-                                <button
-                                  onClick={() => handleOpenRevisionModal(m.id)}
-                                  disabled={submitting}
-                                  className="w-full py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition"
-                                >
-                                  <FileText className="w-4 h-4 text-amber-400" />
-                                  <span>Contrôle client / Corriger la facture (vêtements)</span>
-                                </button>
+                              {/* ÉTAPE DU CONTRÔLE CHEZ LE CLIENT (Règle 7 & Tâche D2) */}
+                              {m.status === 'AT_CUSTOMER' && (
+                                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="font-bold text-white flex items-center">
+                                      <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                                      Contrôle physique des vêtements
+                                    </span>
+                                    {m.pickup_check_status ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                        {m.pickup_check_status === 'CONFORM' ? '✓ Conforme' : '✓ Facture corrigée'}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                                        À vérifier
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmConform(m.id)}
+                                      disabled={submitting}
+                                      className="py-2.5 px-3 bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1 transition"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Vêtements conformes</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRevisionModal(m.id)}
+                                      disabled={submitting}
+                                      className="py-2.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl flex items-center justify-center space-x-1 transition"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>Corriger la facture</span>
+                                    </button>
+                                  </div>
+                                </div>
                               )}
 
                               {/* Historique des révisions de facture si présent */}
@@ -1073,33 +1157,29 @@ export function MissionsViewClient() {
                 </button>
               </div>
             ) : (
-              /* ÉTAPE DE VALIDATION DU CODE OTP OU DÉCLARATION SANS VÉRIFICATION */
+              /* ÉTAPE DE VALIDATION DU CODE OTP OU DÉCLARATION SANS VÉRIFICATION (Règle 1 & 2) */
               <div className="space-y-4 text-xs">
                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 text-center">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                    Code de validation généré
+                    Projet de correction créé
                   </span>
-                  <div className="text-3xl font-black font-mono tracking-widest text-amber-300">
-                    {revisionDraft.otpCode}
-                  </div>
+                  <p className="text-xs text-white font-semibold">
+                    Le code secret à 6 chiffres est affiché sur l&apos;écran du client.
+                  </p>
                   <p className="text-[11px] text-slate-300">
-                    Nouveau total révisé : <span className="font-bold font-mono text-white">{formatMoney(revisionDraft.totalAfter)}</span>
+                    Nouveau montant total : <span className="font-bold font-mono text-amber-300">{formatMoney(revisionDraft.totalAfter)}</span>
                   </p>
 
-                  {missionDetails?.client_phone && (
-                    <a
-                      href={generateWhatsAppLink(
-                        missionDetails.client_phone,
-                        `Bonjour ${missionDetails.client_name}, voici votre code à 6 chiffres pour valider la correction de votre facture : *${revisionDraft.otpCode}*.`
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg shadow mt-2"
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleRenewCode}
+                      disabled={submitting}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold"
                     >
-                      <MessageSquare className="w-3.5 h-3.5 mr-1" />
-                      Envoyer par WhatsApp
-                    </a>
-                  )}
+                      Renouveler le code (3 max)
+                    </button>
+                  </div>
                 </div>
 
                 {!showUnverifiedForm ? (
@@ -1137,7 +1217,7 @@ export function MissionsViewClient() {
                     </button>
                   </div>
                 ) : (
-                  /* FORMULAIRE DE DÉCLARATION UNVERIFIED */
+                  /* FORMULAIRE DE DÉCLARATION UNVERIFIED (Règle 8) */
                   <div className="space-y-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl">
                     <div className="flex items-center space-x-2 text-amber-400 font-bold">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -1145,7 +1225,7 @@ export function MissionsViewClient() {
                     </div>
 
                     <p className="text-[11px] text-slate-300">
-                      Un motif obligatoire est exigé. Cette opération sera marquée &quot;accord non vérifié&quot; et apparaîtra immédiatement sur le tableau de bord du propriétaire.
+                      Un motif obligatoire (≥ 5 caractères) est exigé. Cette opération sera marquée &quot;accord non vérifié&quot; et apparaîtra immédiatement dans les alertes du propriétaire.
                     </p>
 
                     <div>
@@ -1154,7 +1234,7 @@ export function MissionsViewClient() {
                         rows={2}
                         value={unverifiedReason}
                         onChange={(e) => setUnverifiedReason(e.target.value)}
-                        placeholder="Ex: Client sans téléphone portable, téléphone éteint..."
+                        placeholder="Ex: Client sans téléphone portable, téléphone déchargé..."
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white placeholder-slate-600 focus:outline-none"
                       />
                     </div>
