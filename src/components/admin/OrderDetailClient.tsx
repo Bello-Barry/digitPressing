@@ -243,9 +243,9 @@ Bonne nouvelle ! Vos vêtements pour le ticket *${order.ticket_number || order.r
           </div>
         </div>
 
-        {/* Liens rapides externes */}
+        {/* Liens rapides externes (inaccessibles au livreur pour protéger invoice_token) */}
         <div className="flex items-center space-x-2">
-          {order.invoice_token && (
+          {userRole !== 'DELIVERY' && order.invoice_token && (
             <Link
               href={`/f/${order.invoice_token}`}
               target="_blank"

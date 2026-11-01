@@ -505,6 +505,12 @@ export async function getOrderDetailsAction(orderId: string) {
       return { success: false, error: 'Commande introuvable.' };
     }
 
+    // Restriction de sécurité : un livreur ne doit JAMAIS lire invoice_token (Règle 8)
+    const isDeliveryRole = ('role' in auth && auth.role === 'DELIVERY');
+    if (isDeliveryRole) {
+      order.invoice_token = null;
+    }
+
     // Récupérer le sommaire financier
     const { data: summary } = await db
       .from('order_payment_summary')

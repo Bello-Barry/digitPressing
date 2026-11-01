@@ -335,6 +335,54 @@ export async function getActiveServicesCatalogAction() {
 /**
  * 9. Historique des révisions d'une commande
  */
+/**
+ * 10. Liste des accords non vérifiés visible par OWNER et MANAGER (Règle 6)
+ */
+export async function getUnverifiedRevisionsAction() {
+  try {
+    const db = await createServerSupabaseClient();
+    const { data: userAuth } = await db.auth.getUser();
+    if (!userAuth.user) return { success: false, error: 'Non authentifié.' };
+
+    const { data: mem } = await db
+      .from('memberships')
+      .select('organization_id, role')
+      .eq('user_id', userAuth.user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (!mem || (mem.role !== 'OWNER' && mem.role !== 'MANAGER')) {
+      return { success: false, error: 'Accès réservé au Propriétaire et au Manager.' };
+    }
+
+    const { data: revisions, error } = await db
+      .from('order_revisions')
+      .select(`
+        id,
+        order_id,
+        mission_id,
+        version_number,
+        unverified_reason,
+        total_after,
+        created_at,
+        confirmed_at,
+        created_by,
+        order:orders(ticket_number, request_code, client_name)
+      `)
+      .eq('organization_id', mem.organization_id)
+      .eq('verification_type', 'UNVERIFIED_DECLARATION')
+      .order('confirmed_at', { ascending: false });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, unverifiedRevisions: revisions || [] };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Erreur de chargement des accords non vérifiés.',
+    };
+  }
+}
+
 export async function getOrderRevisionsHistoryAction(orderId: string) {
   try {
     const db = await createServerSupabaseClient();

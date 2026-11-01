@@ -28,6 +28,7 @@ import {
   getOrderItemsForRevisionAction,
   getActiveServicesCatalogAction,
   getOrderRevisionsHistoryAction,
+  getUnverifiedRevisionsAction,
 } from '@/actions/revisions';
 import { generateWhatsAppLink } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
@@ -109,6 +110,7 @@ export function MissionsViewClient() {
   const [unverifiedReason, setUnverifiedReason] = useState<string>('');
   const [showUnverifiedForm, setShowUnverifiedForm] = useState<boolean>(false);
   const [revisionsHistory, setRevisionsHistory] = useState<any[]>([]);
+  const [unverifiedList, setUnverifiedList] = useState<any[]>([]);
 
   const [activeActionMissionId, setActiveActionMissionId] = useState<string | null>(null);
 
@@ -140,6 +142,11 @@ export function MissionsViewClient() {
 
     if (courRes.success && courRes.couriers) {
       setCouriers(courRes.couriers);
+    }
+
+    const unverifiedRes = await getUnverifiedRevisionsAction();
+    if (unverifiedRes.success && unverifiedRes.unverifiedRevisions) {
+      setUnverifiedList(unverifiedRes.unverifiedRevisions);
     }
 
     setLoading(false);
@@ -358,10 +365,12 @@ export function MissionsViewClient() {
 
     if (res.success) {
       toast({
-        title: 'Correction enregistrée sans vérification',
-        description: 'La modification a été appliquée et signalée dans les alertes du propriétaire.',
+        title: 'Correction enregistrée',
+        description: 'Accord non vérifié enregistré',
       });
       setRevisionModalOpen(false);
+      setUnverifiedReason('');
+      setShowUnverifiedForm(false);
       loadData();
       if (selectedMissionId === activeActionMissionId) handleSelectMission(activeActionMissionId);
     } else {
@@ -886,6 +895,49 @@ export function MissionsViewClient() {
       {/* VUE GESTIONNAIRES (OWNER, MANAGER, CASHIER) */}
       {userRole !== 'DELIVERY' && (
         <div className="space-y-4">
+          {/* Liste Accords non vérifiés (Règle 6) */}
+          {(userRole === 'OWNER' || userRole === 'MANAGER') && unverifiedList.length > 0 && (
+            <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-2xl space-y-3 shadow-lg">
+              <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs uppercase tracking-wide">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Accords non vérifiés chez le client ({unverifiedList.length})</span>
+              </div>
+              <div className="space-y-2">
+                {unverifiedList.map((rev) => (
+                  <div
+                    key={rev.id}
+                    className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-bold text-white">
+                          {rev.order?.ticket_number || rev.order?.request_code || 'Commande'}
+                        </span>
+                        {rev.order?.client_name && (
+                          <span className="text-slate-400">({rev.order.client_name})</span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold">
+                          v{rev.version_number}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-300 italic mt-0.5">
+                        Motif : &quot;{rev.unverified_reason}&quot;
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="font-mono font-bold text-amber-400 block">
+                        {formatMoney(rev.total_after)}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {new Date(rev.confirmed_at || rev.created_at).toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Filtres de recherche */}
           <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
             <div className="flex items-center space-x-2 text-xs text-slate-400 font-semibold">

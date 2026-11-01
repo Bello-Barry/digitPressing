@@ -59,14 +59,15 @@ CREATE INDEX IF NOT EXISTS idx_order_revisions_mission ON public.order_revisions
 CREATE INDEX IF NOT EXISTS idx_order_revisions_status ON public.order_revisions(order_id, status);
 
 -- 4. TABLE ORDER_REVISION_LINES (DÉTAIL DES LIGNES AVANT / APRÈS)
+-- order_item_id est un simple UUID sans clé étrangère pour permettre la suppression des lignes order_items
 CREATE TABLE IF NOT EXISTS public.order_revision_lines (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   revision_id         UUID NOT NULL REFERENCES public.order_revisions(id) ON DELETE CASCADE,
-  order_item_id       UUID NULL REFERENCES public.order_items(id) ON DELETE RESTRICT,
+  order_item_id       UUID NULL, -- simple uuid sans FK pour permettre suppression d'order_items
   service_id          UUID NOT NULL REFERENCES public.services(id) ON DELETE RESTRICT,
   service_name        VARCHAR(255) NOT NULL,
   qty_before          INTEGER NOT NULL DEFAULT 0 CHECK (qty_before >= 0),
-  qty_after           INTEGER NOT NULL CHECK (qty_after >= 0),
+  qty_after           INTEGER NOT NULL CHECK (qty_after >= 0 AND qty_after <= 999),
   unit_price          NUMERIC NOT NULL CHECK (unit_price >= 0),
   line_total_before   NUMERIC NOT NULL DEFAULT 0 CHECK (line_total_before >= 0),
   line_total_after    NUMERIC NOT NULL CHECK (line_total_after >= 0),
@@ -80,6 +81,9 @@ CREATE TABLE IF NOT EXISTS public.order_revision_lines (
 
 CREATE INDEX IF NOT EXISTS idx_order_revision_lines_rev ON public.order_revision_lines(revision_id);
 CREATE INDEX IF NOT EXISTS idx_order_revision_lines_item ON public.order_revision_lines(order_item_id);
+
+-- S'assurer de la suppression de toute ancienne clé étrangère sur order_item_id (Règle 1)
+ALTER TABLE public.order_revision_lines DROP CONSTRAINT IF EXISTS order_revision_lines_order_item_id_fkey;
 
 -- 5. RLS ET PROTECTION CONTRE LES MUTATIONS DIRECTES
 
@@ -119,8 +123,46 @@ CREATE POLICY "order_revision_lines_select"
   );
 
 -- Révocation des écritures directes (INSERT, UPDATE, DELETE, TRUNCATE) pour tous les rôles
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.order_revisions FROM PUBLIC, anon, authenticated;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.order_revision_lines FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.order_revisions FROM PUBLIC, anon;
+REVOKE ALL ON public.order_revision_lines FROM PUBLIC, anon;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.order_revisions FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.order_revision_lines FROM authenticated;
+
+GRANT SELECT ON public.order_revisions TO authenticated;
+GRANT SELECT ON public.order_revision_lines TO authenticated;
+
+-- Déclencheur BEFORE UPDATE interdisant toute modification d'une révision dont le statut n'est plus PENDING_AGREEMENT,
+-- et de order_id, mission_id, organization_id, version_number, subtotal_before, total_before (Règle 7)
+CREATE OR REPLACE FUNCTION public.check_order_revisions_immutability()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, pg_temp
+AS $$
+BEGIN
+  IF OLD.status <> 'PENDING_AGREEMENT' THEN
+    RAISE EXCEPTION 'Une révision ayant déjà été confirmée, refusée ou remplacée est strictement immuable.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.order_id <> OLD.order_id
+     OR NEW.mission_id <> OLD.mission_id
+     OR NEW.organization_id <> OLD.organization_id
+     OR NEW.version_number <> OLD.version_number
+     OR NEW.subtotal_before <> OLD.subtotal_before
+     OR NEW.total_before <> OLD.total_before THEN
+    RAISE EXCEPTION 'Modification des attributs structurels de la révision interdite.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_check_order_revisions_immutability ON public.order_revisions;
+CREATE TRIGGER trg_check_order_revisions_immutability
+  BEFORE UPDATE ON public.order_revisions
+  FOR EACH ROW EXECUTE FUNCTION public.check_order_revisions_immutability();
 
 -- Déclencheur interdisant tout INSERT / UPDATE / DELETE direct depuis le client
 CREATE OR REPLACE FUNCTION public.prevent_direct_order_revisions_mutation()
@@ -234,7 +276,11 @@ BEGIN
 
   v_org_id := v_mission.organization_id;
 
-  -- 2. Vérification des conditions de rôle et d'état
+  -- 2. Vérification des conditions de rôle et d'état (Règles 2 & 3)
+  IF NOT public.catalog_has_role(v_org_id, ARRAY['DELIVERY']::text[]) THEN
+    RAISE EXCEPTION 'Rôle livreur requis pour réviser la commande.' USING ERRCODE = '42501';
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RAISE EXCEPTION 'Seul le livreur attribué à la mission peut initier une révision de facture.' USING ERRCODE = '42501';
   END IF;
@@ -252,7 +298,7 @@ BEGIN
     RAISE EXCEPTION 'La correction de facture n''est possible que pour une commande validée en attente de collecte.';
   END IF;
 
-  -- 3. Supercéder toute révision précédente en attente pour cette commande
+  -- 3. Supercéder toute révision précédente en attente pour cette commande (Règle 6)
   UPDATE public.order_revisions
   SET status = 'SUPERSEDED'
   WHERE order_id = v_order.id AND status = 'PENDING_AGREEMENT';
@@ -278,29 +324,38 @@ BEGIN
   )
   RETURNING id INTO v_rev_id;
 
-  -- 6. Traitement des lignes transmises dans p_lines_json
-  -- Format : [{ order_item_id: "...", service_id: "...", qty_after: 2, color: "...", ... }]
+  -- 6. Traitement des lignes transmises dans p_lines_json (Règles 2 & 4)
   IF p_lines_json IS NOT NULL AND jsonb_typeof(p_lines_json) = 'array' THEN
     FOR v_elem IN SELECT * FROM jsonb_array_elements(p_lines_json)
     LOOP
+      -- Réinitialisation obligatoire de v_item avant chaque élément (Règle 2)
+      v_item := NULL;
+
       v_item_id := NULLIF(v_elem->>'order_item_id', '')::UUID;
       v_svc_id := NULLIF(v_elem->>'service_id', '')::UUID;
-      v_qty_after := COALESCE((v_elem->>'qty_after')::INTEGER, 0);
-
-      IF v_qty_after < 0 THEN
-        RAISE EXCEPTION 'La quantité ne peut pas être négative.';
-      END IF;
 
       IF v_item_id IS NOT NULL THEN
-        -- Ligne existante de la commande : conserver le prix unitaire d'origine
+        -- Ligne existante de la commande
         SELECT * INTO v_item FROM public.order_items WHERE id = v_item_id AND order_id = v_order.id;
         IF v_item.id IS NULL THEN
           RAISE EXCEPTION 'Ligne d''article de commande introuvable (ID: %).', v_item_id;
         END IF;
 
+        -- Une ligne citée sans qty_after garde sa quantité actuelle (Règle 2)
+        IF v_elem ? 'qty_after' AND (v_elem->>'qty_after') IS NOT NULL THEN
+          v_qty_after := (v_elem->>'qty_after')::INTEGER;
+        ELSE
+          v_qty_after := v_item.quantity;
+        END IF;
+
+        -- Borne de sécurité entre 0 et 999
+        IF v_qty_after < 0 OR v_qty_after > 999 THEN
+          RAISE EXCEPTION 'La quantité doit être comprise entre 0 et 999.';
+        END IF;
+
         v_svc_id := v_item.service_id;
         v_svc_name := v_item.service_name;
-        v_unit_price := v_item.unit_price; -- Le prix existant ne change jamais
+        v_unit_price := v_item.unit_price; -- Le prix existant ne change jamais (Règle 4)
         v_line_before := v_item.line_total;
         v_line_after := v_qty_after * v_unit_price;
         v_item_type := COALESCE(v_elem->>'item_type', v_item.item_type);
@@ -312,9 +367,14 @@ BEGIN
 
         v_existing_item_ids := array_append(v_existing_item_ids, v_item.id);
       ELSE
-        -- Nouvel article ajouté : doit exister et être actif dans le catalogue
+        -- Nouvel article ajouté (Règle 2 : v_item est NULL -> qty_before = 0)
         IF v_svc_id IS NULL THEN
           RAISE EXCEPTION 'Le service doit être spécifié pour tout ajout d''article.';
+        END IF;
+
+        v_qty_after := COALESCE((v_elem->>'qty_after')::INTEGER, 1);
+        IF v_qty_after < 0 OR v_qty_after > 999 THEN
+          RAISE EXCEPTION 'La quantité doit être comprise entre 0 et 999.';
         END IF;
 
         SELECT name, price INTO v_svc_name, v_unit_price
@@ -351,7 +411,7 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- 7. Les lignes existantes de la commande non citées restent inchangées
+  -- 7. Les lignes existantes de la commande non citées restent inchangées (Règle 4)
   FOR v_item IN
     SELECT * FROM public.order_items
     WHERE order_id = v_order.id
@@ -372,7 +432,7 @@ BEGIN
     );
   END LOOP;
 
-  -- 8. Règle : au moins une pièce doit rester au total dans la commande
+  -- 8. Règle : au moins une pièce doit rester au total dans la commande (Règle 4)
   IF v_total_pieces_after < 1 THEN
     RAISE EXCEPTION 'Au moins un article doit être conservé dans la commande.';
   END IF;
@@ -380,13 +440,13 @@ BEGIN
   -- 9. Calcul du nouveau montant total (préserve frais de livraison et remise)
   v_total_after := GREATEST(0, v_subtotal_after + v_order.delivery_fee - v_order.discount_amount);
 
-  -- 10. Refus si le nouveau total est inférieur aux paiements déjà enregistrés
-  SELECT COALESCE(SUM(amount), 0) INTO v_payments_sum
+  -- 10. Paiements nets partout : CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END (Règle 5)
+  SELECT COALESCE(SUM(CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END), 0) INTO v_payments_sum
   FROM public.payments
-  WHERE order_id = v_order.id AND is_reversal = false;
+  WHERE order_id = v_order.id;
 
   IF v_total_after < v_payments_sum THEN
-    RAISE EXCEPTION 'Le nouveau total (% FCFA) ne peut pas être inférieur aux paiements déjà enregistrés (% FCFA).',
+    RAISE EXCEPTION 'Le nouveau total (% FCFA) ne peut pas être inférieur aux paiements nets déjà enregistrés (% FCFA).',
       v_total_after, v_payments_sum;
   END IF;
 
@@ -426,6 +486,10 @@ BEGIN
   SELECT * INTO v_mission FROM public.delivery_missions WHERE id = p_mission_id;
   IF v_mission.id IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Mission introuvable.');
+  END IF;
+
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Permission refusée.');
   END IF;
 
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
@@ -491,6 +555,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Mission introuvable.');
   END IF;
 
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Permission refusée.');
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Seul le livreur attribué peut confirmer la révision.');
   END IF;
@@ -541,15 +609,15 @@ BEGIN
     );
   END IF;
 
-  -- Contrôle paiements existants
-  SELECT COALESCE(SUM(amount), 0) INTO v_payments_sum
+  -- Paiements nets partout : CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END (Règle 5)
+  SELECT COALESCE(SUM(CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END), 0) INTO v_payments_sum
   FROM public.payments
-  WHERE order_id = v_order.id AND is_reversal = false;
+  WHERE order_id = v_order.id;
 
   IF v_rev.total_after < v_payments_sum THEN
     RETURN jsonb_build_object(
       'ok', false,
-      'message', format('Le nouveau total (%s FCFA) est inférieur aux acomptes déjà versés (%s FCFA).', v_rev.total_after, v_payments_sum)
+      'message', format('Le nouveau total (%s FCFA) est inférieur aux paiements déjà versés (%s FCFA).', v_rev.total_after, v_payments_sum)
     );
   END IF;
 
@@ -644,6 +712,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Mission introuvable.');
   END IF;
 
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Permission refusée.');
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Seul le livreur attribué peut valider cette opération.');
   END IF;
@@ -665,10 +737,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Aucune révision en attente.');
   END IF;
 
-  -- Contrôle paiements existants
-  SELECT COALESCE(SUM(amount), 0) INTO v_payments_sum
+  -- Paiements nets : CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END (Règle 5)
+  SELECT COALESCE(SUM(CASE WHEN is_reversal THEN -abs(amount) ELSE abs(amount) END), 0) INTO v_payments_sum
   FROM public.payments
-  WHERE order_id = v_order.id AND is_reversal = false;
+  WHERE order_id = v_order.id;
 
   IF v_rev.total_after < v_payments_sum THEN
     RETURN jsonb_build_object(
@@ -732,7 +804,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'ok', true,
-    'message', 'Accord non vérifié enregistré. Une alerte a été transmise au propriétaire.',
+    'message', 'Accord non vérifié enregistré',
     'total_amount', v_rev.total_after
   );
 END;
@@ -759,6 +831,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Mission introuvable.');
   END IF;
 
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Permission refusée.');
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Seul le livreur attribué peut effectuer cette action.');
   END IF;
@@ -780,7 +856,8 @@ BEGIN
 END;
 $$;
 
--- 6g. Contrôle chez le client CONFORME (aucun vêtement modifié)
+-- 6g. Contrôle chez le client CONFORME (aucun vêtement modifié) (Règle 4)
+-- Refuse si pickup_check_status est déjà renseigné ou si une révision est en attente
 CREATE OR REPLACE FUNCTION public.confirm_pickup_conform(p_mission_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -798,12 +875,26 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'message', 'Mission introuvable.');
   END IF;
 
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Permission refusée.');
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Seul le livreur attribué peut confirmer la conformité.');
   END IF;
 
   IF v_mission.status <> 'AT_CUSTOMER' THEN
     RETURN jsonb_build_object('ok', false, 'message', 'Vous devez être chez le client (AT_CUSTOMER).');
+  END IF;
+
+  -- Refuse si pickup_check_status est déjà renseigné (Règle 4)
+  IF v_mission.pickup_check_status IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Le contrôle chez le client a déjà été validé.');
+  END IF;
+
+  -- Refuse si une révision est en attente (Règle 4)
+  IF EXISTS (SELECT 1 FROM public.order_revisions WHERE mission_id = p_mission_id AND status = 'PENDING_AGREEMENT') THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Une révision de facture est en cours de validation.');
   END IF;
 
   SELECT * INTO v_order FROM public.orders WHERE id = v_mission.order_id;
@@ -820,7 +911,8 @@ BEGIN
 END;
 $$;
 
--- 6h. Remplacement de advance_delivery_mission pour exiger pickup_check_status avant COLLECTED
+-- 6h. Remplacement de advance_delivery_mission pour exiger pickup_check_status avant COLLECTED (Règles 3 & 7)
+-- Réintègre catalog_has_role(org, ARRAY['DELIVERY']), l'idempotence, et refuse COLLECTED si révision PENDING_AGREEMENT
 CREATE OR REPLACE FUNCTION public.advance_delivery_mission(
   p_mission_id UUID,
   p_next_status TEXT,
@@ -843,6 +935,16 @@ BEGIN
     RAISE EXCEPTION 'Mission introuvable.';
   END IF;
 
+  -- Idempotence : si la mission a déjà atteint ce statut, la renvoyer sans erreur (Règle 3)
+  IF v_mission.status = p_next_status THEN
+    RETURN v_mission;
+  END IF;
+
+  -- Vérification du rôle DELIVERY
+  IF NOT public.catalog_has_role(v_mission.organization_id, ARRAY['DELIVERY']::text[]) THEN
+    RAISE EXCEPTION 'Permission insuffisante.' USING ERRCODE = '42501';
+  END IF;
+
   IF v_mission.assigned_to IS DISTINCT FROM auth.uid() THEN
     RAISE EXCEPTION 'Seul le livreur attribué peut faire avancer cette mission.' USING ERRCODE = '42501';
   END IF;
@@ -859,6 +961,11 @@ BEGIN
     WHERE id = p_mission_id RETURNING * INTO v_mission;
 
   ELSIF v_mission.status = 'AT_CUSTOMER' AND p_next_status = 'COLLECTED' THEN
+    -- Refuse COLLECTED s'il existe une révision PENDING_AGREEMENT (Règle 3)
+    IF EXISTS (SELECT 1 FROM public.order_revisions WHERE mission_id = p_mission_id AND status = 'PENDING_AGREEMENT') THEN
+      RAISE EXCEPTION 'Une révision de facture est en attente d''accord client. Confirmez ou refusez la révision avant de collecter.';
+    END IF;
+
     -- CONTRÔLE CHEZ LE CLIENT OBLIGATOIRE (Règle 7)
     IF v_mission.pickup_check_status IS NULL THEN
       RAISE EXCEPTION 'Le contrôle chez le client doit être validé (conforme ou facture corrigée) avant d''enregistrer la collecte.';
@@ -973,6 +1080,7 @@ REVOKE ALL ON FUNCTION public.confirm_order_revision_otp FROM PUBLIC, anon, auth
 REVOKE ALL ON FUNCTION public.confirm_order_revision_unverified FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.reject_order_revision FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.confirm_pickup_conform FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.advance_delivery_mission FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_pending_revision_for_customer FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.create_order_revision_draft TO authenticated;
@@ -981,9 +1089,5 @@ GRANT EXECUTE ON FUNCTION public.confirm_order_revision_otp TO authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_order_revision_unverified TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_order_revision TO authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_pickup_conform TO authenticated;
+GRANT EXECUTE ON FUNCTION public.advance_delivery_mission TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_pending_revision_for_customer TO PUBLIC, anon, authenticated;
-
--- Accès en lecture seule contrôlé par RLS
-GRANT SELECT ON public.delivery_missions TO authenticated;
-GRANT SELECT ON public.order_revisions TO authenticated;
-GRANT SELECT ON public.order_revision_lines TO authenticated;
