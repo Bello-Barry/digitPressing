@@ -1,3 +1,4 @@
+/* global describe, it, expect */
 import { formatAuditAction } from './audit-formatter';
 
 describe('Audit Formatter', () => {
@@ -73,5 +74,16 @@ describe('Audit Formatter', () => {
 
     expect(result.title).toBe('Rôle modifié : CASHIER → MANAGER');
     expect(result.badgeColor).toBe('amber');
+  });
+
+  it('formats a receipt discrepancy with the responsible note', () => {
+    const result = formatAuditAction({
+      object_type: 'delivery_receipts',
+      action: 'INSERT',
+      after: { status: 'DISCREPANCY', expected_items_count: 4, received_items_count: 3, discrepancy_note: 'Une pièce manquante' },
+    });
+    expect(result.title).toBe('Écart de réception détecté');
+    expect(result.description).toContain('attendues : 4');
+    expect(result.reason).toBe('Une pièce manquante');
   });
 });

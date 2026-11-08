@@ -10,7 +10,6 @@ import {
   listMissionsAction,
   listOpenMissionsAction,
   acceptMissionAction,
-  declineMissionAction,
   reassignMissionAction,
   cancelMissionAction,
   advanceMissionAction,
@@ -30,6 +29,11 @@ import {
   getOrderRevisionsHistoryAction,
   getUnverifiedRevisionsAction,
 } from '@/actions/revisions';
+import {
+  inspectDeliveryReceiptAction,
+  resolveDeliveryReceiptAction,
+} from '@/actions/receipts';
+import type { ReceiptLineInput } from '@/lib/delivery-receipt';
 import { generateWhatsAppLink } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -47,7 +51,6 @@ import {
   Loader2,
   ChevronRight,
   Filter,
-  Coins,
   FileText,
 } from 'lucide-react';
 
@@ -67,7 +70,6 @@ export function MissionsViewClient() {
 
   // Données
   const [userRole, setUserRole] = useState<string>('DELIVERY');
-  const [userId, setUserId] = useState<string>('');
   const [missions, setMissions] = useState<MissionItem[]>([]);
   const [openMissions, setOpenMissions] = useState<any[]>([]);
   const [couriers, setCouriers] = useState<{ id: string; name: string }[]>([]);
@@ -113,10 +115,64 @@ export function MissionsViewClient() {
   const [unverifiedList, setUnverifiedList] = useState<any[]>([]);
 
   const [activeActionMissionId, setActiveActionMissionId] = useState<string | null>(null);
+  const [receiptDrafts, setReceiptDrafts] = useState<Record<string, ReceiptLineInput[]>>({});
+  const [receiptResolutionNotes, setReceiptResolutionNotes] = useState<Record<string, string>>({});
 
   // Formateur FCFA
   const formatMoney = (amount: number) => {
     return `${Number(amount || 0).toLocaleString('fr-FR')} FCFA`;
+  };
+
+  const getReceiptDraft = (mission: MissionItem): ReceiptLineInput[] => receiptDrafts[mission.id] ||
+    (mission.order_items || []).map((item) => ({
+      order_item_id: item.id,
+      service_name: item.service_name,
+      item_type: item.item_type,
+      color: item.color,
+      pattern: item.pattern,
+      brand: item.brand,
+      size: item.size,
+      item_notes: item.item_notes,
+      expected_quantity: item.quantity,
+      received_quantity: item.quantity,
+      discrepancy_note: '',
+      condition_discrepancy: false,
+      condition_note: '',
+    }));
+
+  const updateReceiptLine = (mission: MissionItem, index: number, patch: Partial<ReceiptLineInput>) => {
+    setReceiptDrafts((current) => {
+      const draft = current[mission.id] || getReceiptDraft(mission);
+      return { ...current, [mission.id]: draft.map((line, i) => i === index ? { ...line, ...patch } : line) };
+    });
+  };
+
+  const handleInspectReceipt = async (mission: MissionItem) => {
+    setSubmitting(true);
+    const result = await inspectDeliveryReceiptAction(mission.id, getReceiptDraft(mission));
+    setSubmitting(false);
+    if (!result.success) {
+      toast({ title: 'Réception non enregistrée', description: result.error, variant: 'destructive' });
+      return;
+    }
+    toast({
+      title: result.status === 'CONFORM' ? 'Réception validée' : 'Écart enregistré',
+      description: result.ticket_number ? `Ticket ${result.ticket_number} attribué.` : result.message,
+      variant: result.status === 'CONFORM' ? 'default' : 'destructive',
+    });
+    loadData();
+  };
+
+  const handleResolveReceipt = async (mission: MissionItem) => {
+    setSubmitting(true);
+    const result = await resolveDeliveryReceiptAction(mission.id, receiptResolutionNotes[mission.id] || '');
+    setSubmitting(false);
+    if (!result.success) {
+      toast({ title: 'Écart non résolu', description: result.error, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Écart traité', description: `Réception finalisée${result.ticket_number ? ` : ticket ${result.ticket_number}` : ''}.` });
+    loadData();
   };
 
   // Chargement des données
@@ -131,7 +187,6 @@ export function MissionsViewClient() {
     if (listRes.success && listRes.missions) {
       setMissions(listRes.missions);
       if (listRes.userRole) setUserRole(listRes.userRole);
-      if (listRes.userId) setUserId(listRes.userId);
     } else if (listRes.error) {
       toast({ title: 'Erreur', description: listRes.error, variant: 'destructive' });
     }
@@ -513,7 +568,7 @@ export function MissionsViewClient() {
     if (statusFilter === 'OUVERTES') return m.status === 'OPEN' || m.status === 'ASSIGNED';
     if (statusFilter === 'EN_COURS') return ['ACCEPTED', 'EN_ROUTE', 'AT_CUSTOMER', 'COLLECTED', 'IN_TRANSIT'].includes(m.status);
     if (statusFilter === 'AT_SHOP') return m.status === 'AT_SHOP';
-    if (statusFilter === 'CLOTUREES') return ['FAILED', 'CANCELLED'].includes(m.status);
+    if (statusFilter === 'CLOTUREES') return ['COMPLETED', 'FAILED', 'CANCELLED'].includes(m.status);
     return true;
   });
 
@@ -957,7 +1012,7 @@ export function MissionsViewClient() {
                   <option value="OUVERTES">Ouvertes / Attribuées</option>
                   <option value="EN_COURS">En cours d&apos;exécution</option>
                   <option value="AT_SHOP">Arrivées au pressing (AT_SHOP)</option>
-                  <option value="CLOTUREES">Échouées / Annulées</option>
+                  <option value="CLOTUREES">Terminées / Échouées / Annulées</option>
                 </select>
               </div>
 
@@ -1057,8 +1112,85 @@ export function MissionsViewClient() {
                     )}
                   </div>
 
+                  {/* D3 : réception physique des collectes arrivées au pressing */}
+                  {m.kind === 'COLLECTION' && m.status === 'AT_SHOP' && userRole !== 'DELIVERY' && (
+                    <section className="rounded-xl border border-amber-500/30 bg-slate-950 p-3 space-y-3" aria-label="Contrôle de réception au pressing">
+                      <div className="flex items-center gap-2 text-amber-300 text-xs font-bold">
+                        <PackageCheck className="w-4 h-4" />
+                        Contrôle de réception — comparez chaque ligne à la facture approuvée
+                      </div>
+                      {m.receipt_status === 'DISCREPANCY' ? (
+                        <div className="space-y-3">
+                          <p className="text-xs text-rose-300">Écart enregistré. La commande et la mission restent bloquées jusqu’à la décision motivée d’un OWNER ou MANAGER.</p>
+                          <div className="space-y-1.5">
+                            {(m.receipt_lines || []).map((line) => (
+                              <div key={line.id} className="rounded-lg bg-slate-900 p-2 text-[11px] text-slate-300">
+                                <div className="font-semibold text-white">{line.service_name}{line.item_type ? ` · ${line.item_type}` : ''}</div>
+                                <div>Attendu : {line.expected_quantity} · reçu : {line.received_quantity}</div>
+                                {line.discrepancy_note && <div className="text-rose-300">Motif : {line.discrepancy_note}</div>}
+                                {line.condition_discrepancy && <div className="text-rose-300">État signalé : {line.condition_note}</div>}
+                                {line.item_notes && <div className="text-slate-500">Note de facture : {line.item_notes}</div>}
+                              </div>
+                            ))}
+                          </div>
+                          {(userRole === 'OWNER' || userRole === 'MANAGER') && (
+                            <div className="space-y-2">
+                              <textarea
+                                value={receiptResolutionNotes[m.id] || ''}
+                                onChange={(event) => setReceiptResolutionNotes((current) => ({ ...current, [m.id]: event.target.value }))}
+                                minLength={5}
+                                placeholder="Décision du responsable et motif (obligatoire)"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white"
+                                rows={2}
+                              />
+                              <p className="text-[10px] text-slate-500">Cette décision confirme le comptage reçu. Toute modification du montant facturé doit d’abord passer par une nouvelle version approuvée par le client.</p>
+                              <button type="button" onClick={() => handleResolveReceipt(m)} disabled={submitting || (receiptResolutionNotes[m.id] || '').trim().length < 5} className="w-full rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">
+                                Traiter l’écart et finaliser la réception
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : m.receipt_status ? (
+                        <div className="text-xs text-emerald-300">Réception déjà validée ({m.receipt_status}).</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {getReceiptDraft(m).map((line, index) => (
+                            <div key={line.order_item_id || `extra-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_90px_1fr] gap-2 rounded-lg bg-slate-900 p-2">
+                              <div className="text-[11px] text-slate-200">
+                                <span className="font-semibold">{line.service_name}</span>
+                                {line.item_type && <span className="text-slate-400"> · {line.item_type}</span>}
+                                {(line.color || line.size || line.brand) && <div className="text-slate-500">{[line.color, line.size, line.brand].filter(Boolean).join(' · ')}</div>}
+                                {line.item_notes && <div className="text-slate-500">Note facture : {line.item_notes}</div>}
+                                <div className="text-slate-400">Facture : {line.expected_quantity}</div>
+                              </div>
+                              <label className="text-[10px] text-slate-400">Reçu
+                                <input type="number" min={0} step={1} value={line.received_quantity} onChange={(event) => updateReceiptLine(m, index, { received_quantity: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-sm text-white" />
+                              </label>
+                              <label className="text-[10px] text-slate-400">Motif si écart
+                                <input value={line.discrepancy_note || ''} onChange={(event) => updateReceiptLine(m, index, { discrepancy_note: event.target.value })} placeholder="Ex. pièce manquante" className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-xs text-white" />
+                              </label>
+                              <label className="sm:col-span-3 flex items-center gap-2 text-[11px] text-slate-300">
+                                <input type="checkbox" checked={Boolean(line.condition_discrepancy)} onChange={(event) => updateReceiptLine(m, index, { condition_discrepancy: event.target.checked })} className="rounded border-slate-600 bg-slate-900 text-amber-500" />
+                                État différent de la facture / anomalie physique
+                              </label>
+                              {line.condition_discrepancy && (
+                                <label className="sm:col-span-3 text-[10px] text-slate-400">État constaté (motif obligatoire)
+                                  <input value={line.condition_note || ''} onChange={(event) => updateReceiptLine(m, index, { condition_note: event.target.value })} placeholder="Ex. tache, déchirure, vêtement humide" className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-xs text-white" />
+                                </label>
+                              )}
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => setReceiptDrafts((current) => ({ ...current, [m.id]: [...getReceiptDraft(m), { service_name: 'Article hors facture', expected_quantity: 0, received_quantity: 1, discrepancy_note: '', condition_discrepancy: false, condition_note: '' }] }))} className="text-[11px] font-semibold text-amber-300 hover:text-amber-200">+ Signaler un article hors facture</button>
+                          <button type="button" onClick={() => handleInspectReceipt(m)} disabled={submitting || getReceiptDraft(m).length === 0} className="w-full rounded-lg bg-emerald-500 px-3 py-2.5 text-xs font-extrabold text-slate-950 disabled:opacity-50">
+                            {submitting ? 'Enregistrement…' : 'Valider le contrôle et réceptionner'}
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
                   {/* Actions de gestion (OWNER / MANAGER) */}
-                  {(userRole === 'OWNER' || userRole === 'MANAGER') && !['AT_SHOP', 'FAILED', 'CANCELLED'].includes(m.status) && (
+                  {(userRole === 'OWNER' || userRole === 'MANAGER') && !['AT_SHOP', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(m.status) && (
                     <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800/80">
                       <button
                         onClick={() => {

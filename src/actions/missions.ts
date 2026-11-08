@@ -14,7 +14,7 @@ export interface MissionItem {
   organization_id: string;
   order_id: string;
   kind: 'COLLECTION' | 'DELIVERY';
-  status: 'OPEN' | 'ASSIGNED' | 'ACCEPTED' | 'EN_ROUTE' | 'AT_CUSTOMER' | 'COLLECTED' | 'IN_TRANSIT' | 'AT_SHOP' | 'FAILED' | 'CANCELLED';
+  status: 'OPEN' | 'ASSIGNED' | 'ACCEPTED' | 'EN_ROUTE' | 'AT_CUSTOMER' | 'COLLECTED' | 'IN_TRANSIT' | 'AT_SHOP' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   assigned_to: string | null;
   pay_amount: number;
   zone_label: string;
@@ -38,6 +38,35 @@ export interface MissionItem {
   ticket_number?: string | null;
   order_status?: string | null;
   client_name?: string | null;
+  receipt_status?: 'CONFORM' | 'DISCREPANCY' | 'RESOLVED' | null;
+  receipt_id?: string | null;
+  receipt_lines?: Array<{
+    id: string;
+    order_item_id: string | null;
+    service_name: string;
+    expected_quantity: number;
+    received_quantity: number;
+    discrepancy_note: string | null;
+    item_type?: string | null;
+    color?: string | null;
+    pattern?: string | null;
+    brand?: string | null;
+    size?: string | null;
+    item_notes?: string | null;
+    condition_discrepancy: boolean;
+    condition_note: string | null;
+  }>;
+  order_items?: Array<{
+    id: string;
+    service_name: string;
+    quantity: number;
+    item_type: string | null;
+    color: string | null;
+    pattern: string | null;
+    brand: string | null;
+    size: string | null;
+    item_notes: string | null;
+  }>;
 }
 
 /**
@@ -387,7 +416,8 @@ export async function listMissionsAction() {
       .from('delivery_missions')
       .select(`
         *,
-        order:orders(request_code, ticket_number, status, client_name, pickup_address, delivery_address)
+        order:orders(request_code, ticket_number, status, client_name, pickup_address, delivery_address, order_items(id, service_name, quantity, item_type, color, pattern, brand, size, item_notes)),
+        receipt:delivery_receipts(id, status, receipt_lines:delivery_receipt_lines(id, order_item_id, service_name, expected_quantity, received_quantity, discrepancy_note, condition_discrepancy, condition_note, item_type, color, pattern, brand, size, item_notes))
       `)
       .eq('organization_id', mem.organization_id)
       .order('created_at', { ascending: false });
@@ -432,6 +462,10 @@ export async function listMissionsAction() {
       ticket_number: m.order?.ticket_number || null,
       order_status: m.order?.status || null,
       client_name: m.order?.client_name || null,
+      receipt_id: (Array.isArray(m.receipt) ? m.receipt[0] : m.receipt)?.id || null,
+      receipt_status: (Array.isArray(m.receipt) ? m.receipt[0] : m.receipt)?.status || null,
+      receipt_lines: (Array.isArray(m.receipt) ? m.receipt[0] : m.receipt)?.receipt_lines || [],
+      order_items: m.order?.order_items || [],
     }));
 
     return { success: true, missions, userRole: mem.role, userId: userAuth.user.id };
