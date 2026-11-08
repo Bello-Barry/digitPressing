@@ -19,6 +19,17 @@ import {
   getActiveCouriersAction,
   MissionItem,
 } from '@/actions/missions';
+import {
+  createOrderRevisionDraftAction,
+  renewOrderRevisionCodeAction,
+  confirmOrderRevisionOtpAction,
+  confirmOrderRevisionUnverifiedAction,
+  confirmPickupConformAction,
+  getOrderItemsForRevisionAction,
+  getActiveServicesCatalogAction,
+  getOrderRevisionsHistoryAction,
+  getUnverifiedRevisionsAction,
+} from '@/actions/revisions';
 import { generateWhatsAppLink } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -88,6 +99,19 @@ export function MissionsViewClient() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Modales Révision de facture (Tâche D2)
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [revisionLines, setRevisionLines] = useState<any[]>([]);
+  const [catalogServices, setCatalogServices] = useState<any[]>([]);
+  const [selectedCatalogServiceId, setSelectedCatalogServiceId] = useState<string>('');
+  const [revisionNotes, setRevisionNotes] = useState<string>('');
+  const [revisionDraft, setRevisionDraft] = useState<any | null>(null);
+  const [otpInput, setOtpInput] = useState<string>('');
+  const [unverifiedReason, setUnverifiedReason] = useState<string>('');
+  const [showUnverifiedForm, setShowUnverifiedForm] = useState<boolean>(false);
+  const [revisionsHistory, setRevisionsHistory] = useState<any[]>([]);
+  const [unverifiedList, setUnverifiedList] = useState<any[]>([]);
+
   const [activeActionMissionId, setActiveActionMissionId] = useState<string | null>(null);
 
   // Formateur FCFA
@@ -120,6 +144,11 @@ export function MissionsViewClient() {
       setCouriers(courRes.couriers);
     }
 
+    const unverifiedRes = await getUnverifiedRevisionsAction();
+    if (unverifiedRes.success && unverifiedRes.unverifiedRevisions) {
+      setUnverifiedList(unverifiedRes.unverifiedRevisions);
+    }
+
     setLoading(false);
     setRefreshing(false);
   }, [toast]);
@@ -143,6 +172,13 @@ export function MissionsViewClient() {
 
     if (res.success && res.details) {
       setMissionDetails(res.details);
+      // Charger l'historique des révisions pour cette commande
+      if (res.details.order_id) {
+        const revRes = await getOrderRevisionsHistoryAction(res.details.order_id);
+        if (revRes.success && revRes.revisions) {
+          setRevisionsHistory(revRes.revisions);
+        }
+      }
     } else {
       toast({
         title: 'Erreur',
@@ -151,6 +187,194 @@ export function MissionsViewClient() {
       });
       setSelectedMissionId(null);
       setMissionDetails(null);
+    }
+  };
+
+  // Validation contrôle conforme
+  const handleConfirmConform = async (missionId: string) => {
+    setSubmitting(true);
+    const res = await confirmPickupConformAction(missionId);
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Contrôle conforme validé', description: 'Le comptage des pièces est vérifié.' });
+      loadData();
+      if (selectedMissionId === missionId) handleSelectMission(missionId);
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
+    }
+  };
+
+  // Ouverture du modal de contrôle chez le client / Révision de facture
+  const handleOpenRevisionModal = async (missionId: string) => {
+    setActiveActionMissionId(missionId);
+    setRevisionDraft(null);
+    setOtpInput('');
+    setUnverifiedReason('');
+    setShowUnverifiedForm(false);
+    setRevisionNotes('');
+
+    setSubmitting(true);
+    const [detailsRes, catRes] = await Promise.all([
+      getMissionDetailsAction(missionId),
+      getActiveServicesCatalogAction(),
+    ]);
+
+    if (detailsRes.success && detailsRes.details) {
+      setMissionDetails(detailsRes.details);
+      const itemsRes = await getOrderItemsForRevisionAction(detailsRes.details.order_id);
+      if (itemsRes.success && itemsRes.items) {
+        setRevisionLines(
+          itemsRes.items.map((item: any) => ({
+            order_item_id: item.id,
+            service_id: item.service_id,
+            service_name: item.service_name,
+            unit_price: Number(item.unit_price),
+            qty_after: item.quantity,
+            color: item.color || '',
+            pattern: item.pattern || '',
+            brand: item.brand || '',
+            size: item.size || '',
+            item_notes: item.item_notes || '',
+          }))
+        );
+      }
+    }
+
+    if (catRes.success && catRes.services) {
+      setCatalogServices(catRes.services);
+      if (catRes.services.length > 0) setSelectedCatalogServiceId(catRes.services[0].id);
+    }
+    setSubmitting(false);
+
+    setRevisionModalOpen(true);
+  };
+
+  // Ajout d'un article depuis le catalogue à la révision
+  const handleAddCatalogItem = () => {
+    if (!selectedCatalogServiceId) return;
+    const svc = catalogServices.find((s) => s.id === selectedCatalogServiceId);
+    if (!svc) return;
+
+    setRevisionLines((prev) => {
+      const exists = prev.find((l) => l.service_id === svc.id);
+      if (exists) {
+        return prev.map((l) => (l.service_id === svc.id ? { ...l, qty_after: l.qty_after + 1 } : l));
+      }
+      return [
+        ...prev,
+        {
+          service_id: svc.id,
+          service_name: svc.name,
+          unit_price: svc.price,
+          qty_after: 1,
+          color: '',
+          pattern: '',
+          brand: '',
+          size: '',
+          item_notes: '',
+        },
+      ];
+    });
+  };
+
+  // Modification quantité dans révision
+  const handleUpdateLineQty = (serviceId: string, newQty: number) => {
+    setRevisionLines((prev) =>
+      prev
+        .map((l) => (l.service_id === serviceId ? { ...l, qty_after: Math.max(0, newQty) } : l))
+        .filter((l) => l.qty_after > 0)
+    );
+  };
+
+  // Soumission du projet de révision (génère l'OTP côté client)
+  const handleCreateRevisionDraft = async () => {
+    if (!activeActionMissionId || revisionLines.length === 0) {
+      toast({ title: 'Erreur', description: 'Sélectionnez au moins un article.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await createOrderRevisionDraftAction(
+      activeActionMissionId,
+      revisionLines,
+      revisionNotes
+    );
+    setSubmitting(false);
+
+    if (res.success) {
+      setRevisionDraft(res);
+      toast({
+        title: 'Correction de facture enregistrée',
+        description: 'Le code de validation à 6 chiffres a été généré sur la page de suivi du client.',
+      });
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
+    }
+  };
+
+  // Renouvellement du code
+  const handleRenewCode = async () => {
+    if (!activeActionMissionId) return;
+    setSubmitting(true);
+    const res = await renewOrderRevisionCodeAction(activeActionMissionId);
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Code renouvelé', description: `${res.renewsLeft ?? 0} renouvellement(s) restant(s).` });
+    } else {
+      toast({ title: 'Erreur', description: res.error || res.message, variant: 'destructive' });
+    }
+  };
+
+  // Confirmation par OTP client
+  const handleConfirmOtp = async () => {
+    if (!activeActionMissionId || otpInput.trim().length !== 6) {
+      toast({ title: 'Code invalide', description: 'Entrez un code à 6 chiffres.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await confirmOrderRevisionOtpAction(activeActionMissionId, otpInput.trim());
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({ title: 'Facture confirmée !', description: 'Les articles et le total ont été mis à jour.' });
+      setRevisionModalOpen(false);
+      loadData();
+      if (selectedMissionId === activeActionMissionId) handleSelectMission(activeActionMissionId);
+    } else {
+      toast({
+        title: 'Erreur validation code',
+        description: res.error || `Code incorrect. ${res.attemptsLeft !== undefined ? `${res.attemptsLeft} essai(s) restant(s).` : ''}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Confirmation sans vérification client
+  const handleConfirmUnverified = async () => {
+    if (!activeActionMissionId || unverifiedReason.trim().length < 5) {
+      toast({ title: 'Motif requis', description: 'Saisissez un motif détaillé d\'au moins 5 caractères.', variant: 'destructive' });
+      return;
+    }
+
+    setSubmitting(true);
+    const res = await confirmOrderRevisionUnverifiedAction(activeActionMissionId, unverifiedReason.trim());
+    setSubmitting(false);
+
+    if (res.success) {
+      toast({
+        title: 'Correction enregistrée',
+        description: 'Accord non vérifié enregistré',
+      });
+      setRevisionModalOpen(false);
+      setUnverifiedReason('');
+      setShowUnverifiedForm(false);
+      loadData();
+      if (selectedMissionId === activeActionMissionId) handleSelectMission(activeActionMissionId);
+    } else {
+      toast({ title: 'Erreur', description: res.error, variant: 'destructive' });
     }
   };
 
@@ -517,6 +741,67 @@ export function MissionsViewClient() {
                                 )}
                               </div>
 
+                              {/* ÉTAPE DU CONTRÔLE CHEZ LE CLIENT (Règle 7 & Tâche D2) */}
+                              {m.status === 'AT_CUSTOMER' && (
+                                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="font-bold text-white flex items-center">
+                                      <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                                      Contrôle physique des vêtements
+                                    </span>
+                                    {m.pickup_check_status ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                        {m.pickup_check_status === 'CONFORM' ? '✓ Conforme' : '✓ Facture corrigée'}
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                                        À vérifier
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmConform(m.id)}
+                                      disabled={submitting}
+                                      className="py-2.5 px-3 bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1 transition"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Vêtements conformes</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRevisionModal(m.id)}
+                                      disabled={submitting}
+                                      className="py-2.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 text-amber-400 border border-amber-500/30 font-bold text-xs rounded-xl flex items-center justify-center space-x-1 transition"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>Corriger la facture</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Historique des révisions de facture si présent */}
+                              {revisionsHistory.length > 0 && (
+                                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
+                                  <span className="font-bold text-amber-400 text-[11px] uppercase tracking-wider block">
+                                    Historique des révisions de facture ({revisionsHistory.length})
+                                  </span>
+                                  {revisionsHistory.map((rev) => (
+                                    <div key={rev.id} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex justify-between items-center text-[11px]">
+                                      <div>
+                                        <span className="font-bold text-white">Version v{rev.version_number}</span>
+                                        <span className="text-slate-400 ml-2">({rev.status})</span>
+                                      </div>
+                                      <span className="font-mono text-amber-400 font-bold">{formatMoney(rev.total_after)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               {/* PROCHAINE ÉTAPE AUTORISÉE UNIQUEMENT */}
                               <div className="pt-2">
                                 {m.status === 'ACCEPTED' && (
@@ -610,6 +895,49 @@ export function MissionsViewClient() {
       {/* VUE GESTIONNAIRES (OWNER, MANAGER, CASHIER) */}
       {userRole !== 'DELIVERY' && (
         <div className="space-y-4">
+          {/* Liste Accords non vérifiés (Règle 6) */}
+          {(userRole === 'OWNER' || userRole === 'MANAGER') && unverifiedList.length > 0 && (
+            <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-2xl space-y-3 shadow-lg">
+              <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs uppercase tracking-wide">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Accords non vérifiés chez le client ({unverifiedList.length})</span>
+              </div>
+              <div className="space-y-2">
+                {unverifiedList.map((rev) => (
+                  <div
+                    key={rev.id}
+                    className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-bold text-white">
+                          {rev.order?.ticket_number || rev.order?.request_code || 'Commande'}
+                        </span>
+                        {rev.order?.client_name && (
+                          <span className="text-slate-400">({rev.order.client_name})</span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold">
+                          v{rev.version_number}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-300 italic mt-0.5">
+                        Motif : &quot;{rev.unverified_reason}&quot;
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="font-mono font-bold text-amber-400 block">
+                        {formatMoney(rev.total_after)}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {new Date(rev.confirmed_at || rev.created_at).toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Filtres de recherche */}
           <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
             <div className="flex items-center space-x-2 text-xs text-slate-400 font-semibold">
@@ -758,6 +1086,232 @@ export function MissionsViewClient() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODALE REVISION / CONTRÔLE CLIENT (TÂCHE D2) */}
+      {revisionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-5 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-amber-400">
+                <FileText className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white">Contrôle vêtement & Correction facture</h3>
+              </div>
+              <button
+                onClick={() => setRevisionModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!revisionDraft ? (
+              <div className="space-y-4 text-xs">
+                <p className="text-slate-300">
+                  Comparez les vêtements reçus aux lignes de la facture. Vous pouvez ajuster les quantités ou ajouter des articles du catalogue. Les prix unitaires du catalogue sont strictement appliqués.
+                </p>
+
+                {/* Sélecteur d'article du catalogue à ajouter */}
+                <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <label className="block text-slate-400 font-semibold">Ajouter un article du catalogue</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedCatalogServiceId}
+                      onChange={(e) => setSelectedCatalogServiceId(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-medium focus:outline-none"
+                    >
+                      {catalogServices.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({formatMoney(s.price)})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleAddCatalogItem}
+                      className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                </div>
+
+                {/* Liste des articles en cours de révision */}
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {revisionLines.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500 italic">
+                      Aucun article sélectionné. Ajoutez des prestations ci-dessus.
+                    </div>
+                  ) : (
+                    revisionLines.map((line) => (
+                      <div
+                        key={line.service_id}
+                        className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-white">{line.service_name}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {formatMoney(line.unit_price)} / unité
+                          </p>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateLineQty(line.service_id, line.qty_after - 1)}
+                            className="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center hover:bg-slate-700"
+                          >
+                            -
+                          </button>
+                          <span className="font-mono font-bold text-amber-400 w-6 text-center">
+                            {line.qty_after}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateLineQty(line.service_id, line.qty_after + 1)}
+                            className="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center hover:bg-slate-700"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Notes / Observations</label>
+                  <textarea
+                    rows={2}
+                    value={revisionNotes}
+                    onChange={(e) => setRevisionNotes(e.target.value)}
+                    placeholder="Remarques éventuelles sur l'état apparent des vêtements..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white placeholder-slate-600 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateRevisionDraft}
+                  disabled={submitting || revisionLines.length === 0}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  <span>Générer le code de validation OTP Client</span>
+                </button>
+              </div>
+            ) : (
+              /* ÉTAPE DE VALIDATION DU CODE OTP OU DÉCLARATION SANS VÉRIFICATION (Règle 1 & 2) */
+              <div className="space-y-4 text-xs">
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 text-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    Projet de correction créé
+                  </span>
+                  <p className="text-xs text-white font-semibold">
+                    Le code secret à 6 chiffres est affiché sur l&apos;écran du client.
+                  </p>
+                  <p className="text-[11px] text-slate-300">
+                    Nouveau montant total : <span className="font-bold font-mono text-amber-300">{formatMoney(revisionDraft.totalAfter)}</span>
+                  </p>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleRenewCode}
+                      disabled={submitting}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold"
+                    >
+                      Renouveler le code (3 max)
+                    </button>
+                  </div>
+                </div>
+
+                {!showUnverifiedForm ? (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        Saisissez le code à 6 chiffres communiqué par le client
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Ex: 123456"
+                        value={otpInput}
+                        onChange={(e) => setOtpInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-center font-mono font-bold text-lg text-white tracking-widest focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmOtp}
+                      disabled={submitting || otpInput.trim().length !== 6}
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-bold rounded-xl flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                    >
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      <span>Confirmer avec le Code Client</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowUnverifiedForm(true)}
+                      className="w-full py-2 text-amber-400 hover:text-amber-300 font-semibold text-[11px] text-center"
+                    >
+                      Client sans téléphone / réseau ? (Déclaration sans vérification)
+                    </button>
+                  </div>
+                ) : (
+                  /* FORMULAIRE DE DÉCLARATION UNVERIFIED (Règle 8) */
+                  <div className="space-y-3 p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl">
+                    <div className="flex items-center space-x-2 text-amber-400 font-bold">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>Validation sans vérification (Alerte Propriétaire)</span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-300">
+                      Un motif obligatoire (≥ 5 caractères) est exigé. Cette opération sera marquée &quot;accord non vérifié&quot; et apparaîtra immédiatement dans les alertes du propriétaire.
+                    </p>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-semibold">Motif obligatoire</label>
+                      <textarea
+                        rows={2}
+                        value={unverifiedReason}
+                        onChange={(e) => setUnverifiedReason(e.target.value)}
+                        placeholder="Ex: Client sans téléphone portable, téléphone déchargé..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white placeholder-slate-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex space-x-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowUnverifiedForm(false)}
+                        className="w-1/2 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
+                      >
+                        Retour
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleConfirmUnverified}
+                        disabled={submitting || unverifiedReason.trim().length < 5}
+                        className="w-1/2 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-bold rounded-xl transition disabled:opacity-50"
+                      >
+                        Valider dérogation
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

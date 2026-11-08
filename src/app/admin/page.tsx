@@ -16,6 +16,7 @@ import {
   BellRing,
   Receipt,
   TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default async function AdminDashboardPage() {
@@ -84,6 +85,23 @@ export default async function AdminDashboardPage() {
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', orgId)
     .in('status', ['OPEN', 'ASSIGNED']);
+
+  // Alertes révisions non vérifiées (Tâche D2 - Règle 8)
+  const { data: unverifiedRevisions } = await db
+    .from('order_revisions')
+    .select(`
+      id,
+      order_id,
+      version_number,
+      unverified_reason,
+      total_after,
+      created_at,
+      order:orders(ticket_number, request_code, client_name)
+    `)
+    .eq('organization_id', orgId)
+    .eq('verification_type', 'UNVERIFIED_DECLARATION')
+    .order('created_at', { ascending: false })
+    .limit(5);
 
   // Récupérer les 5 dernières commandes réelles (ou livraisons du jour si livreur)
   let recentOrdersQuery = db
@@ -158,6 +176,36 @@ Généré via Digit Pressing.`;
           </a>
         )}
       </div>
+
+      {/* Alertes Propriétaire pour révisions de facture non vérifiées (Règle 8) */}
+      {isOwner && unverifiedRevisions && unverifiedRevisions.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60 space-y-2 shadow-lg">
+          <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs uppercase tracking-wide">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>Alertes Propriétaire : Corrections de facture sans vérification client ({unverifiedRevisions.length})</span>
+          </div>
+          <div className="space-y-1.5">
+            {unverifiedRevisions.map((rev: any) => (
+              <div key={rev.id} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <div>
+                  <span className="font-mono font-bold text-white">
+                    {rev.order?.ticket_number || rev.order?.request_code || 'Commande'}
+                  </span>
+                  {rev.order?.client_name && (
+                    <span className="text-slate-400 ml-2">({rev.order.client_name})</span>
+                  )}
+                  <p className="text-[11px] text-amber-300 italic mt-0.5">
+                    Motif : &quot;{rev.unverified_reason}&quot;
+                  </p>
+                </div>
+                <span className="font-mono font-bold text-amber-400 self-end sm:self-auto">
+                  {Number(rev.total_after || 0).toLocaleString('fr-FR')} FCFA
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Cartes d'indicateurs clés */}
       <div className={`grid grid-cols-2 ${canViewStats ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-4`}>

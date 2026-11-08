@@ -14,6 +14,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const profile = await getServerUserMembership();
   if (!profile?.membership?.is_active) redirect('/admin/login');
   const orgId = profile.membership.organization_id;
+  const isDelivery = profile.membership.role === 'DELIVERY';
   const db = await createServerSupabaseClient();
 
   // Compter le total général de commandes pour l'organisation
@@ -101,6 +102,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       ...o,
       paid_amount: summary ? summary.paid_amount : 0,
       balance_due: summary ? summary.balance_due : Number(o.total_amount ?? 0),
+      // Restriction stricte de sécurité (Règle 8) : le livreur ne peut jamais lire invoice_token
+      invoice_token: isDelivery ? null : o.invoice_token,
     };
   });
 

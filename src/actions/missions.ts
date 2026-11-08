@@ -31,6 +31,7 @@ export interface MissionItem {
   at_shop_at?: string | null;
   cancel_reason?: string | null;
   fail_reason?: string | null;
+  pickup_check_status?: 'CONFORM' | 'CORRECTED' | null;
   // Joins facultatifs pour responsables
   assigned_courier_name?: string | null;
   request_code?: string | null;
@@ -425,6 +426,7 @@ export async function listMissionsAction() {
       at_shop_at: m.at_shop_at,
       cancel_reason: m.cancel_reason,
       fail_reason: m.fail_reason,
+      pickup_check_status: m.pickup_check_status,
       assigned_courier_name: m.assigned_to ? courierMap.get(m.assigned_to) || 'Livreur attribué' : null,
       request_code: m.order?.request_code || null,
       ticket_number: m.order?.ticket_number || null,
