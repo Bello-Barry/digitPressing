@@ -458,6 +458,9 @@ CREATE TRIGGER trg_prevent_cash_close_with_unhanded_delivery_cash BEFORE UPDATE 
   FOR EACH ROW EXECUTE FUNCTION public.prevent_cash_close_with_unhanded_delivery_cash();
 
 -- Ended courier missions expose client details only for the seven-day audit window.
+-- PostgreSQL does not allow CREATE OR REPLACE to alter a function's OUT row type.
+-- Dropping this RPC is safe here: no database object depends on it and it is recreated below.
+DROP FUNCTION IF EXISTS public.get_mission_details(UUID);
 CREATE OR REPLACE FUNCTION public.get_mission_details(p_mission_id UUID)
 RETURNS TABLE (
   id UUID, organization_id UUID, order_id UUID, kind TEXT, status TEXT, assigned_to UUID,
