@@ -16,6 +16,13 @@ import {
   failMissionAction,
   getMissionDetailsAction,
   getActiveCouriersAction,
+  recordDeliveryPaymentAction,
+  confirmDeliveryMissionAction,
+  getDeliveryCustomerWhatsAppLinkAction,
+  authorizeUnpaidDeliveryAction,
+  getDeliveryCashHandoverDataAction,
+  createDeliveryCashHandoverAction,
+  confirmDeliveryCashHandoverAction,
   MissionItem,
 } from '@/actions/missions';
 import {
@@ -117,6 +124,11 @@ export function MissionsViewClient() {
   const [activeActionMissionId, setActiveActionMissionId] = useState<string | null>(null);
   const [receiptDrafts, setReceiptDrafts] = useState<Record<string, ReceiptLineInput[]>>({});
   const [receiptResolutionNotes, setReceiptResolutionNotes] = useState<Record<string, string>>({});
+  const [deliveryCodes, setDeliveryCodes] = useState<Record<string, string>>({});
+  const [deliveryPayments, setDeliveryPayments] = useState<Record<string, { amount: string; method: 'CASH' | 'MTN_MOMO' | 'AIRTEL_MONEY' | 'OTHER'; reference: string }>>({});
+  const [overrideReasons, setOverrideReasons] = useState<Record<string, string>>({});
+  const [cashData, setCashData] = useState<any | null>(null);
+  const [cashAmounts, setCashAmounts] = useState<Record<string, { amount: string; note: string }>>({});
 
   // Formateur FCFA
   const formatMoney = (amount: number) => {
@@ -183,6 +195,8 @@ export function MissionsViewClient() {
       listOpenMissionsAction(),
       getActiveCouriersAction(),
     ]);
+    const cashRes = await getDeliveryCashHandoverDataAction();
+    if (cashRes.success) setCashData(cashRes);
 
     if (listRes.success && listRes.missions) {
       setMissions(listRes.missions);
@@ -797,7 +811,7 @@ export function MissionsViewClient() {
                               </div>
 
                               {/* ÉTAPE DU CONTRÔLE CHEZ LE CLIENT (Règle 7 & Tâche D2) */}
-                              {m.status === 'AT_CUSTOMER' && (
+                              {m.kind === 'COLLECTION' && m.status === 'AT_CUSTOMER' && (
                                 <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                                   <div className="flex items-center justify-between text-xs">
                                     <span className="font-bold text-white flex items-center">
@@ -881,7 +895,7 @@ export function MissionsViewClient() {
                                   </button>
                                 )}
 
-                                {m.status === 'AT_CUSTOMER' && (
+                                {m.kind === 'COLLECTION' && m.status === 'AT_CUSTOMER' && (
                                   <button
                                     onClick={() => handleAdvance(m.id, 'COLLECTED')}
                                     disabled={submitting}
@@ -890,6 +904,27 @@ export function MissionsViewClient() {
                                     <CheckCircle2 className="w-4 h-4" />
                                     <span>Collecte confirmée (Saisir le nb de pièces)</span>
                                   </button>
+                                )}
+
+                                {m.kind === 'DELIVERY' && m.status === 'AT_CUSTOMER' && (
+                                  <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3">
+                                    <div className="text-xs text-emerald-200 font-semibold">Confirmation du client par code, puis paiement du solde avant remise.</div>
+                                    <a href="#" onClick={async (event) => { event.preventDefault(); const result = await getDeliveryCustomerWhatsAppLinkAction(m.id); if (result.success && result.url) window.open(result.url, '_blank', 'noopener,noreferrer'); else toast({ title: 'Lien indisponible', description: result.error, variant: 'destructive' }); }} className="block rounded-lg bg-emerald-600 px-3 py-2 text-center text-xs font-bold text-white">Envoyer le lien de suivi sur WhatsApp</a>
+                                    {Number(m.delivery_balance_due || 0) > 0 && <div className="space-y-2 rounded-lg bg-slate-950 p-2">
+                                      <div className="text-xs text-amber-300">Solde dû : {formatMoney(Number(m.delivery_balance_due))}</div>
+                                      <input type="number" min="1" max={m.delivery_balance_due} value={deliveryPayments[m.id]?.amount || String(m.delivery_balance_due)} onChange={(e) => setDeliveryPayments((v) => ({ ...v, [m.id]: { amount: e.target.value, method: v[m.id]?.method || 'CASH', reference: v[m.id]?.reference || '' } }))} className="w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white" placeholder="Montant encaissé" />
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <select value={deliveryPayments[m.id]?.method || 'CASH'} onChange={(e) => setDeliveryPayments((v) => ({ ...v, [m.id]: { amount: v[m.id]?.amount || String(m.delivery_balance_due), method: e.target.value as any, reference: v[m.id]?.reference || '' } }))} className="rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white"><option value="CASH">Espèces</option><option value="MTN_MOMO">MTN MoMo</option><option value="AIRTEL_MONEY">Airtel Money</option><option value="OTHER">Autre</option></select>
+                                        <input value={deliveryPayments[m.id]?.reference || ''} onChange={(e) => setDeliveryPayments((v) => ({ ...v, [m.id]: { amount: v[m.id]?.amount || String(m.delivery_balance_due), method: v[m.id]?.method || 'CASH', reference: e.target.value } }))} className="rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white" placeholder="Référence (si mobile)" />
+                                      </div>
+                                      <button disabled={submitting} onClick={async () => { setSubmitting(true); const input = deliveryPayments[m.id]; const result = await recordDeliveryPaymentAction(m.id, Number(input?.amount || m.delivery_balance_due), input?.method || 'CASH', input?.reference || ''); setSubmitting(false); if (!result.success) toast({ title: 'Paiement refusé', description: result.error, variant: 'destructive' }); else { toast({ title: 'Paiement enregistré', description: 'Le solde de la commande a été actualisé.' }); loadData(); } }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Enregistrer le paiement</button>
+                                    </div>}
+                                    {m.delivery_override_authorized && <p className="text-xs text-amber-300">Dérogation impayée motivée autorisée par un responsable.</p>}
+                                    <div className="flex gap-2">
+                                      <input inputMode="numeric" maxLength={6} value={deliveryCodes[m.id] || ''} onChange={(e) => setDeliveryCodes((v) => ({ ...v, [m.id]: e.target.value.replace(/\D/g, '').slice(0, 6) }))} className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900 p-2 text-sm text-white tracking-widest" placeholder="Code client à 6 chiffres" />
+                                      <button disabled={submitting || (deliveryCodes[m.id] || '').length !== 6} onClick={async () => { setSubmitting(true); const result = await confirmDeliveryMissionAction(m.id, deliveryCodes[m.id] || ''); setSubmitting(false); if (!result.success) toast({ title: 'Remise non confirmée', description: result.error, variant: 'destructive' }); else { toast({ title: 'Livraison confirmée', description: 'Commande et mission clôturées.' }); loadData(); } }} className="rounded-md bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Confirmer remise</button>
+                                    </div>
+                                  </div>
                                 )}
 
                                 {m.status === 'COLLECTED' && (
@@ -950,6 +985,19 @@ export function MissionsViewClient() {
       {/* VUE GESTIONNAIRES (OWNER, MANAGER, CASHIER) */}
       {userRole !== 'DELIVERY' && (
         <div className="space-y-4">
+          {userRole === 'OWNER' || userRole === 'MANAGER' ? <section className="rounded-2xl border border-amber-500/30 bg-slate-900 p-4 space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-amber-300">Dérogations de livraison impayée</h2>
+            {missions.filter((m) => m.kind === 'DELIVERY' && m.order_status === 'READY' && Number(m.delivery_balance_due || 0) > 0).map((m) => <div key={`override-${m.id}`} className="rounded-xl bg-slate-950 p-3 space-y-2">
+              <div className="text-xs text-white">{m.ticket_number || m.request_code} · {formatMoney(Number(m.delivery_balance_due))} dû</div>
+              {m.delivery_override_authorized ? <div className="text-xs text-emerald-300">Dérogation déjà autorisée.</div> : <><textarea value={overrideReasons[m.order_id] || ''} onChange={(e) => setOverrideReasons((v) => ({ ...v, [m.order_id]: e.target.value }))} minLength={5} placeholder="Motif de la dérogation (minimum 5 caractères)" className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-white"/><button disabled={submitting || (overrideReasons[m.order_id] || '').trim().length < 5} onClick={async () => { setSubmitting(true); const result = await authorizeUnpaidDeliveryAction(m.order_id, overrideReasons[m.order_id] || ''); setSubmitting(false); if (!result.success) toast({ title: 'Dérogation refusée', description: result.error, variant: 'destructive' }); else { toast({ title: 'Dérogation autorisée' }); loadData(); } }} className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Autoriser cette remise sans paiement complet</button></>}
+            </div>)}
+          </section> : null}
+
+          {cashData && <section className="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-white">Remise des espèces des livreurs</h2>
+            {userRole === 'DELIVERY' ? <><div className="text-xs text-slate-300">Espèces à remettre : {formatMoney((cashData.unhanded || []).reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0))} ({cashData.unhanded?.length || 0} paiement(s))</div>{cashData.unhanded?.length > 0 && <div className="space-y-2"><input type="number" min="0" value={cashAmounts.new?.amount ?? String(cashData.unhanded.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0))} onChange={(e) => setCashAmounts((v) => ({ ...v, new: { amount: e.target.value, note: '' } }))} className="w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-xs text-white" placeholder="Montant remis au caissier"/><button disabled={submitting} onClick={async () => { setSubmitting(true); const result = await createDeliveryCashHandoverAction(Number(cashAmounts.new?.amount || 0)); setSubmitting(false); if (!result.success) toast({ title: 'Remise non enregistrée', description: result.error, variant: 'destructive' }); else { toast({ title: 'Remise transmise', description: 'Présentez-vous au caissier pour validation.' }); loadData(); } }} className="w-full rounded-md bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950">Déclarer la remise au caissier</button></div>}</> : <div className="space-y-3">{cashData.handovers?.filter((h: any) => h.status === 'PENDING' || h.status === 'DISCREPANCY').map((h: any) => <div key={h.id} className={`rounded-xl border p-3 space-y-2 ${h.status === 'DISCREPANCY' ? 'border-rose-500/50 bg-rose-950/20' : 'border-slate-700 bg-slate-950'}`}><div className="text-xs font-semibold text-white">{h.courier_name} · attendu {formatMoney(Number(h.expected_cash_amount))} · déclaré {formatMoney(Number(h.declared_amount))}</div>{h.status === 'DISCREPANCY' ? <div className="text-xs text-rose-300">Écart {formatMoney(Math.abs(Number(h.discrepancy)))} : {h.resolution_note}</div> : <div className="flex gap-2"><input type="number" min="0" value={cashAmounts[h.id]?.amount || ''} onChange={(e) => setCashAmounts((v) => ({ ...v, [h.id]: { amount: e.target.value, note: v[h.id]?.note || '' } }))} className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white" placeholder="Montant compté"/><input value={cashAmounts[h.id]?.note || ''} onChange={(e) => setCashAmounts((v) => ({ ...v, [h.id]: { amount: v[h.id]?.amount || '', note: e.target.value } }))} className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white" placeholder="Motif obligatoire si écart"/><button disabled={!cashAmounts[h.id]?.amount || submitting} onClick={async () => { setSubmitting(true); const result = await confirmDeliveryCashHandoverAction(h.id, Number(cashAmounts[h.id].amount), cashAmounts[h.id].note); setSubmitting(false); if (!result.success) toast({ title: 'Validation refusée', description: result.error, variant: 'destructive' }); else { toast({ title: (result.result as any)?.status === 'DISCREPANCY' ? 'Écart signalé' : 'Remise validée' }); loadData(); } }} className="rounded-md bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Valider</button></div>}</div>)}</div>}
+          </section>}
+
           {/* Liste Accords non vérifiés (Règle 6) */}
           {(userRole === 'OWNER' || userRole === 'MANAGER') && unverifiedList.length > 0 && (
             <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-2xl space-y-3 shadow-lg">
