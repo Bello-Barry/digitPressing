@@ -464,6 +464,37 @@ export function formatAuditAction(log: Partial<AuditLogEntry>): {
     }
   }
 
+  if (objectType === 'delivery_receipts') {
+    const status = after.status || before.status;
+    if (action === 'INSERT') {
+      return {
+        title: status === 'DISCREPANCY' ? 'Écart de réception détecté' : 'Contrôle de réception enregistré',
+        description: `Pièces attendues : ${after.expected_items_count ?? 0}, reçues : ${after.received_items_count ?? 0}`,
+        badgeColor: status === 'DISCREPANCY' ? 'rose' : 'emerald',
+        reason: after.discrepancy_note || null,
+      };
+    }
+    if (action === 'UPDATE' && status === 'RESOLVED') {
+      return {
+        title: 'Écart de réception traité',
+        description: `Pièces reçues : ${after.received_items_count ?? 0}`,
+        badgeColor: 'amber',
+        reason: after.resolution_note || null,
+      };
+    }
+  }
+
+  if (objectType === 'delivery_receipt_lines') {
+    const expected = after.expected_quantity ?? before.expected_quantity ?? 0;
+    const received = after.received_quantity ?? before.received_quantity ?? 0;
+    return {
+      title: expected === received ? 'Ligne de réception contrôlée' : 'Écart sur une ligne de réception',
+      description: `${after.service_name || before.service_name || 'Article'} : attendu ${expected}, reçu ${received}`,
+      badgeColor: expected === received ? 'blue' : 'rose',
+      reason: after.discrepancy_note || before.discrepancy_note || null,
+    };
+  }
+
   // 13. DELIVERY_MISSIONS / MISSIONS DE LIVRAISON
   if (objectType === 'delivery_missions') {
     const kindLabel = after.kind === 'COLLECTION' || before.kind === 'COLLECTION' ? 'Collecte' : 'Livraison';

@@ -7,7 +7,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { requirePermission } from '@/lib/permissions-server';
-import { can, Permission } from '@/lib/permissions';
+import { Permission } from '@/lib/permissions';
 import type { Database } from '@/types/supabase';
 import { revalidatePath } from 'next/cache';
 
@@ -250,6 +250,26 @@ export async function receiveOrderAction(
 
     if (auth.order.status !== 'VALIDATED' || !Number.isInteger(itemsCountIn) || itemsCountIn < 1) {
       return { success: false, error: 'Validez la demande et saisissez un nombre de pièces valide avant réception.' };
+    }
+
+    const { data: collectionMission, error: missionLookupError } = await db
+      .from('delivery_missions')
+      .select('id, status')
+      .eq('order_id', orderId)
+      .eq('kind', 'COLLECTION')
+      .not('status', 'in', '(FAILED,CANCELLED)')
+      .maybeSingle();
+    if (missionLookupError) {
+      console.error('Erreur de vérification de mission de collecte avant réception:', missionLookupError);
+      return { success: false, error: 'Impossible de vérifier le contrôle de collecte. Réessayez.' };
+    }
+    if (collectionMission) {
+      return {
+        success: false,
+        error: collectionMission.status === 'AT_SHOP'
+          ? 'Cette commande a été collectée par un livreur. Validez son contrôle de réception dans Missions.'
+          : 'Cette commande suit une mission de collecte. Le ticket sera attribué après le contrôle de réception D3.',
+      };
     }
 
     // Appel de la fonction atomique PostgreSQL
