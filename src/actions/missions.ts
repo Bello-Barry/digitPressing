@@ -37,6 +37,8 @@ export interface MissionItem {
   request_code?: string | null;
   ticket_number?: string | null;
   order_status?: string | null;
+  delivery_balance_due?: number;
+  delivery_override_authorized?: boolean;
   client_name?: string | null;
   receipt_status?: 'CONFORM' | 'DISCREPANCY' | 'RESOLVED' | null;
   receipt_id?: string | null;
@@ -416,7 +418,7 @@ export async function listMissionsAction() {
       .from('delivery_missions')
       .select(`
         *,
-        order:orders(request_code, ticket_number, status, client_name, pickup_address, delivery_address, order_items(id, service_name, quantity, item_type, color, pattern, brand, size, item_notes)),
+        order:orders(request_code, ticket_number, status, client_name, pickup_address, delivery_address, mode, delivery_override_by, order_items(id, service_name, quantity, item_type, color, pattern, brand, size, item_notes)),
         receipt:delivery_receipts(id, status, receipt_lines:delivery_receipt_lines(id, order_item_id, service_name, expected_quantity, received_quantity, discrepancy_note, condition_discrepancy, condition_note, item_type, color, pattern, brand, size, item_notes))
       `)
       .eq('organization_id', mem.organization_id)
@@ -433,6 +435,10 @@ export async function listMissionsAction() {
     if (error) {
       return { success: false, error: error.message };
     }
+
+    const orderIds = [...new Set((rawMissions || []).map((m: any) => m.order_id))];
+    const { data: balances } = orderIds.length ? await db.from('order_payment_summary').select('order_id,balance_due').in('order_id', orderIds) : { data: [] as any[] };
+    const balanceByOrder = new Map((balances || []).map((row: any) => [row.order_id, Number(row.balance_due || 0)]));
 
     const missions: MissionItem[] = (rawMissions || []).map((m: any) => ({
       id: m.id,
@@ -461,6 +467,8 @@ export async function listMissionsAction() {
       request_code: m.order?.request_code || null,
       ticket_number: m.order?.ticket_number || null,
       order_status: m.order?.status || null,
+      delivery_balance_due: balanceByOrder.get(m.order_id) || 0,
+      delivery_override_authorized: Boolean(m.order?.delivery_override_by),
       client_name: m.order?.client_name || null,
       receipt_id: (Array.isArray(m.receipt) ? m.receipt[0] : m.receipt)?.id || null,
       receipt_status: (Array.isArray(m.receipt) ? m.receipt[0] : m.receipt)?.status || null,
@@ -600,4 +608,85 @@ export async function getActiveCouriersAction() {
       error: err instanceof Error ? err.message : 'Erreur de chargement des livreurs.',
     };
   }
+}
+
+export async function recordDeliveryPaymentAction(missionId: string, amount: number, method: 'CASH' | 'MTN_MOMO' | 'AIRTEL_MONEY' | 'OTHER', reference = '') {
+  const auth = await requirePermission('record_payment');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Encaissement refusé.' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Montant invalide.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('record_delivery_mission_payment', {
+    p_mission_id: missionId, p_amount: amount, p_method: method, p_reference: reference || null,
+    p_idempotency_key: crypto.randomUUID(),
+  });
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/missions'); revalidatePath('/admin/paiements');
+  return { success: true, payment: data };
+}
+
+export async function confirmDeliveryMissionAction(missionId: string, code: string) {
+  const auth = await requirePermission('run_mission');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('confirm_delivery_mission', { p_mission_id: missionId, p_code: code.trim() });
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/missions'); revalidatePath('/admin/commandes'); revalidatePath('/admin');
+  return { success: Boolean((data as any)?.ok), result: data, error: (data as any)?.ok ? undefined : (data as any)?.message };
+}
+
+export async function authorizeUnpaidDeliveryAction(orderId: string, reason: string) {
+  const auth = await requirePermission('manage_missions');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  if (reason.trim().length < 5) return { success: false, error: 'Le motif doit contenir au moins cinq caractères.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('authorize_unpaid_delivery', { p_order_id: orderId, p_reason: reason.trim() });
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/missions'); revalidatePath('/admin/commandes');
+  return { success: true, result: data };
+}
+
+export async function getDeliveryCustomerWhatsAppLinkAction(missionId: string) {
+  const auth = await requirePermission('run_mission');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('get_delivery_customer_whatsapp_link', { p_mission_id: missionId });
+  return error ? { success: false, error: error.message } : { success: true, url: data as string };
+}
+
+export async function getDeliveryCashHandoverDataAction() {
+  const auth = await requirePermission('record_expense');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  const db = await createServerSupabaseClient();
+  const { data: user } = await db.auth.getUser();
+  const { data: membership } = await db.from('memberships').select('organization_id,role').eq('user_id', user.user?.id || '').single();
+  if (!membership) return { success: false, error: 'Membre introuvable.' };
+  if (membership.role === 'DELIVERY') {
+    const { data, error } = await db.rpc('list_unhanded_delivery_cash');
+    return error ? { success: false, error: error.message } : { success: true, role: membership.role, unhanded: data || [], handovers: [] };
+  }
+  const { data, error } = await db.from('delivery_cash_handovers').select('id,courier_id,status,expected_cash_amount,declared_amount,counted_amount,discrepancy,resolution_note,submitted_at,validated_at').eq('organization_id', membership.organization_id).order('submitted_at', { ascending: false }).limit(30);
+  if (error) return { success: false, error: error.message };
+  const { data: couriers } = await db.from('memberships').select('user_id,full_name').eq('organization_id', membership.organization_id);
+  const names = new Map((couriers || []).map((c: any) => [c.user_id, c.full_name || 'Livreur']));
+  return { success: true, role: membership.role, unhanded: [], handovers: (data || []).map((h: any) => ({ ...h, courier_name: names.get(h.courier_id) || 'Livreur' })) };
+}
+
+export async function createDeliveryCashHandoverAction(declaredAmount: number) {
+  const auth = await requirePermission('run_mission');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('create_delivery_cash_handover', { p_declared_amount: declaredAmount });
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/missions');
+  return { success: true, handoverId: data as string };
+}
+
+export async function confirmDeliveryCashHandoverAction(handoverId: string, countedAmount: number, note: string) {
+  const auth = await requirePermission('record_expense');
+  if (!auth.authorized) return { success: false, error: auth.error || 'Permission insuffisante.' };
+  const db = await createServerSupabaseClient();
+  const { data, error } = await db.rpc('confirm_delivery_cash_handover', { p_handover_id: handoverId, p_counted_amount: countedAmount, p_resolution_note: note || null });
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/missions'); revalidatePath('/admin/caisse');
+  return { success: true, result: data };
 }
